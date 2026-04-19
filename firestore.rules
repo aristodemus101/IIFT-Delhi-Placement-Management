@@ -2,14 +2,64 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Only authenticated users can read/write students and templates
-    // Tighten this further by whitelisting specific emails if needed
-    match /students/{docId} {
-      allow read, write: if request.auth != null;
+    // Helper: fetch the caller's role document
+    function roleData() {
+      return get(/databases/$(database)/documents/roles/$(request.auth.uid)).data;
     }
 
-    match /templates/{docId} {
-      allow read, write: if request.auth != null;
+    function isAuthed()  { return request.auth != null; }
+    function isAdmin()   { return isAuthed() && roleData().role == 'admin'; }
+    function hasRole()   { return isAuthed() && roleData().role in ['admin', 'viewer']; }
+
+    // ── Students ────────────────────────────────────────────────────────────
+    // Viewers: read only. Admins: read + write.
+    // Direct writes by admins are allowed; the approval workflow is enforced
+    // at the app layer and backed by the immutable auditLog.
+    match /students/{id} {
+      allow read:  if hasRole();
+      allow write: if isAdmin();
+    }
+
+    // ── Pending Changes ─────────────────────────────────────────────────────
+    // Only admins can propose (create) or review (update) changes.
+    // An admin cannot approve/reject their own proposal (enforced here AND in app).
+    match /pendingChanges/{id} {
+      allow read: if hasRole();
+
+      allow create: if isAdmin()
+        && request.resource.data.proposedBy == request.auth.uid
+        && request.resource.data.status    == 'pending';
+
+      allow update: if isAdmin()
+        && resource.data.proposedBy           != request.auth.uid
+        && resource.data.status               == 'pending'
+        && request.resource.data.status       in ['approved', 'rejected']
+        && request.resource.data.proposedBy   == resource.data.proposedBy;
+    }
+
+    // ── Roles ───────────────────────────────────────────────────────────────
+    // Any authenticated user can read roles (needed to check their own role).
+    // Any authenticated user can create their OWN role doc on first login.
+    // Only admins can promote/demote others.
+    match /roles/{uid} {
+      allow read:   if isAuthed();
+      allow create: if isAuthed() && request.auth.uid == uid;
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // ── Audit Log ───────────────────────────────────────────────────────────
+    // Immutable. Admins can append; nobody can modify or delete.
+    match /auditLog/{id} {
+      allow read:          if hasRole();
+      allow create:        if isAdmin();
+      allow update, delete: if false;
+    }
+
+    // ── Templates ───────────────────────────────────────────────────────────
+    // Column-mapping templates are non-sensitive; any authed user can manage them.
+    match /templates/{id} {
+      allow read, write: if isAuthed();
     }
 
     // Deny everything else

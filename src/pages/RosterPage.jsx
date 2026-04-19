@@ -1,6 +1,7 @@
-// src/pages/RosterPage.jsx
 import React, { useState, useMemo, useRef } from 'react'
 import { useStudents } from '../lib/useStudents'
+import { usePendingChanges } from '../lib/PendingChangesContext'
+import { useAuth } from '../lib/AuthContext'
 import { getVal, OUR_COLS } from '../lib/columns'
 import { parseCSVFile, exportToCSV } from '../lib/csv'
 import {
@@ -8,22 +9,27 @@ import {
   Spinner, Modal, Table
 } from '../components/UI'
 import {
-  Upload, Download, CheckCircle, Trash2, Eye, X, AlertTriangle, Search
+  Upload, Download, CheckCircle, Trash2, Eye, AlertTriangle, Search, Lock
 } from 'lucide-react'
 
 const NUMERIC = ['cat', 'wx', 'ugpct', 'x10pct', 'x12pct', 'age', 'cat_score']
 
 export default function RosterPage() {
-  const { students, loading, addStudents, markPlaced, deleteStudent, clearAll } = useStudents()
+  const { students, loading } = useStudents()
+  const { propose } = usePendingChanges()
+  const { isAdmin } = useAuth()
+
   const [sortCol, setSortCol] = useState('cat')
   const [sortDir, setSortDir] = useState(-1)
   const [filters, setFilters] = useState({ name: '', catMin: '', wxMin: '', category: '', gender: '', pwdOnly: false })
-  const [placeModal, setPlaceModal] = useState(null) // student obj
+  const [placeModal, setPlaceModal] = useState(null)
   const [placeCompany, setPlaceCompany] = useState('')
   const [viewModal, setViewModal] = useState(null)
+  const [confirmClear, setConfirmClear] = useState(false)
   const [importing, setImporting] = useState(false)
   const [importMsg, setImportMsg] = useState('')
-  const [confirmClear, setConfirmClear] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [successMsg, setSuccessMsg] = useState('')
   const fileRef = useRef()
 
   const active = students.filter(s => !s._placed)
@@ -50,19 +56,20 @@ export default function RosterPage() {
 
   const setF = (k, v) => setFilters(f => ({ ...f, [k]: v }))
   const clearFilters = () => setFilters({ name: '', catMin: '', wxMin: '', category: '', gender: '', pwdOnly: false })
-
   const handleSort = col => {
     if (sortCol === col) setSortDir(d => -d)
     else { setSortCol(col); setSortDir(-1) }
   }
+
+  const flash = (msg) => { setSuccessMsg(msg); setTimeout(() => setSuccessMsg(''), 4000) }
 
   const handleImport = async e => {
     const file = e.target.files[0]; if (!file) return
     setImporting(true); setImportMsg('')
     try {
       const rows = await parseCSVFile(file)
-      await addStudents(rows)
-      setImportMsg(`Imported ${rows.length} candidates`)
+      await propose({ type: 'import', rows, rowCount: rows.length })
+      flash(`Import of ${rows.length} students proposed — awaiting approval from another admin.`)
     } catch (err) {
       setImportMsg('Import failed: ' + err.message)
     }
@@ -70,23 +77,54 @@ export default function RosterPage() {
     fileRef.current.value = ''
   }
 
-  const doPlace = async () => {
+  const proposePlace = async () => {
     if (!placeCompany.trim()) return
-    await markPlaced(placeModal._id, placeCompany.trim())
-    setPlaceModal(null); setPlaceCompany('')
+    setBusy(true)
+    try {
+      await propose({
+        type: 'place',
+        studentId: placeModal._id,
+        studentName: getVal(placeModal, 'name'),
+        studentRoll: getVal(placeModal, 'roll'),
+        company: placeCompany.trim(),
+      })
+      flash(`Placement proposal for ${getVal(placeModal, 'name')} submitted — awaiting approval.`)
+      setPlaceModal(null); setPlaceCompany('')
+    } catch (e) { alert(e.message) }
+    setBusy(false)
+  }
+
+  const proposeDelete = async (s) => {
+    await propose({
+      type: 'delete',
+      studentId: s._id,
+      studentName: getVal(s, 'name'),
+      studentRoll: getVal(s, 'roll'),
+    })
+    flash(`Deletion of ${getVal(s, 'name')} proposed — awaiting approval.`)
+  }
+
+  const proposeClearAll = async () => {
+    await propose({
+      type: 'clearAll',
+      studentIds: students.map(s => s._id),
+      studentCount: students.length,
+    })
+    flash(`Clear-all proposed — awaiting approval from another admin.`)
+    setConfirmClear(false)
   }
 
   const headers = [
-    { label: 'Roll No.',  onClick: () => handleSort('roll'),   sorted: sortCol === 'roll' ? sortDir : 0 },
-    { label: 'Name',      onClick: () => handleSort('name'),   sorted: sortCol === 'name' ? sortDir : 0 },
-    { label: 'Gender',    onClick: () => handleSort('gender'), sorted: sortCol === 'gender' ? sortDir : 0 },
-    { label: 'CAT %ile',  onClick: () => handleSort('cat'),    sorted: sortCol === 'cat' ? sortDir : 0 },
+    { label: 'Roll No.',  onClick: () => handleSort('roll'),     sorted: sortCol === 'roll' ? sortDir : 0 },
+    { label: 'Name',      onClick: () => handleSort('name'),     sorted: sortCol === 'name' ? sortDir : 0 },
+    { label: 'Gender',    onClick: () => handleSort('gender'),   sorted: sortCol === 'gender' ? sortDir : 0 },
+    { label: 'CAT %ile',  onClick: () => handleSort('cat'),      sorted: sortCol === 'cat' ? sortDir : 0 },
     { label: 'Category',  onClick: () => handleSort('category'), sorted: sortCol === 'category' ? sortDir : 0 },
-    { label: 'Work Ex',   onClick: () => handleSort('wx'),     sorted: sortCol === 'wx' ? sortDir : 0 },
-    { label: 'UG Degree', onClick: () => handleSort('ug'),     sorted: sortCol === 'ug' ? sortDir : 0 },
-    { label: 'UG %',      onClick: () => handleSort('ugpct'),  sorted: sortCol === 'ugpct' ? sortDir : 0 },
-    { label: 'XII %',     onClick: () => handleSort('x12pct'), sorted: sortCol === 'x12pct' ? sortDir : 0 },
-    { label: 'X %',       onClick: () => handleSort('x10pct'), sorted: sortCol === 'x10pct' ? sortDir : 0 },
+    { label: 'Work Ex',   onClick: () => handleSort('wx'),       sorted: sortCol === 'wx' ? sortDir : 0 },
+    { label: 'UG Degree', onClick: () => handleSort('ug'),       sorted: sortCol === 'ug' ? sortDir : 0 },
+    { label: 'UG %',      onClick: () => handleSort('ugpct'),    sorted: sortCol === 'ugpct' ? sortDir : 0 },
+    { label: 'XII %',     onClick: () => handleSort('x12pct'),   sorted: sortCol === 'x12pct' ? sortDir : 0 },
+    { label: 'X %',       onClick: () => handleSort('x10pct'),   sorted: sortCol === 'x10pct' ? sortDir : 0 },
     { label: 'Actions',   onClick: null },
   ]
 
@@ -103,8 +141,16 @@ export default function RosterPage() {
     <span>{parseFloat(getVal(s, 'x10pct')).toFixed(1) || '—'}%</span>,
     <div style={{ display: 'flex', gap: 6 }}>
       <Btn size="sm" variant="ghost" onClick={() => setViewModal(s)} title="View details"><Eye size={13} /></Btn>
-      <Btn size="sm" variant="success" onClick={() => { setPlaceModal(s); setPlaceCompany('') }} title="Mark placed"><CheckCircle size={13} /> Place</Btn>
-      <Btn size="sm" variant="ghost" onClick={() => { if (confirm('Delete this student?')) deleteStudent(s._id) }} title="Delete"><Trash2 size={13} /></Btn>
+      {isAdmin && (
+        <>
+          <Btn size="sm" variant="success" onClick={() => { setPlaceModal(s); setPlaceCompany('') }} title="Propose placement">
+            <CheckCircle size={13} /> Place
+          </Btn>
+          <Btn size="sm" variant="ghost" onClick={() => proposeDelete(s)} title="Propose deletion">
+            <Trash2 size={13} />
+          </Btn>
+        </>
+      )}
     </div>
   ])
 
@@ -117,24 +163,42 @@ export default function RosterPage() {
         subtitle={`${filtered.length} of ${active.length} available candidates`}
         actions={
           <>
-            <Btn size="sm" variant="ghost" onClick={() => setConfirmClear(true)} style={{ color: 'var(--red-text)' }}>
-              <Trash2 size={13} /> Clear All
-            </Btn>
+            {isAdmin && (
+              <Btn size="sm" variant="ghost" onClick={() => setConfirmClear(true)} style={{ color: 'var(--red-text)' }}>
+                <Trash2 size={13} /> Clear All
+              </Btn>
+            )}
             <Btn size="sm" onClick={() => exportToCSV(filtered, 'filtered_roster.csv')}>
               <Download size={13} /> Export
             </Btn>
-            <Btn size="sm" variant="primary" onClick={() => fileRef.current.click()} disabled={importing}>
-              <Upload size={13} /> {importing ? 'Importing…' : 'Import CSV'}
-            </Btn>
-            <input ref={fileRef} type="file" accept=".csv" style={{ display: 'none' }} onChange={handleImport} />
+            {isAdmin && (
+              <>
+                <Btn size="sm" variant="primary" onClick={() => fileRef.current.click()} disabled={importing}>
+                  <Upload size={13} /> {importing ? 'Importing…' : 'Import CSV'}
+                </Btn>
+                <input ref={fileRef} type="file" accept=".csv" style={{ display: 'none' }} onChange={handleImport} />
+              </>
+            )}
           </>
         }
       />
 
-      {importMsg && (
+      {/* Viewer notice */}
+      {!isAdmin && (
+        <div style={{ margin: '12px 28px 0', padding: '9px 14px', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: 13, display: 'flex', gap: 8, alignItems: 'center', color: 'var(--text-2)' }}>
+          <Lock size={13} /> You have read-only access. Contact an admin to make changes.
+        </div>
+      )}
+
+      {successMsg && (
         <div style={{ margin: '12px 28px 0', padding: '10px 14px', background: 'var(--green-bg)', color: 'var(--green-text)', border: '1px solid var(--green-border)', borderRadius: 'var(--radius-sm)', fontSize: 13, display: 'flex', gap: 8, alignItems: 'center' }}>
-          <CheckCircle size={14} /> {importMsg}
-          <button onClick={() => setImportMsg('')} style={{ marginLeft: 'auto', border: 'none', background: 'none', cursor: 'pointer', color: 'inherit' }}>×</button>
+          <CheckCircle size={14} /> {successMsg}
+        </div>
+      )}
+
+      {importMsg && (
+        <div style={{ margin: '12px 28px 0', padding: '10px 14px', background: 'var(--red-bg)', color: 'var(--red-text)', border: '1px solid var(--red-border)', borderRadius: 'var(--radius-sm)', fontSize: 13 }}>
+          {importMsg}
         </div>
       )}
 
@@ -165,25 +229,28 @@ export default function RosterPage() {
         <Table headers={headers} rows={rows} emptyMessage={active.length ? 'No candidates match filters' : 'No candidates yet — import a CSV to get started'} />
       </div>
 
-      {/* Mark Placed Modal */}
-      <Modal open={!!placeModal} onClose={() => setPlaceModal(null)} title="Mark as Placed">
+      {/* Propose Placement Modal */}
+      <Modal open={!!placeModal} onClose={() => setPlaceModal(null)} title="Propose Placement">
         {placeModal && (
           <div>
-            <p style={{ fontSize: 14, marginBottom: 16, color: 'var(--text-2)' }}>
-              Marking <strong style={{ color: 'var(--text)' }}>{getVal(placeModal, 'name')}</strong> as placed. This will move them to the Placed sheet.
-            </p>
+            <div style={{ background: 'var(--surface2)', borderRadius: 'var(--radius-sm)', padding: '10px 14px', marginBottom: 16, fontSize: 13 }}>
+              Proposing placement for <strong>{getVal(placeModal, 'name')}</strong>.
+              A second admin will need to approve before the change is applied.
+            </div>
             <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Company / Organisation</label>
             <Input
               value={placeCompany}
               onChange={e => setPlaceCompany(e.target.value)}
               placeholder="e.g. McKinsey & Company"
               style={{ width: '100%', marginBottom: 16 }}
-              onKeyDown={e => e.key === 'Enter' && doPlace()}
+              onKeyDown={e => e.key === 'Enter' && proposePlace()}
               autoFocus
             />
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <Btn onClick={() => setPlaceModal(null)}>Cancel</Btn>
-              <Btn variant="success" onClick={doPlace} disabled={!placeCompany.trim()}><CheckCircle size={14} /> Confirm Placement</Btn>
+              <Btn variant="success" onClick={proposePlace} disabled={!placeCompany.trim() || busy}>
+                <CheckCircle size={14} /> Submit Proposal
+              </Btn>
             </div>
           </div>
         )}
@@ -199,7 +266,7 @@ export default function RosterPage() {
               return (
                 <div key={col.key} style={{ paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>
                   <div style={{ fontSize: 11, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 2 }}>{col.label}</div>
-                  <div style={{ fontSize: 13, fontWeight: 400 }}>{val}</div>
+                  <div style={{ fontSize: 13 }}>{val}</div>
                 </div>
               )
             })}
@@ -207,18 +274,18 @@ export default function RosterPage() {
         )}
       </Modal>
 
-      {/* Confirm clear all */}
-      <Modal open={confirmClear} onClose={() => setConfirmClear(false)} title="Clear all data?">
+      {/* Confirm Clear All */}
+      <Modal open={confirmClear} onClose={() => setConfirmClear(false)} title="Propose clearing all data?">
         <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 20 }}>
           <AlertTriangle size={18} color="var(--amber)" style={{ flexShrink: 0, marginTop: 2 }} />
           <p style={{ fontSize: 14, color: 'var(--text-2)', lineHeight: 1.6 }}>
-            This will permanently delete all {students.length} students from the database, including placed students. This cannot be undone.
+            This will submit a proposal to delete all {students.length} students. A second admin must approve before anything is deleted.
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
           <Btn onClick={() => setConfirmClear(false)}>Cancel</Btn>
-          <Btn variant="danger" onClick={async () => { await clearAll(); setConfirmClear(false) }}>
-            <Trash2 size={13} /> Delete Everything
+          <Btn variant="danger" onClick={proposeClearAll}>
+            <Trash2 size={13} /> Submit Proposal
           </Btn>
         </div>
       </Modal>

@@ -4,8 +4,24 @@
       "collectionGroup": "students",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "_placed", "order": "ASCENDING" },
+        { "fieldPath": "_placed",    "order": "ASCENDING" },
         { "fieldPath": "_createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "pendingChanges",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status",      "order": "ASCENDING" },
+        { "fieldPath": "proposedAt",  "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "auditLog",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "type",      "order": "ASCENDING" },
+        { "fieldPath": "appliedAt", "order": "DESCENDING" }
       ]
     }
   ],
