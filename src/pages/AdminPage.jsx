@@ -6,7 +6,7 @@ import { ShieldCheck, User, AlertTriangle } from 'lucide-react'
 
 export default function AdminPage() {
   const { roles, loading, setRole, adminCount } = useRoles()
-  const { user } = useAuth()
+  const { user, isMasterAdmin } = useAuth()
   const [busy, setBusy] = useState(null)
 
   const sorted = [...roles].sort((a, b) => {
@@ -50,6 +50,7 @@ export default function AdminPage() {
             made by <em>other</em> admins. No admin can approve their own change.&nbsp;
             <strong>Viewer</strong> users have read-only access — they can view and download data but
             cannot modify anything. <strong>Maximum 3 admins.</strong>
+            {!isMasterAdmin && <><br /><br />Only the master admin can change roles.</>}
           </div>
         </div>
 
@@ -103,7 +104,7 @@ export default function AdminPage() {
                 </div>
 
                 <div>
-                  {isSelf ? (
+                  {isSelf || !isMasterAdmin ? (
                     <span style={{ fontSize: 12, color: 'var(--text-3)' }}>—</span>
                   ) : (
                     <Btn

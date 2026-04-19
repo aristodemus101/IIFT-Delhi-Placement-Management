@@ -2,13 +2,14 @@ import React, { createContext, useContext, useEffect, useState } from 'react'
 import { onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth'
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore'
 import { auth, googleProvider, db } from './firebase'
-import { ADMIN_EMAILS } from './roleConfig'
+import { ADMIN_EMAILS, MASTER_ADMIN_EMAIL } from './roleConfig'
 
 const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(undefined) // undefined = loading
   const [role, setRole] = useState(null)
+  const [isMasterAdmin, setIsMasterAdmin] = useState(false)
   const [authError, setAuthError] = useState(null)
 
   useEffect(() => {
@@ -30,6 +31,7 @@ export function AuthProvider({ children }) {
             assignedRole = ADMIN_EMAILS.includes(u.email) ? 'admin' : 'viewer'
             await setDoc(roleRef, {
               role: assignedRole,
+              isMasterAdmin: u.email === MASTER_ADMIN_EMAIL,
               email: u.email,
               displayName: u.displayName,
               photoURL: u.photoURL,
@@ -40,10 +42,11 @@ export function AuthProvider({ children }) {
             assignedRole = roleSnap.data().role
           }
 
-          if (!cancelled) { setUser(u); setRole(assignedRole) }
+          const isMaster = u.email === MASTER_ADMIN_EMAIL
+          if (!cancelled) { setUser(u); setRole(assignedRole); setIsMasterAdmin(isMaster) }
         } catch (err) {
           console.error('Role load error:', err)
-          if (!cancelled) { setUser(u); setRole('viewer') }
+          if (!cancelled) { setUser(u); setRole('viewer'); setIsMasterAdmin(false) }
         }
       },
       err => {
@@ -67,7 +70,7 @@ export function AuthProvider({ children }) {
   )
 
   return (
-    <AuthContext.Provider value={{ user, role, isAdmin: role === 'admin', login, logout }}>
+    <AuthContext.Provider value={{ user, role, isAdmin: role === 'admin', isMasterAdmin, login, logout }}>
       {children}
     </AuthContext.Provider>
   )

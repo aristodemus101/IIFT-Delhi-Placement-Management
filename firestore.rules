@@ -8,8 +8,9 @@ service cloud.firestore {
     }
 
     function isAuthed()  { return request.auth != null; }
-    function isAdmin()   { return isAuthed() && roleData().role == 'admin'; }
-    function hasRole()   { return isAuthed() && roleData().role in ['admin', 'viewer']; }
+    function isAdmin()        { return isAuthed() && roleData().role == 'admin'; }
+    function isMasterAdmin()  { return isAuthed() && roleData().isMasterAdmin == true; }
+    function hasRole()        { return isAuthed() && roleData().role in ['admin', 'viewer']; }
 
     // ── Students ────────────────────────────────────────────────────────────
     // Viewers: read only. Admins: read + write.
@@ -40,12 +41,12 @@ service cloud.firestore {
     // ── Roles ───────────────────────────────────────────────────────────────
     // Any authenticated user can read roles (needed to check their own role).
     // Any authenticated user can create their OWN role doc on first login.
-    // Only admins can promote/demote others.
+    // Only the master admin can promote/demote others.
     match /roles/{uid} {
       allow read:   if isAuthed();
       allow create: if isAuthed() && request.auth.uid == uid;
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
+      allow update: if isMasterAdmin();
+      allow delete: if isMasterAdmin();
     }
 
     // ── Audit Log ───────────────────────────────────────────────────────────
