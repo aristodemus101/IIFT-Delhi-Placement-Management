@@ -1,18 +1,29 @@
-import React, { createContext, useContext, useState, useCallback } from 'react'
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react'
 import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth'
-import { auth } from './firebase'
-import { getOrCreateSpreadsheet, appendChangeLog, syncFullSnapshot } from './sheetsSync'
+import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore'
+import { auth, db } from './firebase'
+import { getOrCreateSpreadsheet, appendChangeLog, syncFullSnapshot, pushPlayground } from './sheetsSync'
 
 const SheetsSyncContext = createContext(null)
 
 export function SheetsSyncProvider({ children }) {
-  const [token, setToken]       = useState(null)
-  const [sheetId, setSheetId]   = useState(() => localStorage.getItem('placementos_sheet_id'))
-  const [lastSync, setLastSync] = useState(() => {
+  const [token, setToken]           = useState(null)
+  const [sheetId, setSheetId]       = useState(() => localStorage.getItem('placementos_sheet_id'))
+  const [lastSync, setLastSync]     = useState(() => {
     const s = localStorage.getItem('placementos_last_sync')
     return s ? new Date(s) : null
   })
-  const [syncing, setSyncing] = useState(false)
+  const [syncing, setSyncing]       = useState(false)
+  const [playgroundUrl, setPlaygroundUrl] = useState(null)
+  const [playgroundPushing, setPlaygroundPushing] = useState(false)
+
+  // Subscribe to playground URL from Firestore so all users see it live
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'config', 'playground'), snap => {
+      if (snap.exists()) setPlaygroundUrl(snap.data().sheetUrl || null)
+    }, () => {})
+    return unsub
+  }, [])
 
   // Pop a Google consent dialog requesting Sheets + Drive.file scopes.
   // This is separate from the main Firebase login so only the master admin needs it.
@@ -58,15 +69,37 @@ export function SheetsSyncProvider({ children }) {
     }
   }, [token, sheetId])
 
+  const pushToPlayground = useCallback(async (students) => {
+    if (!token) throw new Error('Not connected to Google Sheets — reconnect in Team Access first.')
+    setPlaygroundPushing(true)
+    try {
+      const result = await pushPlayground(token, students)
+      // Save URL to Firestore so every user's "Open Playground" button updates live
+      await setDoc(doc(db, 'config', 'playground'), {
+        sheetUrl: result.sheetUrl,
+        sheetId: result.sheetId,
+        pushedAt: new Date().toISOString(),
+        count: result.count,
+      })
+      setPlaygroundUrl(result.sheetUrl)
+      return result
+    } finally {
+      setPlaygroundPushing(false)
+    }
+  }, [token])
+
   return (
     <SheetsSyncContext.Provider value={{
       connected: !!token,
       sheetUrl: sheetId ? `https://docs.google.com/spreadsheets/d/${sheetId}` : null,
       lastSync,
       syncing,
+      playgroundUrl,
+      playgroundPushing,
       authorize,
       appendChange,
       syncNow,
+      pushToPlayground,
     }}>
       {children}
     </SheetsSyncContext.Provider>

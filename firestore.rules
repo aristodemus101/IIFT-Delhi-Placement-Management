@@ -57,6 +57,14 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // ── Config ──────────────────────────────────────────────────────────────
+    // Stores shared app config (e.g. playground sheet URL). All users can read;
+    // only admins can write.
+    match /config/{docId} {
+      allow read:  if isAuthed();
+      allow write: if isAdmin();
+    }
+
     // ── Templates ───────────────────────────────────────────────────────────
     // Column-mapping templates are non-sensitive; any authed user can manage them.
     match /templates/{id} {

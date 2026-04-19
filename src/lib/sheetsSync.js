@@ -1,4 +1,5 @@
-const BASE = 'https://sheets.googleapis.com/v4/spreadsheets'
+const BASE  = 'https://sheets.googleapis.com/v4/spreadsheets'
+const DRIVE = 'https://www.googleapis.com/drive/v3/files'
 
 async function api(method, url, token, body) {
   const res = await fetch(url, {
@@ -148,4 +149,95 @@ export async function syncFullSnapshot(token, sheetId, students) {
   await writeRange(token, sheetId, 'Placed Snapshot!A1', [PLACED_HEADERS, ...placedRows])
 
   return { active: active.length, placed: placed.length }
+}
+
+// ── Playground Sheet ─────────────────────────────────────────────────────────
+// A separate editable sheet for the whole team to work in freely.
+// Anyone with the link can edit. Changes here never touch Firestore.
+
+const PLAYGROUND_KEY = 'placementos_playground_id'
+
+export async function pushPlayground(token, students) {
+  const active = students.filter(s => !s._placed)
+  const ts = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })
+
+  const HEADERS = [
+    'Roll No.', 'Full Name', 'Gender', 'Category', 'CAT %ile', 'CAT Score',
+    'Work Ex (mo)', 'UG Degree', 'UG Specialization', 'UG College', 'UG %',
+    'XII %', 'X %', 'PWD', 'Personal Email', 'Mobile (WhatsApp)',
+    'Company 1', 'C1 Domain', 'C1 Months',
+    'Company 2', 'C2 Domain', 'C2 Months',
+    'Languages', 'Achievement', 'Position of Responsibility',
+    'Last Pushed',
+  ]
+
+  const rows = active.map(s => [
+    s['Roll No.']                                           || '',
+    fullName(s),
+    s['Gender']                                            || '',
+    s['Category']                                          || '',
+    s['CAT Percentile']                                    || '',
+    s['CAT Score']                                         || '',
+    s['Total Work Experience (in months)']                 || '',
+    s['UG Degree (Eg: Btech, BBA, B.com, etc.)']          || '',
+    s['UG Specialization']                                 || '',
+    s['UG College Name']                                   || '',
+    s['Graduation Overall Score in %age']                  || '',
+    s['Class XII Score in percentage:']                    || '',
+    s['Class X Score in percentage:']                      || '',
+    s['PWD Status']                                        || '',
+    s['Personal Email ID']                                 || '',
+    s['Mobile Number (Whatsapp)']                          || '',
+    s['Name of Company (C1)']                              || '',
+    s['C1 Work Experience Domain']                         || '',
+    s['C1 Work Experience (in months)']                    || '',
+    s['Name of Company (C2)']                              || '',
+    s['Work Experience Domain (C2)']                       || '',
+    s['Work Experience in months (C2)']                    || '',
+    s['Languages Known (Write all seperated by comma)']    || '',
+    s['One Major Achievement']                             || '',
+    s['Past Position of Responsibility']                   || '',
+    ts,
+  ])
+
+  // Reuse existing playground sheet or create a new one
+  let sheetId = localStorage.getItem(PLAYGROUND_KEY)
+  let isNew = false
+
+  if (sheetId) {
+    try {
+      await api('GET', `${BASE}/${sheetId}?fields=spreadsheetId`, token)
+    } catch {
+      sheetId = null // deleted — create fresh
+    }
+  }
+
+  if (!sheetId) {
+    const sheet = await api('POST', BASE, token, {
+      properties: { title: '📋 PlacementOS Playground — IIFT Batch 2027' },
+      sheets: [{ properties: { sheetId: 0, index: 0, title: 'Active Roster' } }],
+    })
+    sheetId = sheet.spreadsheetId
+    isNew = true
+
+    // Share with anyone who has the link (edit access)
+    await fetch(`${DRIVE}/${sheetId}/permissions`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role: 'writer', type: 'anyone' }),
+    })
+
+    localStorage.setItem(PLAYGROUND_KEY, sheetId)
+  }
+
+  // Overwrite Active Roster tab
+  await clearRange(token, sheetId, 'Active Roster!A:Z')
+  await writeRange(token, sheetId, 'Active Roster!A1', [HEADERS, ...rows])
+
+  return {
+    sheetId,
+    sheetUrl: `https://docs.google.com/spreadsheets/d/${sheetId}`,
+    count: active.length,
+    isNew,
+  }
 }

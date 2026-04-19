@@ -2,6 +2,7 @@ import React, { useState, useMemo, useRef } from 'react'
 import { useStudents } from '../lib/useStudents'
 import { usePendingChanges } from '../lib/PendingChangesContext'
 import { useAuth } from '../lib/AuthContext'
+import { useSheetsSync } from '../lib/SheetsSyncContext'
 import { getVal, OUR_COLS } from '../lib/columns'
 import { parseCSVFile, exportToCSV } from '../lib/csv'
 import {
@@ -9,7 +10,7 @@ import {
   Spinner, Modal, Table
 } from '../components/UI'
 import {
-  Upload, Download, CheckCircle, Trash2, Eye, AlertTriangle, Search, Lock
+  Upload, Download, CheckCircle, Trash2, Eye, AlertTriangle, Search, Lock, ExternalLink, Sheet
 } from 'lucide-react'
 
 const NUMERIC = ['cat', 'wx', 'ugpct', 'x10pct', 'x12pct', 'age', 'cat_score']
@@ -18,6 +19,7 @@ export default function RosterPage() {
   const { students, loading } = useStudents()
   const { propose } = usePendingChanges()
   const { isAdmin } = useAuth()
+  const { playgroundUrl, playgroundPushing, pushToPlayground, connected: sheetsConnected } = useSheetsSync()
 
   const [sortCol, setSortCol] = useState('cat')
   const [sortDir, setSortDir] = useState(-1)
@@ -30,6 +32,7 @@ export default function RosterPage() {
   const [importMsg, setImportMsg] = useState('')
   const [busy, setBusy] = useState(false)
   const [successMsg, setSuccessMsg] = useState('')
+  const [playgroundMsg, setPlaygroundMsg] = useState('')
   const fileRef = useRef()
 
   const active = students.filter(s => !s._placed)
@@ -62,6 +65,17 @@ export default function RosterPage() {
   }
 
   const flash = (msg) => { setSuccessMsg(msg); setTimeout(() => setSuccessMsg(''), 4000) }
+
+  const handlePushPlayground = async () => {
+    setPlaygroundMsg('')
+    try {
+      const { count } = await pushToPlayground(students)
+      setPlaygroundMsg(`${count} students pushed to playground sheet.`)
+      setTimeout(() => setPlaygroundMsg(''), 5000)
+    } catch (e) {
+      setPlaygroundMsg('Error: ' + e.message)
+    }
+  }
 
   const handleImport = async e => {
     const file = e.target.files[0]; if (!file) return
@@ -163,6 +177,17 @@ export default function RosterPage() {
         subtitle={`${filtered.length} of ${active.length} available candidates`}
         actions={
           <>
+            {/* Playground buttons — visible to all */}
+            {playgroundUrl && (
+              <Btn size="sm" variant="ghost" onClick={() => window.open(playgroundUrl, '_blank')}>
+                <ExternalLink size={13} /> Open Playground
+              </Btn>
+            )}
+            {isAdmin && (
+              <Btn size="sm" variant="ghost" onClick={handlePushPlayground} disabled={playgroundPushing || !sheetsConnected} title={!sheetsConnected ? 'Connect Sheets in Team Access first' : 'Push current roster to playground sheet'}>
+                <Sheet size={13} /> {playgroundPushing ? 'Pushing…' : 'Push to Playground'}
+              </Btn>
+            )}
             {isAdmin && (
               <Btn size="sm" variant="ghost" onClick={() => setConfirmClear(true)} style={{ color: 'var(--red-text)' }}>
                 <Trash2 size={13} /> Clear All
@@ -199,6 +224,18 @@ export default function RosterPage() {
       {importMsg && (
         <div style={{ margin: '12px 28px 0', padding: '10px 14px', background: 'var(--red-bg)', color: 'var(--red-text)', border: '1px solid var(--red-border)', borderRadius: 'var(--radius-sm)', fontSize: 13 }}>
           {importMsg}
+        </div>
+      )}
+
+      {playgroundMsg && (
+        <div style={{ margin: '12px 28px 0', padding: '10px 14px', background: playgroundMsg.startsWith('Error') ? 'var(--red-bg)' : 'var(--accent-bg)', color: playgroundMsg.startsWith('Error') ? 'var(--red-text)' : 'var(--accent-text)', border: `1px solid ${playgroundMsg.startsWith('Error') ? 'var(--red-border)' : '#BFDBFE'}`, borderRadius: 'var(--radius-sm)', fontSize: 13, display: 'flex', gap: 8, alignItems: 'center' }}>
+          {!playgroundMsg.startsWith('Error') && <ExternalLink size={13} />}
+          {playgroundMsg}
+          {playgroundUrl && !playgroundMsg.startsWith('Error') && (
+            <button onClick={() => window.open(playgroundUrl, '_blank')} style={{ marginLeft: 4, background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', fontWeight: 600, textDecoration: 'underline', fontSize: 13, fontFamily: 'var(--font-sans)' }}>
+              Open Sheet →
+            </button>
+          )}
         </div>
       )}
 
