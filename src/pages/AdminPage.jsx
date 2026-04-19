@@ -39,8 +39,8 @@ export default function AdminPage() {
 
   const toggleRole = async (member) => {
     const newRole = member.role === 'admin' ? 'viewer' : 'admin'
-    if (newRole === 'admin' && adminCount >= 3) {
-      alert('Maximum 3 admins allowed. Demote an existing admin first.')
+    if (newRole === 'admin' && adminCount >= 4) {
+      alert('Maximum 4 admins allowed (1 master + 3 regular). Demote an existing admin first.')
       return
     }
     if (newRole === 'viewer' && adminCount <= 1) {
@@ -69,11 +69,11 @@ export default function AdminPage() {
         }}>
           <ShieldCheck size={16} color="var(--accent)" style={{ flexShrink: 0, marginTop: 1 }} />
           <div style={{ fontSize: 13, color: 'var(--accent-text)', lineHeight: 1.6 }}>
+            <strong>Master Admin</strong> (you) can manage roles and connect Google Sheets backup.&nbsp;
             <strong>Admin</strong> users can propose changes (place, delete, import) and approve proposals
-            made by <em>other</em> admins. No admin can approve their own change.&nbsp;
-            <strong>Viewer</strong> users have read-only access — they can view and download data but
-            cannot modify anything. <strong>Maximum 3 admins.</strong>
-            {!isMasterAdmin && <><br /><br />Only the master admin can change roles.</>}
+            made by <em>other</em> admins — no admin can approve their own change.&nbsp;
+            <strong>Viewer</strong> users have read-only access: view and download only, no edits.&nbsp;
+            Maximum <strong>1 master + 3 regular admins</strong>.
           </div>
         </div>
 
@@ -153,7 +153,7 @@ export default function AdminPage() {
 
         <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 14, fontSize: 12, color: 'var(--text-3)' }}>
           <AlertTriangle size={12} />
-          Admin count: {adminCount}/3 · Members appear here automatically after their first login.
+          Admin count: {adminCount}/4 (1 master + 3 regular) · Members appear here automatically after their first login.
         </div>
 
         {/* ── Google Sheets Backup ─────────────────────────────────────── */}

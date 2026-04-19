@@ -14,7 +14,9 @@
       "Bash(brew list *)",
       "Read(//usr/local/bin/**)",
       "Bash(gh auth *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(npm run *)",
+      "Bash(git commit -m 'Fix admin count limit to 4 \\(1 master + 3 regular\\) and update wording *)"
     ]
   }
 }
