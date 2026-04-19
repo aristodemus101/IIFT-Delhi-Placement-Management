@@ -17,29 +17,29 @@ export default function LoginPage() {
 
   return (
     <div style={{
-      minHeight: '100vh', background: 'var(--bg)',
+      minHeight: '100vh', background: 'var(--bg-grad)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       fontFamily: 'var(--font-sans)'
     }}>
       <div style={{
         background: 'var(--surface)', border: '1px solid var(--border)',
         borderRadius: 'var(--radius-lg)', padding: '40px 44px', width: 380,
-        boxShadow: 'var(--shadow)', textAlign: 'center'
+        boxShadow: 'var(--shadow)', textAlign: 'center', backdropFilter: 'blur(20px)'
       }}>
         <div style={{
-          width: 52, height: 52, background: 'var(--text)', borderRadius: 'var(--radius)',
+          width: 52, height: 52, background: 'var(--accent-dark)', borderRadius: 'var(--radius)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px'
         }}>
           <GraduationCap size={26} color="#fff" />
         </div>
-        <h1 style={{ fontSize: 22, fontWeight: 600, letterSpacing: '-0.02em', marginBottom: 8 }}>PlacementOS</h1>
+        <h1 style={{ fontSize: 24, fontWeight: 800, letterSpacing: '-0.03em', lineHeight: 1.1, marginBottom: 8 }}>PlacementOS</h1>
         <p style={{ fontSize: 14, color: 'var(--text-2)', marginBottom: 32, lineHeight: 1.6 }}>
           Batch placement management for placement teams. Sign in with your institute Google account.
         </p>
 
         <button onClick={handleLogin} disabled={loading} style={{
           width: '100%', height: 42, border: '1px solid var(--border)',
-          borderRadius: 'var(--radius-sm)', background: loading ? 'var(--surface2)' : 'var(--surface)',
+          borderRadius: 12, background: loading ? 'var(--surface2)' : 'var(--surface2)',
           cursor: loading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center',
           justifyContent: 'center', gap: 10, fontSize: 14, fontWeight: 500, color: 'var(--text)',
           fontFamily: 'var(--font-sans)', transition: 'all 0.15s'

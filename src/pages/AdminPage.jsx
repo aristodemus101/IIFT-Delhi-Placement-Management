@@ -1,20 +1,25 @@
 import React, { useState } from 'react'
 import { useRoles } from '../lib/useRoles'
 import { useAuth } from '../lib/AuthContext'
-import { useStudents } from '../lib/useStudents'
+import { useStudents, useColumnSchema } from '../lib/useStudents'
 import { useSheetsSync } from '../lib/SheetsSyncContext'
-import { PageHeader, Btn, Badge, Spinner } from '../components/UI'
-import { ShieldCheck, User, AlertTriangle, Sheet, RefreshCw, ExternalLink, CheckCircle, Database } from 'lucide-react'
+import { OUR_COLS } from '../lib/columns'
+import { PageHeader, Btn, Badge, Spinner, Modal } from '../components/UI'
+import { ShieldCheck, User, AlertTriangle, Sheet, RefreshCw, ExternalLink, CheckCircle, Database, Columns3 } from 'lucide-react'
 
 export default function AdminPage() {
   const { roles, loading, setRole, adminCount } = useRoles()
   const { user, isMasterAdmin } = useAuth()
   const { students } = useStudents()
+  const { schemaHeaders, setSchemaHeaders } = useColumnSchema()
   const { connected, sheetUrl, lastSync, syncing, authorize, syncNow } = useSheetsSync()
   const [busy, setBusy] = useState(null)
   const [syncMsg, setSyncMsg] = useState('')
   const [authBusy, setAuthBusy] = useState(false)
   const [authErr, setAuthErr] = useState('')
+  const [schemaOpen, setSchemaOpen] = useState(false)
+  const [schemaDraft, setSchemaDraft] = useState('')
+  const [schemaMsg, setSchemaMsg] = useState('')
 
   const sorted = [...roles].sort((a, b) => {
     if (a.role === b.role) return (a.displayName || '').localeCompare(b.displayName || '')
@@ -50,6 +55,27 @@ export default function AdminPage() {
     setBusy(member.uid)
     try { await setRole(member.uid, newRole) } catch (e) { alert(e.message) }
     setBusy(null)
+  }
+
+  const openSchemaEditor = () => {
+    const base = (schemaHeaders && schemaHeaders.length ? schemaHeaders : OUR_COLS.map(c => c.label)).join('\n')
+    setSchemaDraft(base)
+    setSchemaOpen(true)
+  }
+
+  const saveSchema = async () => {
+    const parsed = schemaDraft.split('\n').map(s => s.trim()).filter(Boolean)
+    const seen = new Set()
+    const headers = parsed.filter(h => {
+      if (seen.has(h)) return false
+      seen.add(h)
+      return true
+    })
+    if (!headers.length) return
+    await setSchemaHeaders(headers, user)
+    setSchemaMsg(`Column structure saved (${headers.length} columns).`)
+    setSchemaOpen(false)
+    setTimeout(() => setSchemaMsg(''), 4000)
   }
 
   if (loading) return <Spinner />
@@ -156,6 +182,34 @@ export default function AdminPage() {
           Admin count: {adminCount}/4 (1 master + 3 regular) · Members appear here automatically after their first login.
         </div>
 
+        <div style={{ marginTop: 28 }}>
+          <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>Column Structure</h2>
+          <p style={{ fontSize: 13, color: 'var(--text-2)', marginBottom: 12 }}>
+            Control visible headers for roster UI and imports. You can add, remove, rename, and reorder columns.
+          </p>
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '16px 18px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, marginBottom: 10 }}>
+              <Columns3 size={14} />
+              Active columns: <strong>{(schemaHeaders && schemaHeaders.length) || OUR_COLS.length}</strong>
+            </div>
+            {schemaMsg && <div style={{ fontSize: 13, color: 'var(--green-text)', marginBottom: 8 }}>{schemaMsg}</div>}
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <Btn size="sm" onClick={openSchemaEditor}>Edit Column Structure</Btn>
+              <Btn
+                size="sm"
+                variant="ghost"
+                onClick={async () => {
+                  await setSchemaHeaders(OUR_COLS.map(c => c.label), user)
+                  setSchemaMsg('Reset to canonical column structure.')
+                  setTimeout(() => setSchemaMsg(''), 4000)
+                }}
+              >
+                Reset to Canonical
+              </Btn>
+            </div>
+          </div>
+        </div>
+
         {/* ── Google Sheets Backup ─────────────────────────────────────── */}
         {isMasterAdmin && (
           <div style={{ marginTop: 32 }}>
@@ -249,6 +303,34 @@ export default function AdminPage() {
           </div>
         )}
       </div>
+
+      <Modal open={schemaOpen} onClose={() => setSchemaOpen(false)} title="Edit column structure" width={680}>
+        <p style={{ fontSize: 13, color: 'var(--text-2)', marginBottom: 10 }}>
+          One column header per line. Order here is the order shown in the UI.
+        </p>
+        <textarea
+          value={schemaDraft}
+          onChange={e => setSchemaDraft(e.target.value)}
+          style={{
+            width: '100%',
+            minHeight: 280,
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-sm)',
+            background: 'var(--surface2)',
+            color: 'var(--text)',
+            padding: 10,
+            fontSize: 13,
+            lineHeight: 1.55,
+            resize: 'vertical',
+            fontFamily: 'var(--font-sans)',
+            marginBottom: 12,
+          }}
+        />
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+          <Btn onClick={() => setSchemaOpen(false)}>Cancel</Btn>
+          <Btn variant="primary" onClick={saveSchema}>Save Structure</Btn>
+        </div>
+      </Modal>
     </div>
   )
 }

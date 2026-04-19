@@ -4,13 +4,17 @@ import React from 'react'
 export function PageHeader({ title, subtitle, actions }) {
   return (
     <div style={{
+      position: 'sticky',
+      top: 0,
+      zIndex: 10,
       padding: '24px 28px 20px',
       borderBottom: '1px solid var(--border)',
-      background: 'var(--surface)',
+      background: 'color-mix(in srgb, var(--surface) 88%, transparent)',
+      backdropFilter: 'blur(20px)',
       display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16
     }}>
       <div>
-        <h1 style={{ fontSize: 20, fontWeight: 600, letterSpacing: '-0.02em', color: 'var(--text)' }}>{title}</h1>
+        <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.03em', lineHeight: 1.15, color: 'var(--text)' }}>{title}</h1>
         {subtitle && <p style={{ fontSize: 13, color: 'var(--text-2)', marginTop: 3 }}>{subtitle}</p>}
       </div>
       {actions && <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>{actions}</div>}
@@ -20,14 +24,14 @@ export function PageHeader({ title, subtitle, actions }) {
 
 export function Btn({ children, variant = 'default', size = 'md', onClick, disabled, style = {}, ...props }) {
   const base = {
-    display: 'inline-flex', alignItems: 'center', gap: 6, border: 'none',
+    display: 'inline-flex', alignItems: 'center', gap: 6,
     borderRadius: 'var(--radius-sm)', fontWeight: 500, cursor: disabled ? 'not-allowed' : 'pointer',
-    opacity: disabled ? 0.5 : 1, transition: 'all 0.15s', fontFamily: 'var(--font-sans)',
-    ...(size === 'sm' ? { padding: '5px 10px', fontSize: 12 } : { padding: '7px 14px', fontSize: 13 })
+    opacity: disabled ? 0.5 : 1, fontFamily: 'var(--font-sans)',
+    ...(size === 'sm' ? { padding: '6px 11px', fontSize: 12 } : { padding: '8px 14px', fontSize: 13 })
   }
   const variants = {
     default:  { background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--border)' },
-    primary:  { background: 'var(--text)',    color: 'var(--surface)' },
+    primary:  { background: 'var(--accent)', color: '#fff', border: '1px solid transparent' },
     success:  { background: 'var(--green-bg)', color: 'var(--green-text)', border: '1px solid var(--green-border)' },
     danger:   { background: 'var(--red-bg)', color: 'var(--red-text)', border: '1px solid var(--red-border)' },
     ghost:    { background: 'transparent', color: 'var(--text-2)', border: '1px solid transparent' },
@@ -62,7 +66,8 @@ export function StatCard({ label, value, sub, color }) {
   return (
     <div style={{
       background: 'var(--surface)', border: '1px solid var(--border)',
-      borderRadius: 'var(--radius)', padding: '16px 20px', flex: 1, minWidth: 120
+      borderRadius: 'var(--radius-lg)', padding: '16px 20px', flex: 1, minWidth: 120,
+      boxShadow: 'var(--shadow-sm)'
     }}>
       <div style={{ fontSize: 12, color: 'var(--text-3)', fontWeight: 500, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</div>
       <div style={{ fontSize: 26, fontWeight: 600, letterSpacing: '-0.02em', color: color || 'var(--text)' }}>{value}</div>
@@ -74,14 +79,19 @@ export function StatCard({ label, value, sub, color }) {
 export function Input({ style = {}, ...props }) {
   return (
     <input style={{
-      height: 34, padding: '0 10px', borderRadius: 'var(--radius-sm)',
-      border: '1px solid var(--border)', background: 'var(--surface)',
+      height: 36, padding: '0 10px', borderRadius: 12,
+      border: '1px solid var(--border)', background: 'var(--surface2)',
       color: 'var(--text)', fontSize: 13, outline: 'none',
-      transition: 'border-color 0.15s',
       ...style
     }}
-    onFocus={e => e.target.style.borderColor = 'var(--accent)'}
-    onBlur={e => e.target.style.borderColor = 'var(--border)'}
+    onFocus={e => {
+      e.target.style.borderColor = 'var(--accent)'
+      e.target.style.boxShadow = '0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent)'
+    }}
+    onBlur={e => {
+      e.target.style.borderColor = 'var(--border)'
+      e.target.style.boxShadow = 'none'
+    }}
     {...props} />
   )
 }
@@ -89,8 +99,8 @@ export function Input({ style = {}, ...props }) {
 export function Select({ style = {}, children, ...props }) {
   return (
     <select style={{
-      height: 34, padding: '0 10px', borderRadius: 'var(--radius-sm)',
-      border: '1px solid var(--border)', background: 'var(--surface)',
+      height: 36, padding: '0 10px', borderRadius: 12,
+      border: '1px solid var(--border)', background: 'var(--surface2)',
       color: 'var(--text)', fontSize: 13, outline: 'none', cursor: 'pointer',
       ...style
     }} {...props}>{children}</select>
@@ -107,7 +117,7 @@ export function Table({ headers, rows, emptyMessage = 'No data' }) {
               <th key={i} onClick={h.onClick} style={{
                 textAlign: 'left', padding: '9px 14px',
                 fontSize: 11, fontWeight: 600, color: 'var(--text-3)',
-                background: 'var(--surface2)', borderBottom: '1px solid var(--border)',
+                background: 'color-mix(in srgb, var(--surface2) 85%, transparent)', borderBottom: '1px solid var(--border)',
                 whiteSpace: 'nowrap', cursor: h.onClick ? 'pointer' : 'default',
                 textTransform: 'uppercase', letterSpacing: '0.04em',
                 userSelect: 'none'
@@ -122,7 +132,7 @@ export function Table({ headers, rows, emptyMessage = 'No data' }) {
             <tr><td colSpan={headers.length} style={{ textAlign: 'center', padding: 40, color: 'var(--text-3)' }}>{emptyMessage}</td></tr>
           ) : rows.map((row, i) => (
             <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}
-              onMouseEnter={e => { Array.from(e.currentTarget.cells).forEach(c => c.style.background = 'var(--surface2)') }}
+              onMouseEnter={e => { Array.from(e.currentTarget.cells).forEach(c => c.style.background = 'color-mix(in srgb, var(--surface2) 75%, transparent)') }}
               onMouseLeave={e => { Array.from(e.currentTarget.cells).forEach(c => c.style.background = '') }}>
               {row.map((cell, j) => (
                 <td key={j} style={{ padding: '9px 14px', whiteSpace: 'nowrap', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -146,7 +156,7 @@ export function Modal({ open, onClose, title, children, width = 520 }) {
       padding: 16
     }}>
       <div onClick={e => e.stopPropagation()} style={{
-        background: 'var(--surface)', borderRadius: 'var(--radius-lg)',
+        background: 'var(--surface)', borderRadius: 20,
         width, maxWidth: '100%', maxHeight: '85vh', overflow: 'auto',
         boxShadow: 'var(--shadow)', border: '1px solid var(--border)'
       }}>

@@ -1,10 +1,10 @@
 import React, { useState, useMemo, useRef } from 'react'
-import { useStudents } from '../lib/useStudents'
+import { useStudents, useColumnSchema } from '../lib/useStudents'
 import { usePendingChanges } from '../lib/PendingChangesContext'
 import { useAuth } from '../lib/AuthContext'
 import { useSheetsSync } from '../lib/SheetsSyncContext'
 import { getVal, OUR_COLS } from '../lib/columns'
-import { parseCSVFile, exportToCSV } from '../lib/csv'
+import { parseDataFile, exportToCSV } from '../lib/csv'
 import {
   PageHeader, Btn, Badge, CategoryBadge, Input, Select,
   Spinner, Modal, Table
@@ -17,6 +17,7 @@ const NUMERIC = ['cat', 'wx', 'ugpct', 'x10pct', 'x12pct', 'age', 'cat_score']
 
 export default function RosterPage() {
   const { students, loading } = useStudents()
+  const { schemaHeaders } = useColumnSchema()
   const { propose } = usePendingChanges()
   const { isAdmin } = useAuth()
   const { playgroundUrl, playgroundPushing, pushToPlayground, connected: sheetsConnected } = useSheetsSync()
@@ -29,6 +30,7 @@ export default function RosterPage() {
   const [viewModal, setViewModal] = useState(null)
   const [confirmClear, setConfirmClear] = useState(false)
   const [importing, setImporting] = useState(false)
+  const [replaceOnImport, setReplaceOnImport] = useState(false)
   const [importMsg, setImportMsg] = useState('')
   const [busy, setBusy] = useState(false)
   const [successMsg, setSuccessMsg] = useState('')
@@ -77,13 +79,19 @@ export default function RosterPage() {
     }
   }
 
+  const getCellValue = (student, headerOrKey) => {
+    if (student?.[headerOrKey] !== undefined && student?.[headerOrKey] !== null) return student[headerOrKey]
+    const col = OUR_COLS.find(c => c.key === headerOrKey || c.label === headerOrKey)
+    return col ? (col.path(student) || '') : ''
+  }
+
   const handleImport = async e => {
     const file = e.target.files[0]; if (!file) return
     setImporting(true); setImportMsg('')
     try {
-      const rows = await parseCSVFile(file)
-      await propose({ type: 'import', rows, rowCount: rows.length })
-      flash(`Import of ${rows.length} students proposed — awaiting approval from another admin.`)
+      const { rows, headers } = await parseDataFile(file)
+      await propose({ type: 'import', rows, headers, rowCount: rows.length, replaceExisting: replaceOnImport })
+      flash(`${replaceOnImport ? 'Replace + import' : 'Import'} of ${rows.length} students (${headers.length} columns) proposed — awaiting approval from another admin.`)
     } catch (err) {
       setImportMsg('Import failed: ' + err.message)
     }
@@ -128,7 +136,7 @@ export default function RosterPage() {
     setConfirmClear(false)
   }
 
-  const headers = [
+  const fallbackHeaders = [
     { label: 'Roll No.',  onClick: () => handleSort('roll'),     sorted: sortCol === 'roll' ? sortDir : 0 },
     { label: 'Name',      onClick: () => handleSort('name'),     sorted: sortCol === 'name' ? sortDir : 0 },
     { label: 'Gender',    onClick: () => handleSort('gender'),   sorted: sortCol === 'gender' ? sortDir : 0 },
@@ -142,31 +150,78 @@ export default function RosterPage() {
     { label: 'Actions',   onClick: null },
   ]
 
-  const rows = filtered.map(s => [
-    <span style={{ fontSize: 12, color: 'var(--text-3)', fontFamily: 'var(--font-mono)' }}>{getVal(s, 'roll')}</span>,
-    <span style={{ fontWeight: 500 }}>{getVal(s, 'name')}</span>,
-    <span style={{ color: 'var(--text-2)' }}>{getVal(s, 'gender')}</span>,
-    <strong style={{ fontSize: 13 }}>{parseFloat(getVal(s, 'cat')).toFixed(2) || '—'}</strong>,
-    <CategoryBadge category={getVal(s, 'category')} />,
-    <span>{getVal(s, 'wx') || '0'} mo</span>,
-    <span style={{ fontSize: 12 }}>{getVal(s, 'ug')}</span>,
-    <span>{parseFloat(getVal(s, 'ugpct')).toFixed(1) || '—'}%</span>,
-    <span>{parseFloat(getVal(s, 'x12pct')).toFixed(1) || '—'}%</span>,
-    <span>{parseFloat(getVal(s, 'x10pct')).toFixed(1) || '—'}%</span>,
-    <div style={{ display: 'flex', gap: 6 }}>
-      <Btn size="sm" variant="ghost" onClick={() => setViewModal(s)} title="View details"><Eye size={13} /></Btn>
-      {isAdmin && (
-        <>
-          <Btn size="sm" variant="success" onClick={() => { setPlaceModal(s); setPlaceCompany('') }} title="Propose placement">
-            <CheckCircle size={13} /> Place
-          </Btn>
-          <Btn size="sm" variant="ghost" onClick={() => proposeDelete(s)} title="Propose deletion">
-            <Trash2 size={13} />
-          </Btn>
-        </>
-      )}
-    </div>
-  ])
+  const schemaCols = (schemaHeaders || []).filter(Boolean)
+  const usingSchema = schemaCols.length > 0
+
+  const dynamicHeaders = usingSchema
+    ? [
+        ...schemaCols.map(h => ({
+          label: h,
+          onClick: () => handleSort(h),
+          sorted: sortCol === h ? sortDir : 0,
+        })),
+        { label: 'Actions', onClick: null },
+      ]
+    : fallbackHeaders
+
+  const sortedFiltered = useMemo(() => {
+    if (!usingSchema) return filtered
+    const out = [...filtered]
+    out.sort((a, b) => {
+      const vaRaw = getCellValue(a, sortCol)
+      const vbRaw = getCellValue(b, sortCol)
+      const vaNum = parseFloat(vaRaw)
+      const vbNum = parseFloat(vbRaw)
+      const bothNumeric = !Number.isNaN(vaNum) && !Number.isNaN(vbNum)
+      if (bothNumeric) return vaNum > vbNum ? sortDir : vaNum < vbNum ? -sortDir : 0
+      const va = String(vaRaw || '').toLowerCase()
+      const vb = String(vbRaw || '').toLowerCase()
+      return va > vb ? sortDir : va < vb ? -sortDir : 0
+    })
+    return out
+  }, [filtered, usingSchema, sortCol, sortDir])
+
+  const rows = sortedFiltered.map(s => {
+    const actionCell = (
+      <div style={{ display: 'flex', gap: 6 }}>
+        <Btn size="sm" variant="ghost" onClick={() => setViewModal(s)} title="View details"><Eye size={13} /></Btn>
+        {isAdmin && (
+          <>
+            <Btn size="sm" variant="success" onClick={() => { setPlaceModal(s); setPlaceCompany('') }} title="Propose placement">
+              <CheckCircle size={13} /> Place
+            </Btn>
+            <Btn size="sm" variant="ghost" onClick={() => proposeDelete(s)} title="Propose deletion">
+              <Trash2 size={13} />
+            </Btn>
+          </>
+        )}
+      </div>
+    )
+
+    if (usingSchema) {
+      return [
+        ...schemaCols.map(h => {
+          const v = getCellValue(s, h)
+          return <span>{v || '—'}</span>
+        }),
+        actionCell,
+      ]
+    }
+
+    return [
+      <span style={{ fontSize: 12, color: 'var(--text-3)', fontFamily: 'var(--font-mono)' }}>{getVal(s, 'roll')}</span>,
+      <span style={{ fontWeight: 500 }}>{getVal(s, 'name')}</span>,
+      <span style={{ color: 'var(--text-2)' }}>{getVal(s, 'gender')}</span>,
+      <strong style={{ fontSize: 13 }}>{parseFloat(getVal(s, 'cat')).toFixed(2) || '—'}</strong>,
+      <CategoryBadge category={getVal(s, 'category')} />,
+      <span>{getVal(s, 'wx') || '0'} mo</span>,
+      <span style={{ fontSize: 12 }}>{getVal(s, 'ug')}</span>,
+      <span>{parseFloat(getVal(s, 'ugpct')).toFixed(1) || '—'}%</span>,
+      <span>{parseFloat(getVal(s, 'x12pct')).toFixed(1) || '—'}%</span>,
+      <span>{parseFloat(getVal(s, 'x10pct')).toFixed(1) || '—'}%</span>,
+      actionCell,
+    ]
+  })
 
   if (loading) return <Spinner />
 
@@ -174,7 +229,7 @@ export default function RosterPage() {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <PageHeader
         title="Roster"
-        subtitle={`${filtered.length} of ${active.length} available candidates`}
+        subtitle={`${sortedFiltered.length} of ${active.length} available candidates${usingSchema ? ` · ${schemaCols.length} visible columns` : ''}`}
         actions={
           <>
             {/* Playground buttons — visible to all */}
@@ -199,14 +254,23 @@ export default function RosterPage() {
             {isAdmin && (
               <>
                 <Btn size="sm" variant="primary" onClick={() => fileRef.current.click()} disabled={importing}>
-                  <Upload size={13} /> {importing ? 'Importing…' : 'Import CSV'}
+                  <Upload size={13} /> {importing ? 'Importing…' : 'Import File'}
                 </Btn>
-                <input ref={fileRef} type="file" accept=".csv" style={{ display: 'none' }} onChange={handleImport} />
+                <input ref={fileRef} type="file" accept=".csv,.tsv,.xls,.xlsx" style={{ display: 'none' }} onChange={handleImport} />
               </>
             )}
           </>
         }
       />
+
+      {isAdmin && (
+        <div style={{ margin: '12px 28px 0', padding: '9px 14px', background: replaceOnImport ? 'var(--amber-bg)' : 'var(--surface2)', border: `1px solid ${replaceOnImport ? 'var(--amber-border)' : 'var(--border)'}`, borderRadius: 'var(--radius-sm)', fontSize: 13, display: 'flex', gap: 8, alignItems: 'center', color: replaceOnImport ? 'var(--amber-text)' : 'var(--text-2)' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+            <input type="checkbox" checked={replaceOnImport} onChange={e => setReplaceOnImport(e.target.checked)} />
+            Replace existing roster on next import
+          </label>
+        </div>
+      )}
 
       {/* Viewer notice */}
       {!isAdmin && (
@@ -263,7 +327,7 @@ export default function RosterPage() {
       </div>
 
       <div style={{ flex: 1, overflow: 'auto' }}>
-        <Table headers={headers} rows={rows} emptyMessage={active.length ? 'No candidates match filters' : 'No candidates yet — import a CSV to get started'} />
+        <Table headers={dynamicHeaders} rows={rows} emptyMessage={active.length ? 'No candidates match filters' : 'No candidates yet — import a file (CSV/TSV/XLS/XLSX) to get started'} />
       </div>
 
       {/* Propose Placement Modal */}
@@ -297,12 +361,12 @@ export default function RosterPage() {
       <Modal open={!!viewModal} onClose={() => setViewModal(null)} title={viewModal ? getVal(viewModal, 'name') : ''} width={640}>
         {viewModal && (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 20px' }}>
-            {OUR_COLS.slice(0, 40).map(col => {
-              const val = col.path(viewModal)
+            {(usingSchema ? schemaCols : OUR_COLS.slice(0, 60).map(c => c.label)).map(label => {
+              const val = getCellValue(viewModal, label)
               if (!val || val === 'NA' || val === '0') return null
               return (
-                <div key={col.key} style={{ paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>
-                  <div style={{ fontSize: 11, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 2 }}>{col.label}</div>
+                <div key={label} style={{ paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 2 }}>{label}</div>
                   <div style={{ fontSize: 13 }}>{val}</div>
                 </div>
               )

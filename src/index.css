@@ -2,58 +2,189 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --font-sans: 'DM Sans', sans-serif;
-  --font-mono: 'DM Mono', monospace;
+  --font-sans: Inter, 'Segoe UI', Helvetica, Arial, sans-serif;
+  --font-mono: 'DM Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 
-  --bg: #F7F6F3;
-  --surface: #FFFFFF;
-  --surface2: #F2F1EE;
-  --border: #E4E2DC;
-  --border-strong: #C8C5BC;
+  --bg: #ffffff;
+  --bg-grad: linear-gradient(135deg, #ffffff 0%, #f0f5ff 100%);
+  --surface: #ffffff;
+  --surface2: #f5f5f5;
+  --border: #e0e0e0;
+  --border-strong: #cbd5e1;
 
-  --text: #1A1917;
-  --text-2: #5C5A55;
-  --text-3: #9B9890;
+  --text: #0f172a;
+  --text-2: #64748b;
+  --text-3: #94a3b8;
 
-  --accent: #1D4ED8;
-  --accent-bg: #EFF6FF;
-  --accent-text: #1E40AF;
+  --accent: #2563eb;
+  --accent-dark: #1e3a8a;
+  --accent-bg: #eff6ff;
+  --accent-text: #1e40af;
 
-  --green: #16A34A;
-  --green-bg: #F0FDF4;
-  --green-text: #15803D;
-  --green-border: #BBF7D0;
+  --green: #10b981;
+  --green-bg: rgba(16, 185, 129, 0.12);
+  --green-text: #047857;
+  --green-border: rgba(16, 185, 129, 0.35);
 
-  --amber: #D97706;
-  --amber-bg: #FFFBEB;
-  --amber-text: #92400E;
-  --amber-border: #FDE68A;
+  --amber: #f59e0b;
+  --amber-bg: rgba(245, 158, 11, 0.12);
+  --amber-text: #b45309;
+  --amber-border: rgba(245, 158, 11, 0.35);
 
-  --red: #DC2626;
-  --red-bg: #FEF2F2;
-  --red-text: #991B1B;
-  --red-border: #FECACA;
+  --red: #ef4444;
+  --red-bg: rgba(239, 68, 68, 0.12);
+  --red-text: #dc2626;
+  --red-border: rgba(239, 68, 68, 0.35);
 
-  --purple: #7C3AED;
-  --purple-bg: #F5F3FF;
-  --purple-text: #5B21B6;
+  --purple: #6366f1;
+  --purple-bg: rgba(99, 102, 241, 0.12);
+  --purple-text: #4338ca;
 
-  --radius-sm: 6px;
-  --radius: 10px;
-  --radius-lg: 14px;
+  --radius-sm: 8px;
+  --radius: 14px;
+  --radius-lg: 16px;
 
-  --shadow-sm: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
-  --shadow: 0 4px 12px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04);
+  --shadow-sm: 0 2px 6px rgba(15, 23, 42, 0.06);
+  --shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+  --easing: cubic-bezier(0.2, 0.6, 0.2, 1);
+  --speed-fast: 0.15s;
+  --speed: 0.2s;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0c0c12;
+    --bg-grad: linear-gradient(135deg, #0c0c12 0%, #13131e 100%);
+    --surface: #13131e;
+    --surface2: #171724;
+    --border: #1e1e2e;
+    --border-strong: #2a2a3d;
+
+    --text: #f1f1f3;
+    --text-2: #8a8a9a;
+    --text-3: #55556a;
+
+    --accent: #3b82f6;
+    --accent-dark: #1d4ed8;
+    --accent-bg: rgba(59, 130, 246, 0.14);
+    --accent-text: #93c5fd;
+
+    --green: #10b981;
+    --green-bg: rgba(16, 185, 129, 0.15);
+    --green-text: #6ee7b7;
+    --green-border: rgba(16, 185, 129, 0.35);
+
+    --amber: #f59e0b;
+    --amber-bg: rgba(245, 158, 11, 0.15);
+    --amber-text: #fcd34d;
+    --amber-border: rgba(245, 158, 11, 0.35);
+
+    --red: #ef4444;
+    --red-bg: rgba(239, 68, 68, 0.15);
+    --red-text: #fca5a5;
+    --red-border: rgba(239, 68, 68, 0.35);
+
+    --purple: #818cf8;
+    --purple-bg: rgba(129, 140, 248, 0.15);
+    --purple-text: #c7d2fe;
+
+    --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.35);
+    --shadow: 0 14px 34px rgba(0, 0, 0, 0.42);
+  }
+}
+
+:root[data-theme='light'] {
+  --bg: #ffffff;
+  --bg-grad: linear-gradient(135deg, #ffffff 0%, #f0f5ff 100%);
+  --surface: #ffffff;
+  --surface2: #f5f5f5;
+  --border: #e0e0e0;
+  --border-strong: #cbd5e1;
+
+  --text: #0f172a;
+  --text-2: #64748b;
+  --text-3: #94a3b8;
+
+  --accent: #2563eb;
+  --accent-dark: #1e3a8a;
+  --accent-bg: #eff6ff;
+  --accent-text: #1e40af;
+
+  --green: #10b981;
+  --green-bg: rgba(16, 185, 129, 0.12);
+  --green-text: #047857;
+  --green-border: rgba(16, 185, 129, 0.35);
+
+  --amber: #f59e0b;
+  --amber-bg: rgba(245, 158, 11, 0.12);
+  --amber-text: #b45309;
+  --amber-border: rgba(245, 158, 11, 0.35);
+
+  --red: #ef4444;
+  --red-bg: rgba(239, 68, 68, 0.12);
+  --red-text: #dc2626;
+  --red-border: rgba(239, 68, 68, 0.35);
+
+  --purple: #6366f1;
+  --purple-bg: rgba(99, 102, 241, 0.12);
+  --purple-text: #4338ca;
+
+  --shadow-sm: 0 2px 6px rgba(15, 23, 42, 0.06);
+  --shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+}
+
+:root[data-theme='dark'] {
+  --bg: #0c0c12;
+  --bg-grad: linear-gradient(135deg, #0c0c12 0%, #13131e 100%);
+  --surface: #13131e;
+  --surface2: #171724;
+  --border: #1e1e2e;
+  --border-strong: #2a2a3d;
+
+  --text: #f1f1f3;
+  --text-2: #8a8a9a;
+  --text-3: #55556a;
+
+  --accent: #3b82f6;
+  --accent-dark: #1d4ed8;
+  --accent-bg: rgba(59, 130, 246, 0.14);
+  --accent-text: #93c5fd;
+
+  --green: #10b981;
+  --green-bg: rgba(16, 185, 129, 0.15);
+  --green-text: #6ee7b7;
+  --green-border: rgba(16, 185, 129, 0.35);
+
+  --amber: #f59e0b;
+  --amber-bg: rgba(245, 158, 11, 0.15);
+  --amber-text: #fcd34d;
+  --amber-border: rgba(245, 158, 11, 0.35);
+
+  --red: #ef4444;
+  --red-bg: rgba(239, 68, 68, 0.15);
+  --red-text: #fca5a5;
+  --red-border: rgba(239, 68, 68, 0.35);
+
+  --purple: #818cf8;
+  --purple-bg: rgba(129, 140, 248, 0.15);
+  --purple-text: #c7d2fe;
+
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.35);
+  --shadow: 0 14px 34px rgba(0, 0, 0, 0.42);
 }
 
 html, body, #root {
   height: 100%;
-  background: var(--bg);
   color: var(--text);
   font-family: var(--font-sans);
   font-size: 14px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+}
+
+body {
+  background: var(--bg-grad);
+  background-attachment: fixed;
 }
 
 /* Scrollbars */
@@ -66,6 +197,15 @@ html, body, #root {
 button { font-family: var(--font-sans); cursor: pointer; }
 input, select, textarea { font-family: var(--font-sans); font-size: 14px; color: var(--text); }
 a { color: var(--accent); text-decoration: none; }
+
+button, input, select, textarea, a {
+  transition: border-color var(--speed-fast) var(--easing), box-shadow var(--speed-fast) var(--easing), background-color var(--speed-fast) var(--easing), color var(--speed-fast) var(--easing), transform var(--speed) var(--easing);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 
 /* Utility */
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }

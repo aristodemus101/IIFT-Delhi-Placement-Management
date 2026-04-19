@@ -11,7 +11,7 @@ const TYPE_META = {
   place:    { icon: CheckSquare, label: 'Mark Placed',   color: 'green'  },
   unplace:  { icon: RotateCcw,   label: 'Unplace',       color: 'amber'  },
   delete:   { icon: Trash2,      label: 'Delete Student', color: 'red'   },
-  import:   { icon: Upload,      label: 'Import CSV',    color: 'blue'   },
+  import:   { icon: Upload,      label: 'Import File',   color: 'blue'   },
   clearAll: { icon: AlertTriangle, label: 'Clear All',   color: 'red'    },
 }
 
@@ -20,7 +20,7 @@ function changeDescription(c) {
     case 'place':    return `Place ${c.studentName} (${c.studentRoll}) → ${c.company}`
     case 'unplace':  return `Unplace ${c.studentName} (${c.studentRoll}) from ${c.currentCompany}`
     case 'delete':   return `Permanently delete ${c.studentName} (${c.studentRoll})`
-    case 'import':   return `Import ${c.rowCount} student${c.rowCount !== 1 ? 's' : ''} from CSV`
+    case 'import':   return `${c.replaceExisting ? 'Replace existing and import' : 'Import'} ${c.rowCount} student${c.rowCount !== 1 ? 's' : ''} from file`
     case 'clearAll': return `Delete all ${c.studentCount} students from database`
     default:         return c.type
   }
@@ -202,6 +202,15 @@ export default function ApprovalsPage() {
                 <AlertTriangle size={15} color="var(--red-text)" style={{ flexShrink: 0, marginTop: 1 }} />
                 <p style={{ fontSize: 13, color: 'var(--red-text)' }}>
                   This will permanently delete {reviewing.change.studentCount} students. This cannot be undone.
+                </p>
+              </div>
+            )}
+
+            {reviewing.action === 'approve' && reviewing.change.type === 'import' && reviewing.change.replaceExisting && (
+              <div style={{ display: 'flex', gap: 8, background: 'var(--red-bg)', border: '1px solid var(--red-border)', borderRadius: 'var(--radius-sm)', padding: '10px 14px', marginBottom: 16 }}>
+                <AlertTriangle size={15} color="var(--red-text)" style={{ flexShrink: 0, marginTop: 1 }} />
+                <p style={{ fontSize: 13, color: 'var(--red-text)' }}>
+                  This approval will delete current students first, then import the new file. This cannot be undone.
                 </p>
               </div>
             )}

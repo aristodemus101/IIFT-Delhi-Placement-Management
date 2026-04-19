@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import {
   collection, onSnapshot, addDoc, deleteDoc,
-  doc, query, orderBy, serverTimestamp
+  doc, query, orderBy, serverTimestamp, setDoc
 } from 'firebase/firestore'
 import { db } from './firebase'
 
@@ -46,4 +46,37 @@ export function useTemplates() {
   }
 
   return { templates, saveTemplate, deleteTemplate }
+}
+
+export function useColumnSchema() {
+  const [schemaHeaders, setSchemaHeadersState] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const unsub = onSnapshot(
+      doc(db, 'config', 'columnSchema'),
+      snap => {
+        if (snap.exists()) setSchemaHeadersState(Array.isArray(snap.data().headers) ? snap.data().headers : [])
+        else setSchemaHeadersState([])
+        setLoading(false)
+      },
+      err => {
+        console.error('columnSchema error:', err)
+        setLoading(false)
+      }
+    )
+    return unsub
+  }, [])
+
+  const setSchemaHeaders = async (headers, updatedBy) => {
+    await setDoc(doc(db, 'config', 'columnSchema'), {
+      headers,
+      updatedAt: serverTimestamp(),
+      updatedBy: updatedBy?.uid || null,
+      updatedByName: updatedBy?.displayName || null,
+      source: 'manual',
+    }, { merge: true })
+  }
+
+  return { schemaHeaders, loading, setSchemaHeaders }
 }
