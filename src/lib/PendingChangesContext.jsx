@@ -5,11 +5,13 @@ import {
 } from 'firebase/firestore'
 import { db } from './firebase'
 import { useAuth } from './AuthContext'
+import { useSheetsSync } from './SheetsSyncContext'
 
 const PendingChangesContext = createContext(null)
 
 export function PendingChangesProvider({ children }) {
   const { user, isAdmin } = useAuth()
+  const { appendChange } = useSheetsSync()
   const [changes, setChanges] = useState([])
   const [loading, setLoading] = useState(true)
 
@@ -110,6 +112,9 @@ export function PendingChangesProvider({ children }) {
     })
 
     await batch.commit()
+
+    // Auto-append to Google Sheets change log (silently, non-blocking)
+    appendChange({ ...change, reviewedByName: user.displayName, note })
   }
 
   return (

@@ -1,18 +1,41 @@
 import React, { useState } from 'react'
 import { useRoles } from '../lib/useRoles'
 import { useAuth } from '../lib/AuthContext'
+import { useStudents } from '../lib/useStudents'
+import { useSheetsSync } from '../lib/SheetsSyncContext'
 import { PageHeader, Btn, Badge, Spinner } from '../components/UI'
-import { ShieldCheck, User, AlertTriangle } from 'lucide-react'
+import { ShieldCheck, User, AlertTriangle, Sheet, RefreshCw, ExternalLink, CheckCircle, Database } from 'lucide-react'
 
 export default function AdminPage() {
   const { roles, loading, setRole, adminCount } = useRoles()
   const { user, isMasterAdmin } = useAuth()
+  const { students } = useStudents()
+  const { connected, sheetUrl, lastSync, syncing, authorize, syncNow } = useSheetsSync()
   const [busy, setBusy] = useState(null)
+  const [syncMsg, setSyncMsg] = useState('')
+  const [authBusy, setAuthBusy] = useState(false)
+  const [authErr, setAuthErr] = useState('')
 
   const sorted = [...roles].sort((a, b) => {
     if (a.role === b.role) return (a.displayName || '').localeCompare(b.displayName || '')
     return a.role === 'admin' ? -1 : 1
   })
+
+  const handleAuthorize = async () => {
+    setAuthBusy(true); setAuthErr('')
+    try { await authorize() }
+    catch (e) { setAuthErr(e.message) }
+    setAuthBusy(false)
+  }
+
+  const handleSyncNow = async () => {
+    setSyncMsg('')
+    try {
+      const { active, placed } = await syncNow(students)
+      setSyncMsg(`Synced ${active} active + ${placed} placed students.`)
+      setTimeout(() => setSyncMsg(''), 5000)
+    } catch (e) { setSyncMsg('Error: ' + e.message) }
+  }
 
   const toggleRole = async (member) => {
     const newRole = member.role === 'admin' ? 'viewer' : 'admin'
@@ -132,6 +155,99 @@ export default function AdminPage() {
           <AlertTriangle size={12} />
           Admin count: {adminCount}/3 · Members appear here automatically after their first login.
         </div>
+
+        {/* ── Google Sheets Backup ─────────────────────────────────────── */}
+        {isMasterAdmin && (
+          <div style={{ marginTop: 32 }}>
+            <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>Google Sheets Backup</h2>
+            <p style={{ fontSize: 13, color: 'var(--text-2)', marginBottom: 16 }}>
+              Every approved change is automatically logged to your Google Sheet.
+              Use "Sync Now" to refresh the full roster and placed-student snapshots.
+            </p>
+
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {/* Status row */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{
+                  width: 10, height: 10, borderRadius: '50%',
+                  background: connected ? 'var(--green)' : 'var(--text-3)',
+                  flexShrink: 0,
+                }} />
+                <span style={{ fontSize: 13, fontWeight: 500 }}>
+                  {connected ? 'Connected to Google Sheets' : 'Not connected'}
+                </span>
+                {lastSync && (
+                  <span style={{ fontSize: 12, color: 'var(--text-3)', marginLeft: 'auto' }}>
+                    Last synced: {lastSync.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' })}
+                  </span>
+                )}
+              </div>
+
+              {syncMsg && (
+                <div style={{ fontSize: 13, color: syncMsg.startsWith('Error') ? 'var(--red-text)' : 'var(--green-text)', display: 'flex', gap: 6, alignItems: 'center' }}>
+                  {!syncMsg.startsWith('Error') && <CheckCircle size={13} />} {syncMsg}
+                </div>
+              )}
+
+              {authErr && (
+                <p style={{ fontSize: 13, color: 'var(--red-text)' }}>{authErr}</p>
+              )}
+
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <Btn onClick={handleAuthorize} disabled={authBusy}>
+                  <Sheet size={13} /> {connected ? 'Reconnect Sheets' : 'Connect Google Sheets'}
+                </Btn>
+                {connected && (
+                  <Btn variant="primary" onClick={handleSyncNow} disabled={syncing}>
+                    <RefreshCw size={13} /> {syncing ? 'Syncing…' : 'Sync Full Snapshot Now'}
+                  </Btn>
+                )}
+                {sheetUrl && (
+                  <Btn variant="ghost" onClick={() => window.open(sheetUrl, '_blank')}>
+                    <ExternalLink size={13} /> Open Sheet
+                  </Btn>
+                )}
+              </div>
+
+              <div style={{ fontSize: 12, color: 'var(--text-3)', lineHeight: 1.7, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
+                <strong style={{ color: 'var(--text-2)' }}>Sheet structure:</strong>
+                &nbsp;"Change Log" (auto-appended on every approval) ·
+                "Roster Snapshot" + "Placed Snapshot" (overwritten on Sync Now).<br />
+                The access token lasts ~1 hour — reconnect if auto-logging stops working.
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Firestore Scheduled Backup instructions ──────────────────── */}
+        {isMasterAdmin && (
+          <div style={{ marginTop: 28 }}>
+            <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>Firestore Database Backup</h2>
+            <p style={{ fontSize: 13, color: 'var(--text-2)', marginBottom: 16 }}>
+              Enable daily automatic Firestore exports to Google Cloud Storage — your true disaster-recovery layer.
+            </p>
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '20px 22px' }}>
+              <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
+                <Database size={16} color="var(--accent)" style={{ flexShrink: 0, marginTop: 1 }} />
+                <p style={{ fontSize: 13, color: 'var(--text-2)', lineHeight: 1.7 }}>
+                  One-time setup — takes 5 minutes. After this, Firestore is fully backed up daily
+                  and can be restored in minutes even if the entire project has an outage.
+                </p>
+              </div>
+              <ol style={{ fontSize: 13, color: 'var(--text-2)', lineHeight: 2, paddingLeft: 20, margin: 0 }}>
+                <li>Open <strong>Firebase Console → Firestore → Managed Backups</strong> (left sidebar)</li>
+                <li>Click <strong>"Create backup schedule"</strong></li>
+                <li>Set recurrence to <strong>Daily</strong>, retention to <strong>7 days</strong></li>
+                <li>Click <strong>Save</strong> — Firebase handles everything from here</li>
+              </ol>
+              <div style={{ marginTop: 14, display: 'flex', gap: 8 }}>
+                <Btn variant="ghost" size="sm" onClick={() => window.open('https://console.firebase.google.com/project/placement-management-6133f/firestore/databases/-default-/backups', '_blank')}>
+                  <ExternalLink size={12} /> Open Firebase Backups Page
+                </Btn>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
