@@ -2,6 +2,8 @@
 import React, { useState, useMemo } from 'react'
 import { useStudents } from '../lib/useStudents'
 import { useTemplates } from '../lib/useStudents'
+import { useBatch } from '../lib/BatchContext'
+import { batchLabel, batchShortLabel, normalizeBatch } from '../lib/batch'
 import { autoMapColumns, OUR_COLS } from '../lib/columns'
 import { exportRemapped } from '../lib/csv'
 import { PageHeader, Btn, Badge, Input, Select, Spinner, Modal } from '../components/UI'
@@ -10,6 +12,7 @@ import { ArrowRight, Wand2, Download, Save, Trash2, LayoutTemplate, CheckCircle,
 export default function RemapperPage() {
   const { students, loading } = useStudents()
   const { templates, saveTemplate, deleteTemplate } = useTemplates()
+  const { selectedBatch } = useBatch()
 
   const [rawCols, setRawCols] = useState('')
   const [mappings, setMappings] = useState(null)
@@ -44,7 +47,8 @@ export default function RemapperPage() {
     setTimeout(() => setSavedMsg(''), 3000)
   }
 
-  const activeStudents = students.filter(s => !s._placed)
+  const scopedStudents = students.filter(s => normalizeBatch(s._batch) === selectedBatch)
+  const activeStudents = scopedStudents.filter(s => !s._placed)
   const autoCount = mappings ? mappings.filter(m => m.auto).length : 0
   const manualCount = mappings ? mappings.filter(m => !m.auto && m.ourKey).length : 0
   const skipCount = mappings ? mappings.filter(m => !m.ourKey).length : 0
@@ -55,7 +59,7 @@ export default function RemapperPage() {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'auto' }}>
       <PageHeader
         title="Column Remapper"
-        subtitle="Map company column formats to your fields, export ready-to-send CSVs"
+        subtitle={`Map company column formats to your fields, export ready-to-send CSVs · ${batchLabel(selectedBatch)}`}
       />
 
       <div style={{ padding: '24px 28px', display: 'grid', gridTemplateColumns: mappings ? '1fr 1.8fr' : '1fr', gap: 20 }}>
@@ -189,10 +193,10 @@ export default function RemapperPage() {
             )}
 
             <div style={{ display: 'flex', gap: 8, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
-              <Btn variant="primary" onClick={() => exportRemapped([...students.filter(s => !s._placed)], mappings, 'company_format_active.csv')} disabled={!activeStudents.length}>
+              <Btn variant="primary" onClick={() => exportRemapped(activeStudents, mappings, `company_format_${batchShortLabel(selectedBatch).toLowerCase()}_active.csv`)} disabled={!activeStudents.length}>
                 <Download size={13} /> Export Active ({activeStudents.length})
               </Btn>
-              <Btn onClick={() => exportRemapped(students, mappings, 'company_format_all.csv')} disabled={!students.length}>
+              <Btn onClick={() => exportRemapped(scopedStudents, mappings, `company_format_${batchShortLabel(selectedBatch).toLowerCase()}_all.csv`)} disabled={!scopedStudents.length}>
                 <Download size={13} /> Export All
               </Btn>
               <Btn onClick={() => setSaveModalOpen(true)} style={{ marginLeft: 'auto' }}>

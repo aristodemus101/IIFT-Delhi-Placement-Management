@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
 import {
   collection, onSnapshot, addDoc, deleteDoc,
-  doc, query, orderBy, serverTimestamp, setDoc
+  doc, query, orderBy, serverTimestamp, setDoc, getDoc
 } from 'firebase/firestore'
 import { db } from './firebase'
+import { normalizeBatch, schemaDocIdForBatch } from './batch'
 
 // Read-only hook for student data.
 // All write operations (place, delete, import, etc.) go through PendingChangesContext.
@@ -48,16 +49,30 @@ export function useTemplates() {
   return { templates, saveTemplate, deleteTemplate }
 }
 
-export function useColumnSchema() {
+export function useColumnSchema(batch = 'final') {
   const [schemaHeaders, setSchemaHeadersState] = useState([])
   const [loading, setLoading] = useState(true)
+  const normalizedBatch = normalizeBatch(batch)
+  const schemaDocId = schemaDocIdForBatch(normalizedBatch)
 
   useEffect(() => {
     const unsub = onSnapshot(
-      doc(db, 'config', 'columnSchema'),
-      snap => {
-        if (snap.exists()) setSchemaHeadersState(Array.isArray(snap.data().headers) ? snap.data().headers : [])
-        else setSchemaHeadersState([])
+      doc(db, 'config', schemaDocId),
+      async snap => {
+        if (snap.exists()) {
+          setSchemaHeadersState(Array.isArray(snap.data().headers) ? snap.data().headers : [])
+          setLoading(false)
+          return
+        }
+
+        // Backward compatibility: fall back to legacy shared schema if present.
+        const legacy = await getDoc(doc(db, 'config', 'columnSchema'))
+
+        if (legacy?.exists()) {
+          setSchemaHeadersState(Array.isArray(legacy.data().headers) ? legacy.data().headers : [])
+        } else {
+          setSchemaHeadersState([])
+        }
         setLoading(false)
       },
       err => {
@@ -66,15 +81,16 @@ export function useColumnSchema() {
       }
     )
     return unsub
-  }, [])
+  }, [schemaDocId])
 
   const setSchemaHeaders = async (headers, updatedBy) => {
-    await setDoc(doc(db, 'config', 'columnSchema'), {
+    await setDoc(doc(db, 'config', schemaDocId), {
       headers,
       updatedAt: serverTimestamp(),
       updatedBy: updatedBy?.uid || null,
       updatedByName: updatedBy?.displayName || null,
       source: 'manual',
+      batch: normalizedBatch,
     }, { merge: true })
   }
 

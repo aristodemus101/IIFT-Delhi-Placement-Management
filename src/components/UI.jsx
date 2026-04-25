@@ -7,17 +7,28 @@ export function PageHeader({ title, subtitle, actions }) {
       position: 'sticky',
       top: 0,
       zIndex: 10,
-      padding: '24px 28px 20px',
+      padding: '14px 28px 10px',
       borderBottom: '1px solid var(--border)',
       background: 'color-mix(in srgb, var(--surface) 88%, transparent)',
       backdropFilter: 'blur(20px)',
-      display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16
+      display: 'flex', flexDirection: 'column', gap: 8
     }}>
-      <div>
-        <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.03em', lineHeight: 1.15, color: 'var(--text)' }}>{title}</h1>
-        {subtitle && <p style={{ fontSize: 13, color: 'var(--text-2)', marginTop: 3 }}>{subtitle}</p>}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+        <div>
+          <h1 style={{ fontSize: 'var(--text-xl)', fontWeight: 'var(--weight-xbold)', letterSpacing: '-0.03em', lineHeight: 'var(--leading-tight)', color: 'var(--text)' }}>{title}</h1>
+          {subtitle && <p style={{ fontSize: 'var(--text-md)', color: 'var(--text-2)', marginTop: 3, lineHeight: 'var(--leading-normal)' }}>{subtitle}</p>}
+        </div>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'flex-end',
+          gap: 8,
+          flexWrap: 'wrap',
+          marginLeft: 'auto',
+        }}>
+          {actions || <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-3)' }}>No page actions</span>}
+        </div>
       </div>
-      {actions && <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>{actions}</div>}
     </div>
   )
 }
@@ -66,12 +77,12 @@ export function StatCard({ label, value, sub, color }) {
   return (
     <div style={{
       background: 'var(--surface)', border: '1px solid var(--border)',
-      borderRadius: 'var(--radius-lg)', padding: '16px 20px', flex: 1, minWidth: 120,
+      borderRadius: 'var(--radius-lg)', padding: '16px 20px', flex: 1, minWidth: 120, minHeight: 132,
       boxShadow: 'var(--shadow-sm)'
     }}>
-      <div style={{ fontSize: 12, color: 'var(--text-3)', fontWeight: 500, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</div>
-      <div style={{ fontSize: 26, fontWeight: 600, letterSpacing: '-0.02em', color: color || 'var(--text)' }}>{value}</div>
-      {sub && <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 4 }}>{sub}</div>}
+      <div style={{ fontSize: 'var(--text-sm)', color: 'var(--text-3)', fontWeight: 'var(--weight-medium)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</div>
+      <div style={{ fontSize: 40, fontWeight: 'var(--weight-semibold)', letterSpacing: '-0.02em', lineHeight: 1, color: color || 'var(--text)', marginBottom: 6 }}>{value}</div>
+      {sub && <div style={{ fontSize: 'var(--text-sm)', color: 'var(--text-3)' }}>{sub}</div>}
     </div>
   )
 }
@@ -97,17 +108,40 @@ export function Input({ style = {}, ...props }) {
 }
 
 export function Select({ style = {}, children, ...props }) {
+  const arrow = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%236B7280' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E")`
   return (
     <select style={{
-      height: 36, padding: '0 10px', borderRadius: 12,
+      height: 40, padding: '0 38px 0 12px', borderRadius: 14,
       border: '1px solid var(--border)', background: 'var(--surface2)',
       color: 'var(--text)', fontSize: 13, outline: 'none', cursor: 'pointer',
+      appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none',
+      backgroundImage: arrow,
+      backgroundRepeat: 'no-repeat',
+      backgroundPosition: 'right 12px center',
+      backgroundSize: '12px 8px',
+      lineHeight: 1.2,
+      transition: 'border-color .16s ease, box-shadow .16s ease, background-color .16s ease',
       ...style
-    }} {...props}>{children}</select>
+    }}
+    onFocus={e => {
+      e.target.style.borderColor = 'var(--accent)'
+      e.target.style.boxShadow = '0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent)'
+    }}
+    onBlur={e => {
+      e.target.style.borderColor = 'var(--border)'
+      e.target.style.boxShadow = 'none'
+    }}
+    onMouseEnter={e => {
+      if (document.activeElement !== e.target) e.target.style.backgroundColor = 'color-mix(in srgb, var(--surface2) 78%, var(--surface))'
+    }}
+    onMouseLeave={e => {
+      if (document.activeElement !== e.target) e.target.style.backgroundColor = 'var(--surface2)'
+    }}
+    {...props}>{children}</select>
   )
 }
 
-export function Table({ headers, rows, emptyMessage = 'No data' }) {
+export function Table({ headers, rows, emptyMessage = 'No data', onRowContextMenu }) {
   return (
     <div style={{ overflowX: 'auto' }}>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
@@ -132,6 +166,7 @@ export function Table({ headers, rows, emptyMessage = 'No data' }) {
             <tr><td colSpan={headers.length} style={{ textAlign: 'center', padding: 40, color: 'var(--text-3)' }}>{emptyMessage}</td></tr>
           ) : rows.map((row, i) => (
             <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}
+              onContextMenu={onRowContextMenu ? (e) => onRowContextMenu(e, i) : undefined}
               onMouseEnter={e => { Array.from(e.currentTarget.cells).forEach(c => c.style.background = 'color-mix(in srgb, var(--surface2) 75%, transparent)') }}
               onMouseLeave={e => { Array.from(e.currentTarget.cells).forEach(c => c.style.background = '') }}>
               {row.map((cell, j) => (

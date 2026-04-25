@@ -6,6 +6,7 @@ import {
 import { db } from './firebase'
 import { useAuth } from './AuthContext'
 import { useSheetsSync } from './SheetsSyncContext'
+import { normalizeBatch, schemaDocIdForBatch } from './batch'
 
 const PendingChangesContext = createContext(null)
 
@@ -32,7 +33,18 @@ export function PendingChangesProvider({ children }) {
   const propose = async (changeData) => {
     if (!isAdmin) throw new Error('Not authorized')
 
+    if (changeData.type === 'clearAll') {
+      if (!Array.isArray(changeData.studentIds) || !changeData.studentIds.length || !changeData.studentCount) {
+        throw new Error('No students available to clear')
+      }
+    }
+
+    if (changeData.type === 'place' || changeData.type === 'unplace' || changeData.type === 'delete') {
+      if (!changeData.studentId) throw new Error('Student no longer exists')
+    }
+
     if (changeData.type === 'import' && Array.isArray(changeData.rows)) {
+      if (!changeData.rows.length) throw new Error('Import file has no rows')
       const importId = `${Date.now()}_${user.uid}`
       const chunks = chunkRowsBySize(changeData.rows)
 
@@ -50,6 +62,7 @@ export function PendingChangesProvider({ children }) {
       await addDoc(collection(db, 'pendingChanges'), {
         type: 'import',
         rowCount: changeData.rows.length,
+        batch: changeData.batch || 'final',
         headers: Array.isArray(changeData.headers) ? changeData.headers : [],
         updateSchema: !!changeData.updateSchema,
         replaceExisting: !!changeData.replaceExisting,
@@ -78,6 +91,8 @@ export function PendingChangesProvider({ children }) {
   const reject = async (changeId, note = '') => {
     if (!isAdmin) throw new Error('Not authorized')
     const change = changes.find(c => c._id === changeId)
+    if (!change) throw new Error('Change not found')
+    if (change.status !== 'pending') throw new Error('Only pending changes can be reviewed')
     if (change?.proposedBy === user.uid) throw new Error('Cannot review your own proposal')
 
     if (change?.type === 'import' && change.importId && change.chunkCount) {
@@ -98,6 +113,7 @@ export function PendingChangesProvider({ children }) {
     if (!isAdmin) throw new Error('Not authorized')
     const change = changes.find(c => c._id === changeId)
     if (!change) throw new Error('Change not found')
+    if (change.status !== 'pending') throw new Error('Only pending changes can be reviewed')
     if (change.proposedBy === user.uid) throw new Error('Cannot approve your own proposal')
     if (change.applied) throw new Error('Already applied')
 
@@ -108,27 +124,36 @@ export function PendingChangesProvider({ children }) {
     }
 
     const batch = writeBatch(db)
-    const schemaRef = doc(db, 'config', 'columnSchema')
+    const schemaRef = doc(db, 'config', schemaDocIdForBatch(normalizeBatch(change.batch)))
 
     // Apply the actual change to students
     if (change.type === 'place') {
+      const snap = await getDoc(doc(db, 'students', change.studentId))
+      if (!snap.exists()) throw new Error('Student no longer exists')
+      const placement = normalizePlacementDetails(change)
       batch.update(doc(db, 'students', change.studentId), {
         _placed: true,
-        _placedCompany: change.company,
-        _placedAt: new Date().toISOString(),
+        _placedCompany: placement.company || change.company || null,
+        _placedAt: placement.placedAtIso || new Date().toISOString(),
+        _placement: placement,
       })
     } else if (change.type === 'unplace') {
+      const snap = await getDoc(doc(db, 'students', change.studentId))
+      if (!snap.exists()) throw new Error('Student no longer exists')
       batch.update(doc(db, 'students', change.studentId), {
         _placed: false,
         _placedCompany: null,
         _placedAt: null,
+        _placement: null,
       })
     } else if (change.type === 'delete') {
+      const snap = await getDoc(doc(db, 'students', change.studentId))
+      if (!snap.exists()) throw new Error('Student no longer exists')
       batch.delete(doc(db, 'students', change.studentId))
     } else if (change.type === 'import') {
       change.rows.forEach(row => {
         const ref = doc(collection(db, 'students'))
-        batch.set(ref, { ...row, _placed: false, _placedCompany: null, _placedAt: null, _createdAt: serverTimestamp() })
+        batch.set(ref, { ...row, _batch: change.batch || 'final', _placed: false, _placedCompany: null, _placedAt: null, _createdAt: serverTimestamp() })
       })
 
       if (Array.isArray(change.headers) && change.headers.length) {
@@ -144,6 +169,9 @@ export function PendingChangesProvider({ children }) {
         }
       }
     } else if (change.type === 'clearAll') {
+      if (!Array.isArray(change.studentIds) || !change.studentIds.length || !change.studentCount) {
+        throw new Error('No students available to clear')
+      }
       ;(change.studentIds || []).forEach(id => batch.delete(doc(db, 'students', id)))
     }
 
@@ -175,8 +203,29 @@ export function PendingChangesProvider({ children }) {
     appendChange({ ...change, reviewedByName: user.displayName, note })
   }
 
+  // Withdraw your own pending change
+  const withdraw = async (changeId, note = '') => {
+    if (!isAdmin) throw new Error('Not authorized')
+    const change = changes.find(c => c._id === changeId)
+    if (!change) throw new Error('Change not found')
+    if (change.status !== 'pending') throw new Error('Only pending changes can be withdrawn')
+    if (change.proposedBy !== user.uid) throw new Error('You can only withdraw your own proposals')
+
+    if (change.type === 'import' && change.importId && change.chunkCount) {
+      await cleanupImportPayload(change.importId, change.chunkCount)
+    }
+
+    await updateDoc(doc(db, 'pendingChanges', changeId), {
+      status: 'withdrawn',
+      withdrawnBy: user.uid,
+      withdrawnByName: user.displayName,
+      withdrawnAt: serverTimestamp(),
+      note,
+    })
+  }
+
   const approveImport = async (changeId, change, note) => {
-    const schemaRef = doc(db, 'config', 'columnSchema')
+    const schemaRef = doc(db, 'config', schemaDocIdForBatch(normalizeBatch(change.batch)))
     let rows = []
 
     if (change.importId && change.chunkCount) {
@@ -195,7 +244,9 @@ export function PendingChangesProvider({ children }) {
 
     if (change.replaceExisting) {
       const allStudents = await getDocs(collection(db, 'students'))
-      const ids = allStudents.docs.map(d => d.id)
+      const ids = allStudents.docs
+        .filter(d => (d.data()?._batch || 'final') === (change.batch || 'final'))
+        .map(d => d.id)
       for (let i = 0; i < ids.length; i += 400) {
         const batch = writeBatch(db)
         ids.slice(i, i + 400).forEach(id => batch.delete(doc(db, 'students', id)))
@@ -208,7 +259,7 @@ export function PendingChangesProvider({ children }) {
       const batch = writeBatch(db)
       chunk.forEach(row => {
         const ref = doc(collection(db, 'students'))
-        batch.set(ref, { ...row, _placed: false, _placedCompany: null, _placedAt: null, _createdAt: serverTimestamp() })
+        batch.set(ref, { ...row, _batch: change.batch || 'final', _placed: false, _placedCompany: null, _placedAt: null, _createdAt: serverTimestamp() })
       })
       await batch.commit()
     }
@@ -262,7 +313,7 @@ export function PendingChangesProvider({ children }) {
   }
 
   return (
-    <PendingChangesContext.Provider value={{ changes, loading, pendingCount, propose, approve, reject }}>
+    <PendingChangesContext.Provider value={{ changes, loading, pendingCount, propose, approve, reject, withdraw }}>
       {children}
     </PendingChangesContext.Provider>
   )
@@ -271,13 +322,39 @@ export function PendingChangesProvider({ children }) {
 export const usePendingChanges = () => useContext(PendingChangesContext)
 
 function describeChange(c) {
+  const batchPart = c.batch ? ` [${c.batch}]` : ''
   switch (c.type) {
-    case 'place':    return `Placed ${c.studentName} (${c.studentRoll}) at ${c.company}`
-    case 'unplace':  return `Unplaced ${c.studentName} (${c.studentRoll}) from ${c.currentCompany}`
-    case 'delete':   return `Deleted ${c.studentName} (${c.studentRoll})`
-    case 'import':   return `${c.replaceExisting ? 'Replaced and imported' : 'Imported'} ${c.rowCount} student${c.rowCount !== 1 ? 's' : ''}${c.headers?.length ? ` (${c.headers.length} columns)` : ''}`
-    case 'clearAll': return `Cleared all ${c.studentCount} students`
+    case 'place': {
+      const company = c.placementDetails?.company || c.company || 'Unknown company'
+      const via = c.placementDetails?.via ? ` via ${c.placementDetails.via}` : ''
+      return `Placed${batchPart} ${c.studentName} (${c.studentRoll}) at ${company}${via}`
+    }
+    case 'unplace':  return `Unplaced${batchPart} ${c.studentName} (${c.studentRoll}) from ${c.currentCompany}`
+    case 'delete':   return `Deleted${batchPart} ${c.studentName} (${c.studentRoll})`
+    case 'import':   return `${c.replaceExisting ? 'Replaced and imported' : 'Imported'}${batchPart} ${c.rowCount} student${c.rowCount !== 1 ? 's' : ''}${c.headers?.length ? ` (${c.headers.length} columns)` : ''}`
+    case 'clearAll': return `Cleared${batchPart} all ${c.studentCount} students`
     default:         return `Action: ${c.type}`
+  }
+}
+
+function normalizePlacementDetails(change) {
+  const raw = change?.placementDetails || {}
+  const date = typeof raw.date === 'string' && raw.date.trim()
+    ? raw.date.trim()
+    : new Date().toISOString().slice(0, 10)
+  const placedAtIso = typeof raw.placedAtIso === 'string' && raw.placedAtIso.trim()
+    ? raw.placedAtIso.trim()
+    : new Date(`${date}T00:00:00`).toISOString()
+
+  return {
+    date,
+    company: String(raw.company || change?.company || '').trim(),
+    role: String(raw.role || '').trim(),
+    sector: String(raw.sector || '').trim(),
+    package: String(raw.package || '').trim(),
+    ctcNotes: String(raw.ctcNotes || '').trim(),
+    via: String(raw.via || '').trim(),
+    placedAtIso,
   }
 }
 

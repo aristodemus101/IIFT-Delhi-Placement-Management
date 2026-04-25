@@ -5,6 +5,20 @@
   --font-sans: Inter, 'Segoe UI', Helvetica, Arial, sans-serif;
   --font-mono: 'DM Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-md: 13px;
+  --text-lg: 15px;
+  --text-xl: 22px;
+
+  --leading-tight: 1.2;
+  --leading-normal: 1.45;
+
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+  --weight-xbold: 800;
+
   --bg: #ffffff;
   --bg-grad: linear-gradient(135deg, #ffffff 0%, #f0f5ff 100%);
   --surface: #ffffff;
@@ -20,6 +34,19 @@
   --accent-dark: #1e3a8a;
   --accent-bg: #eff6ff;
   --accent-text: #1e40af;
+  --info-bg: #f8fafc;
+  --info-border: #dbeafe;
+
+  --batch-summer-bg: #fffbeb;
+  --batch-summer-border: #f3e8c2;
+  --batch-summer-text: #92400e;
+  --batch-final-bg: #f8fafc;
+  --batch-final-border: #dbeafe;
+  --batch-final-text: #1e3a8a;
+
+  --workspace-bg: #f8fafc;
+  --workspace-border: #dbeafe;
+  --workspace-text: #1e3a8a;
 
   --green: #10b981;
   --green-bg: rgba(16, 185, 129, 0.12);
@@ -68,6 +95,19 @@
     --accent-dark: #1d4ed8;
     --accent-bg: rgba(59, 130, 246, 0.14);
     --accent-text: #93c5fd;
+    --info-bg: rgba(59, 130, 246, 0.08);
+    --info-border: rgba(147, 197, 253, 0.35);
+
+    --batch-summer-bg: rgba(245, 158, 11, 0.12);
+    --batch-summer-border: rgba(245, 158, 11, 0.28);
+    --batch-summer-text: #fcd34d;
+    --batch-final-bg: rgba(59, 130, 246, 0.1);
+    --batch-final-border: rgba(147, 197, 253, 0.35);
+    --batch-final-text: #bfdbfe;
+
+    --workspace-bg: rgba(59, 130, 246, 0.08);
+    --workspace-border: rgba(147, 197, 253, 0.35);
+    --workspace-text: #bfdbfe;
 
     --green: #10b981;
     --green-bg: rgba(16, 185, 129, 0.15);
@@ -109,6 +149,19 @@
   --accent-dark: #1e3a8a;
   --accent-bg: #eff6ff;
   --accent-text: #1e40af;
+  --info-bg: #f8fafc;
+  --info-border: #dbeafe;
+
+  --batch-summer-bg: #fffbeb;
+  --batch-summer-border: #f3e8c2;
+  --batch-summer-text: #92400e;
+  --batch-final-bg: #f8fafc;
+  --batch-final-border: #dbeafe;
+  --batch-final-text: #1e3a8a;
+
+  --workspace-bg: #f8fafc;
+  --workspace-border: #dbeafe;
+  --workspace-text: #1e3a8a;
 
   --green: #10b981;
   --green-bg: rgba(16, 185, 129, 0.12);
@@ -149,6 +202,19 @@
   --accent-dark: #1d4ed8;
   --accent-bg: rgba(59, 130, 246, 0.14);
   --accent-text: #93c5fd;
+  --info-bg: rgba(59, 130, 246, 0.08);
+  --info-border: rgba(147, 197, 253, 0.35);
+
+  --batch-summer-bg: rgba(245, 158, 11, 0.12);
+  --batch-summer-border: rgba(245, 158, 11, 0.28);
+  --batch-summer-text: #fcd34d;
+  --batch-final-bg: rgba(59, 130, 246, 0.1);
+  --batch-final-border: rgba(147, 197, 253, 0.35);
+  --batch-final-text: #bfdbfe;
+
+  --workspace-bg: rgba(59, 130, 246, 0.08);
+  --workspace-border: rgba(147, 197, 253, 0.35);
+  --workspace-text: #bfdbfe;
 
   --green: #10b981;
   --green-bg: rgba(16, 185, 129, 0.15);
@@ -185,6 +251,18 @@ html, body, #root {
 body {
   background: var(--bg-grad);
   background-attachment: fixed;
+}
+
+:root[data-batch='summer'] {
+  --workspace-bg: var(--batch-summer-bg);
+  --workspace-border: var(--batch-summer-border);
+  --workspace-text: var(--batch-summer-text);
+}
+
+:root[data-batch='final'] {
+  --workspace-bg: var(--batch-final-bg);
+  --workspace-border: var(--batch-final-border);
+  --workspace-text: var(--batch-final-text);
 }
 
 /* Scrollbars */

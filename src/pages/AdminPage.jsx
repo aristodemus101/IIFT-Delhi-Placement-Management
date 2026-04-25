@@ -3,6 +3,8 @@ import { useRoles } from '../lib/useRoles'
 import { useAuth } from '../lib/AuthContext'
 import { useStudents, useColumnSchema } from '../lib/useStudents'
 import { useSheetsSync } from '../lib/SheetsSyncContext'
+import { useBatch } from '../lib/BatchContext'
+import { batchLabel } from '../lib/batch'
 import { OUR_COLS } from '../lib/columns'
 import { PageHeader, Btn, Badge, Spinner, Modal } from '../components/UI'
 import { ShieldCheck, User, AlertTriangle, Sheet, RefreshCw, ExternalLink, CheckCircle, Database, Columns3 } from 'lucide-react'
@@ -11,7 +13,8 @@ export default function AdminPage() {
   const { roles, loading, setRole, adminCount } = useRoles()
   const { user, isMasterAdmin } = useAuth()
   const { students } = useStudents()
-  const { schemaHeaders, setSchemaHeaders } = useColumnSchema()
+  const { selectedBatch } = useBatch()
+  const { schemaHeaders, setSchemaHeaders } = useColumnSchema(selectedBatch)
   const { connected, sheetUrl, lastSync, syncing, authorize, syncNow } = useSheetsSync()
   const [busy, setBusy] = useState(null)
   const [syncMsg, setSyncMsg] = useState('')
@@ -185,7 +188,7 @@ export default function AdminPage() {
         <div style={{ marginTop: 28 }}>
           <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>Column Structure</h2>
           <p style={{ fontSize: 13, color: 'var(--text-2)', marginBottom: 12 }}>
-            Control visible headers for roster UI and imports. You can add, remove, rename, and reorder columns.
+            Control visible headers for roster UI and imports for <strong>{batchLabel(selectedBatch)}</strong>. You can add, remove, rename, and reorder columns.
           </p>
           <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '16px 18px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, marginBottom: 10 }}>

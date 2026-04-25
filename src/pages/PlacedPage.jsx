@@ -2,20 +2,23 @@ import React, { useState, useMemo } from 'react'
 import { useStudents } from '../lib/useStudents'
 import { usePendingChanges } from '../lib/PendingChangesContext'
 import { useAuth } from '../lib/AuthContext'
+import { useBatch } from '../lib/BatchContext'
+import { batchLabel, normalizeBatch } from '../lib/batch'
 import { getVal } from '../lib/columns'
 import { exportToCSV } from '../lib/csv'
-import { PageHeader, Btn, CategoryBadge, Input, Spinner, Table, Modal } from '../components/UI'
+import { PageHeader, Btn, Badge, CategoryBadge, Input, Spinner, Table, Modal } from '../components/UI'
 import { Download, RotateCcw, Search, Eye, CheckCircle, Lock } from 'lucide-react'
 
 export default function PlacedPage() {
   const { students, loading } = useStudents()
   const { propose } = usePendingChanges()
   const { isAdmin } = useAuth()
+  const { selectedBatch } = useBatch()
   const [search, setSearch] = useState('')
   const [viewModal, setViewModal] = useState(null)
   const [successMsg, setSuccessMsg] = useState('')
 
-  const placed = students.filter(s => s._placed)
+  const placed = students.filter(s => normalizeBatch(s._batch) === selectedBatch && s._placed)
 
   const filtered = useMemo(() => {
     if (!search) return placed
@@ -32,6 +35,7 @@ export default function PlacedPage() {
   const proposeUnplace = async (s) => {
     await propose({
       type: 'unplace',
+      batch: selectedBatch,
       studentId: s._id,
       studentName: getVal(s, 'name'),
       studentRoll: getVal(s, 'roll'),
@@ -81,11 +85,14 @@ export default function PlacedPage() {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <PageHeader
         title="Placed Students"
-        subtitle={`${placed.length} student${placed.length !== 1 ? 's' : ''} placed so far`}
+        subtitle={`${batchLabel(selectedBatch)} · ${placed.length} student${placed.length !== 1 ? 's' : ''} placed so far`}
         actions={
-          <Btn size="sm" onClick={() => exportToCSV(filtered, 'placed_students.csv')}>
-            <Download size={13} /> Export Placed Sheet
-          </Btn>
+          <>
+            <Badge color={selectedBatch === 'summer' ? 'amber' : 'blue'}>{selectedBatch === 'summer' ? 'Summer Batch' : 'Final Batch'}</Badge>
+            <Btn size="sm" onClick={() => exportToCSV(filtered, 'placed_students.csv')} disabled={!filtered.length} title={!filtered.length ? 'No placed records to export' : 'Export placed students'}>
+              <Download size={13} /> Export Placed Sheet
+            </Btn>
+          </>
         }
       />
 

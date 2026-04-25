@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { usePendingChanges } from '../lib/PendingChangesContext'
 import { useAuth } from '../lib/AuthContext'
+import { batchLabel, normalizeBatch } from '../lib/batch'
 import { PageHeader, Btn, Badge, Spinner, Modal } from '../components/UI'
 import {
   CheckCircle, XCircle, Clock, CheckSquare, Trash2,
@@ -16,12 +17,17 @@ const TYPE_META = {
 }
 
 function changeDescription(c) {
+  const batchPart = c.batch ? ` [${String(c.batch).toUpperCase()}]` : ''
   switch (c.type) {
-    case 'place':    return `Place ${c.studentName} (${c.studentRoll}) → ${c.company}`
-    case 'unplace':  return `Unplace ${c.studentName} (${c.studentRoll}) from ${c.currentCompany}`
-    case 'delete':   return `Permanently delete ${c.studentName} (${c.studentRoll})`
-    case 'import':   return `${c.replaceExisting ? 'Replace existing and import' : 'Import'} ${c.rowCount} student${c.rowCount !== 1 ? 's' : ''} from file`
-    case 'clearAll': return `Delete all ${c.studentCount} students from database`
+    case 'place': {
+      const company = c.placementDetails?.company || c.company || 'Unknown company'
+      const via = c.placementDetails?.via ? ` via ${c.placementDetails.via}` : ''
+      return `${batchPart} Place ${c.studentName} (${c.studentRoll}) → ${company}${via}`
+    }
+    case 'unplace':  return `${batchPart} Unplace ${c.studentName} (${c.studentRoll}) from ${c.currentCompany}`
+    case 'delete':   return `${batchPart} Permanently delete ${c.studentName} (${c.studentRoll})`
+    case 'import':   return `${batchPart} ${c.replaceExisting ? 'Replace existing and import' : 'Import'} ${c.rowCount} student${c.rowCount !== 1 ? 's' : ''} from file`
+    case 'clearAll': return `${batchPart} Delete all ${c.studentCount} students from database`
     default:         return c.type
   }
 }
@@ -33,17 +39,22 @@ function fmtTime(ts) {
 }
 
 export default function ApprovalsPage() {
-  const { changes, loading, approve, reject } = usePendingChanges()
+  const { changes, loading, approve, reject, withdraw } = usePendingChanges()
   const { user } = useAuth()
   const [tab, setTab] = useState('pending')
+  const [batchScope, setBatchScope] = useState('all')
   const [reviewing, setReviewing] = useState(null) // { change, action }
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
 
-  const filtered = tab === 'all'
+  const batchScoped = batchScope === 'all'
     ? changes
-    : changes.filter(c => c.status === tab)
+    : changes.filter(c => normalizeBatch(c.batch) === batchScope)
+
+  const filtered = tab === 'all'
+    ? batchScoped
+    : batchScoped.filter(c => c.status === tab)
 
   const openReview = (change, action) => { setReviewing({ change, action }); setNote(''); setErr('') }
 
@@ -52,6 +63,7 @@ export default function ApprovalsPage() {
     setBusy(true); setErr('')
     try {
       if (reviewing.action === 'approve') await approve(reviewing.change._id, note)
+      else if (reviewing.action === 'withdraw') await withdraw(reviewing.change._id, note)
       else await reject(reviewing.change._id, note)
       setReviewing(null)
     } catch (e) {
@@ -61,9 +73,10 @@ export default function ApprovalsPage() {
   }
 
   const tabs = [
-    { key: 'pending',  label: 'Pending',  count: changes.filter(c => c.status === 'pending').length },
+    { key: 'pending',  label: 'Pending',  count: batchScoped.filter(c => c.status === 'pending').length },
     { key: 'approved', label: 'Approved', count: null },
     { key: 'rejected', label: 'Rejected', count: null },
+    { key: 'withdrawn', label: 'Withdrawn', count: null },
     { key: 'all',      label: 'All',      count: null },
   ]
 
@@ -94,6 +107,13 @@ export default function ApprovalsPage() {
             )}
           </button>
         ))}
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
+          {[{ key: 'all', label: 'All Batches' }, { key: 'summer', label: 'Summer' }, { key: 'final', label: 'Final' }].map(b => (
+            <Btn key={b.key} size="sm" variant={batchScope === b.key ? 'default' : 'ghost'} onClick={() => setBatchScope(b.key)}>
+              {b.label}
+            </Btn>
+          ))}
+        </div>
       </div>
 
       <div style={{ flex: 1, overflow: 'auto', padding: '20px 28px' }}>
@@ -108,6 +128,11 @@ export default function ApprovalsPage() {
               const Icon = meta.icon || Clock
               const isOwn = c.proposedBy === user?.uid
               const isPending = c.status === 'pending'
+              const invalidPending = isPending && (
+                (c.type === 'clearAll' && (!c.studentCount || c.studentCount <= 0)) ||
+                (c.type === 'import' && (!c.rowCount || c.rowCount <= 0)) ||
+                ((c.type === 'place' || c.type === 'unplace' || c.type === 'delete') && !c.studentId)
+              )
 
               return (
                 <div key={c._id} style={{
@@ -127,10 +152,12 @@ export default function ApprovalsPage() {
                       <div style={{ flex: 1 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                           <Badge color={meta.color}>{meta.label}</Badge>
+                          <Badge color={normalizeBatch(c.batch) === 'summer' ? 'amber' : 'blue'}>{batchLabel(c.batch)}</Badge>
                           {isOwn && isPending && <Badge color="gray">Your proposal</Badge>}
+                          {invalidPending && <Badge color="red">Invalid request</Badge>}
                           {!isPending && (
                             <Badge color={c.status === 'approved' ? 'green' : 'red'}>
-                              {c.status === 'approved' ? '✓ Approved' : '✗ Rejected'}
+                              {c.status === 'approved' ? '✓ Approved' : c.status === 'withdrawn' ? '↩ Withdrawn' : '✗ Rejected'}
                             </Badge>
                           )}
                         </div>
@@ -159,12 +186,17 @@ export default function ApprovalsPage() {
                     {isPending && (
                       <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
                         {isOwn ? (
-                          <span style={{ fontSize: 12, color: 'var(--text-3)', padding: '6px 10px' }}>
-                            Awaiting another admin
-                          </span>
+                          <>
+                            <span style={{ fontSize: 12, color: 'var(--text-3)', padding: '6px 6px' }}>
+                              Awaiting another admin
+                            </span>
+                            <Btn size="sm" variant="ghost" onClick={() => openReview(c, 'withdraw')} title="Withdraw this proposal">
+                              <RotateCcw size={13} /> Withdraw
+                            </Btn>
+                          </>
                         ) : (
                           <>
-                            <Btn size="sm" variant="success" onClick={() => openReview(c, 'approve')}>
+                            <Btn size="sm" variant="success" onClick={() => openReview(c, 'approve')} disabled={invalidPending} title={invalidPending ? 'This request has invalid or empty payload and cannot be approved' : 'Approve this request'}>
                               <CheckCircle size={13} /> Approve
                             </Btn>
                             <Btn size="sm" variant="danger" onClick={() => openReview(c, 'reject')}>
@@ -186,7 +218,7 @@ export default function ApprovalsPage() {
       <Modal
         open={!!reviewing}
         onClose={() => setReviewing(null)}
-        title={reviewing?.action === 'approve' ? 'Approve Change' : 'Reject Change'}
+        title={reviewing?.action === 'approve' ? 'Approve Change' : reviewing?.action === 'withdraw' ? 'Withdraw Proposal' : 'Reject Change'}
       >
         {reviewing && (
           <div>
@@ -221,7 +253,7 @@ export default function ApprovalsPage() {
             <textarea
               value={note}
               onChange={e => setNote(e.target.value)}
-              placeholder={reviewing.action === 'reject' ? 'Reason for rejection…' : 'Any notes…'}
+              placeholder={reviewing.action === 'reject' ? 'Reason for rejection…' : reviewing.action === 'withdraw' ? 'Reason for withdrawal…' : 'Any notes…'}
               rows={3}
               style={{
                 width: '100%', padding: '8px 10px', borderRadius: 'var(--radius-sm)',
@@ -238,11 +270,11 @@ export default function ApprovalsPage() {
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
               <Btn onClick={() => setReviewing(null)} disabled={busy}>Cancel</Btn>
               <Btn
-                variant={reviewing.action === 'approve' ? 'success' : 'danger'}
+                variant={reviewing.action === 'approve' ? 'success' : reviewing.action === 'withdraw' ? 'ghost' : 'danger'}
                 onClick={submitReview}
                 disabled={busy}
               >
-                {busy ? 'Processing…' : reviewing.action === 'approve' ? <><CheckCircle size={13} /> Confirm Approval</> : <><XCircle size={13} /> Confirm Rejection</>}
+                {busy ? 'Processing…' : reviewing.action === 'approve' ? <><CheckCircle size={13} /> Confirm Approval</> : reviewing.action === 'withdraw' ? <><RotateCcw size={13} /> Confirm Withdraw</> : <><XCircle size={13} /> Confirm Rejection</>}
               </Btn>
             </div>
           </div>

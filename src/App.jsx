@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './lib/AuthContext'
 import { PendingChangesProvider } from './lib/PendingChangesContext'
 import { SheetsSyncProvider } from './lib/SheetsSyncContext'
 import { ThemeProvider } from './lib/ThemeContext'
+import { BatchProvider } from './lib/BatchContext'
 import Layout from './components/Layout'
 import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
@@ -39,7 +40,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={user ? <Navigate to="/" replace /> : <LoginPage />} />
-      <Route path="/" element={<ProtectedRoute><SheetsSyncProvider><PendingChangesProvider><Layout /></PendingChangesProvider></SheetsSyncProvider></ProtectedRoute>}>
+      <Route path="/" element={<ProtectedRoute><BatchProvider><SheetsSyncProvider><PendingChangesProvider><Layout /></PendingChangesProvider></SheetsSyncProvider></BatchProvider></ProtectedRoute>}>
         <Route index          element={<DashboardPage />} />
         <Route path="roster"  element={<RosterPage />} />
         <Route path="placed"  element={<PlacedPage />} />

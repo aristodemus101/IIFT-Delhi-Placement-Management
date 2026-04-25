@@ -31,11 +31,23 @@ service cloud.firestore {
         && request.resource.data.proposedBy == request.auth.uid
         && request.resource.data.status    == 'pending';
 
+      // Review path: a different admin approves/rejects pending proposals.
+      // Withdraw path: proposer withdraws their own pending proposal.
       allow update: if isAdmin()
-        && resource.data.proposedBy           != request.auth.uid
-        && resource.data.status               == 'pending'
-        && request.resource.data.status       in ['approved', 'rejected']
-        && request.resource.data.proposedBy   == resource.data.proposedBy;
+        && resource.data.status == 'pending'
+        && request.resource.data.proposedBy == resource.data.proposedBy
+        && (
+          (
+            resource.data.proposedBy != request.auth.uid
+            && request.resource.data.status in ['approved', 'rejected']
+          )
+          ||
+          (
+            resource.data.proposedBy == request.auth.uid
+            && request.resource.data.status == 'withdrawn'
+            && request.resource.data.withdrawnBy == request.auth.uid
+          )
+        );
     }
 
     // ── Roles ───────────────────────────────────────────────────────────────
@@ -69,6 +81,12 @@ service cloud.firestore {
     // Column-mapping templates are non-sensitive; any authed user can manage them.
     match /templates/{id} {
       allow read, write: if isAuthed();
+    }
+
+    // ── User Preferences ─────────────────────────────────────────────────────
+    // Per-user UI preferences (column visibility, sorting, etc.).
+    match /userPrefs/{uid} {
+      allow read, write: if isAuthed() && request.auth.uid == uid;
     }
 
     // Deny everything else
