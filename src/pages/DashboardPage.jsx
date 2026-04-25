@@ -222,7 +222,7 @@ export default function DashboardPage() {
         </div>
 
         {/* stat cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(140px, 1fr))', gap: 10, marginBottom: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(140px, 1fr))', gap: 10, marginBottom: 14, textAlign: 'center' }}>
           <StatCard label="Total Candidates" value={stats.total    || 0}  sub="in database" />
           <StatCard label="Available"         value={stats.active   || 0}  sub="not yet placed"          color="var(--accent)" />
           <StatCard label="Placed"            value={stats.placed   || 0}  sub={`${stats.placePct || 0}% of batch`} color="var(--green)" />
