@@ -26,7 +26,7 @@ export function PageHeader({ title, subtitle, actions }) {
           flexWrap: 'wrap',
           marginLeft: 'auto',
         }}>
-          {actions || <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-3)' }}>No page actions</span>}
+          {actions}
         </div>
       </div>
     </div>
