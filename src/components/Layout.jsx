@@ -8,7 +8,7 @@ import { useStudents } from '../lib/useStudents'
 import { batchLabel, normalizeBatch } from '../lib/batch'
 import { Badge, Btn, Modal } from './UI'
 import {
-  LayoutDashboard, Users, CheckSquare, ArrowLeftRight,
+  LayoutDashboard, Users, CheckSquare, ArrowLeftRight, Activity,
   LogOut, GraduationCap, ShieldCheck, ClipboardCheck, User, Sun, Moon
 } from 'lucide-react'
 
@@ -65,6 +65,7 @@ export default function Layout() {
     { to: '/',          icon: LayoutDashboard, label: 'Dashboard',    exact: true, adminOnly: false },
     { to: '/roster',    icon: Users,           label: 'Roster',       exact: false, adminOnly: false },
     { to: '/placed',    icon: CheckSquare,     label: 'Placed',       exact: false, adminOnly: false },
+    { to: '/activity',  icon: Activity,        label: 'Activity',     exact: false, adminOnly: false },
     { to: '/remapper',  icon: ArrowLeftRight,  label: 'Col. Remapper',exact: false, adminOnly: false },
     { to: '/approvals', icon: ClipboardCheck,  label: 'Approvals',    exact: false, adminOnly: true, badge: pendingCount },
     { to: '/admin',     icon: ShieldCheck,     label: 'Team Access',  exact: false, adminOnly: true },

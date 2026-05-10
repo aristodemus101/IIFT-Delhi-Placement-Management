@@ -3,6 +3,8 @@ dist
 .env
 .env.local
 .firebase
-.claude/
+.claude/settings.local.json
+.claude/*.local.json
+.claude/*.log
 .DS_Store
 *.log
