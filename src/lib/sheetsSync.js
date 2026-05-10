@@ -151,6 +151,155 @@ export async function syncFullSnapshot(token, sheetId, students) {
   return { active: active.length, placed: placed.length }
 }
 
+// ── Opportunity Tracker ───────────────────────────────────────────────────────
+//
+// Creates a standalone Google Sheet for one opportunity.
+// Each call to createTrackerTab() adds a new tab (EOI, Joined Group, etc.)
+// with Roll | Name | Email | <action col> where <action col> has a Yes/No dropdown.
+//
+// studentList shape: { mode: 'all'|'ytp'|'custom', students: [...student objects] }
+// stageConfig shape: { label: 'EOI Stage', colHeader: 'Filled EOI', sheetTitle: 'EOI' }
+
+export async function createOpportunityTracker(token, oppTitle, students, stageConfig) {
+  // Create a brand-new spreadsheet for this opportunity
+  const sheetRes = await api('POST', BASE, token, {
+    properties: { title: `Tracker — ${oppTitle}` },
+    sheets: [
+      { properties: { sheetId: 0, index: 0, title: stageConfig.sheetTitle } },
+    ],
+  })
+  const spreadsheetId = sheetRes.spreadsheetId
+
+  // Share with anyone who has the link (editor)
+  await fetch(`${DRIVE}/${spreadsheetId}/permissions`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ role: 'writer', type: 'anyone' }),
+  })
+
+  await _writeTrackerTab(token, spreadsheetId, 0, stageConfig, students)
+
+  return {
+    spreadsheetId,
+    sheetUrl: `https://docs.google.com/spreadsheets/d/${spreadsheetId}`,
+  }
+}
+
+export async function addTrackerTab(token, spreadsheetId, stageConfig, students) {
+  // Get existing sheet metadata to find next sheetId and index
+  const meta = await api('GET', `${BASE}/${spreadsheetId}?fields=sheets.properties`, token)
+  const existingSheets = meta.sheets || []
+  const nextIndex = existingSheets.length
+  // Use a random sheetId to avoid collisions
+  const newSheetId = Math.floor(Math.random() * 900000) + 100000
+
+  await api('POST', `${BASE}/${spreadsheetId}:batchUpdate`, token, {
+    requests: [{
+      addSheet: {
+        properties: { sheetId: newSheetId, index: nextIndex, title: stageConfig.sheetTitle },
+      },
+    }],
+  })
+
+  await _writeTrackerTab(token, spreadsheetId, newSheetId, stageConfig, students)
+
+  return { spreadsheetId, sheetUrl: `https://docs.google.com/spreadsheets/d/${spreadsheetId}` }
+}
+
+async function _writeTrackerTab(token, spreadsheetId, sheetId, stageConfig, students) {
+  const sheetTitle = stageConfig.sheetTitle
+  const colHeader  = stageConfig.colHeader   // e.g. "Filled EOI" or "Joined Group"
+
+  // Write header row + data rows
+  const headers = ['Roll No.', 'Name', 'Official Email', colHeader]
+  const rows = students.map(s => [
+    s['Roll No.'] || s.roll || '',
+    s['Full Name'] || `${s['First Name'] || ''} ${s['Last Name'] || ''}`.trim() || s.name || '',
+    s['Official Email ID (d27/ba27)'] || s.official_email || s.email || '',
+    'No',  // default value
+  ])
+
+  await writeRange(token, spreadsheetId, `${sheetTitle}!A1`, [headers, ...rows])
+
+  // Style header row — bold + background
+  const totalRows = rows.length + 1  // +1 for header
+
+  await api('POST', `${BASE}/${spreadsheetId}:batchUpdate`, token, {
+    requests: [
+      // Bold header
+      {
+        repeatCell: {
+          range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: 4 },
+          cell: { userEnteredFormat: { textFormat: { bold: true }, backgroundColor: { red: 0.24, green: 0.52, blue: 0.78 } } },
+          fields: 'userEnteredFormat(textFormat,backgroundColor)',
+        },
+      },
+      // Header text white
+      {
+        repeatCell: {
+          range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: 4 },
+          cell: { userEnteredFormat: { textFormat: { bold: true, foregroundColor: { red: 1, green: 1, blue: 1 } } } },
+          fields: 'userEnteredFormat.textFormat',
+        },
+      },
+      // Freeze header row
+      {
+        updateSheetProperties: {
+          properties: { sheetId, gridProperties: { frozenRowCount: 1 } },
+          fields: 'gridProperties.frozenRowCount',
+        },
+      },
+      // Auto-resize all columns
+      {
+        autoResizeDimensions: {
+          dimensions: { sheetId, dimension: 'COLUMNS', startIndex: 0, endIndex: 4 },
+        },
+      },
+      // Yes/No dropdown on the action column (col D, index 3) for all data rows
+      ...(totalRows > 1 ? [{
+        setDataValidation: {
+          range: { sheetId, startRowIndex: 1, endRowIndex: totalRows, startColumnIndex: 3, endColumnIndex: 4 },
+          rule: {
+            condition: {
+              type: 'ONE_OF_LIST',
+              values: [{ userEnteredValue: 'Yes' }, { userEnteredValue: 'No' }],
+            },
+            showCustomUi: true,
+            strict: true,
+          },
+        },
+      }] : []),
+      // Conditional formatting: Yes = green, No = light red
+      ...(totalRows > 1 ? [
+        {
+          addConditionalFormatRule: {
+            rule: {
+              ranges: [{ sheetId, startRowIndex: 1, endRowIndex: totalRows, startColumnIndex: 3, endColumnIndex: 4 }],
+              booleanRule: {
+                condition: { type: 'TEXT_EQ', values: [{ userEnteredValue: 'Yes' }] },
+                format: { backgroundColor: { red: 0.71, green: 0.90, blue: 0.71 } },
+              },
+            },
+            index: 0,
+          },
+        },
+        {
+          addConditionalFormatRule: {
+            rule: {
+              ranges: [{ sheetId, startRowIndex: 1, endRowIndex: totalRows, startColumnIndex: 3, endColumnIndex: 4 }],
+              booleanRule: {
+                condition: { type: 'TEXT_EQ', values: [{ userEnteredValue: 'No' }] },
+                format: { backgroundColor: { red: 0.96, green: 0.80, blue: 0.80 } },
+              },
+            },
+            index: 1,
+          },
+        },
+      ] : []),
+    ],
+  })
+}
+
 // ── Playground Sheet ─────────────────────────────────────────────────────────
 // A separate editable sheet for the whole team to work in freely.
 // Anyone with the link can edit. Changes here never touch Firestore.

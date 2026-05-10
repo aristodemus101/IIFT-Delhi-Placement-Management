@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react'
 import { useAuth } from '../lib/AuthContext'
 import { useStudents } from '../lib/useStudents'
+import { useSheetsSync } from '../lib/SheetsSyncContext'
 import {
   useOpportunities, useStages, useApplicants,
   postOpportunity, advanceStage, deleteOpportunity,
@@ -10,7 +11,7 @@ import { PageHeader, Btn, Badge, Modal, Select, Spinner } from '../components/UI
 import {
   Plus, Trash2, Briefcase, Trophy, FlaskConical,
   GraduationCap, CalendarClock, ChevronRight, Copy, Check,
-  MessageSquare, Users, Award,
+  MessageSquare, Users, Award, ExternalLink, Sheet,
 } from 'lucide-react'
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -169,6 +170,7 @@ export default function ActivityPage() {
   const isAdmin = role === 'admin'
   const { students } = useStudents()
   const { opportunities, loading } = useOpportunities()
+  const { connected: sheetsConnected, createTracker, addStageTab } = useSheetsSync()
 
   const [typeFilter, setTypeFilter]   = useState('all')
   const [batchFilter, setBatchFilter] = useState('all')
@@ -260,6 +262,9 @@ export default function ActivityPage() {
           isAdmin={isAdmin}
           user={user}
           students={students}
+          sheetsConnected={sheetsConnected}
+          createTracker={createTracker}
+          addStageTab={addStageTab}
           onClose={() => setDetailOpp(null)}
         />
       )}
@@ -413,15 +418,14 @@ function PostModal({ user, onClose }) {
 
 // ── Detail / Pipeline Modal ───────────────────────────────────────────────────
 
-function DetailModal({ opp, isAdmin, user, students, onClose }) {
+function DetailModal({ opp, isAdmin, user, students, sheetsConnected, createTracker, addStageTab, onClose }) {
   const stages = useStages(opp.id)
   const applicants = useApplicants(opp.id)
-  const [tab, setTab] = useState('info')  // info | stages | shortlist | message
-  const [stageFlow, setStageFlow] = useState(null)  // {type, step, ...}
+  const [tab, setTab] = useState('info')
+  const [stageFlow, setStageFlow] = useState(null)
 
   return (
     <Modal open onClose={onClose} title={opp.title || 'Opportunity'} width={720}>
-      {/* Tabs */}
       <div style={{ display: 'flex', gap: 2, marginBottom: 18, borderBottom: '1px solid var(--border)', paddingBottom: 0 }}>
         {[
           { key: 'info', label: 'Details' },
@@ -439,15 +443,18 @@ function DetailModal({ opp, isAdmin, user, students, onClose }) {
       </div>
 
       {tab === 'info' && (
-        <InfoTab opp={opp} isAdmin={isAdmin} user={user} students={students} setStageFlow={setStageFlow} />
+        <InfoTab opp={opp} isAdmin={isAdmin} user={user} students={students}
+          sheetsConnected={sheetsConnected} setStageFlow={setStageFlow} />
       )}
       {tab === 'stages' && <StagesTab stages={stages} />}
       {tab === 'applicants' && <ApplicantsTab applicants={applicants} />}
 
-      {/* Stage advance flows */}
       {stageFlow && (
         <StageFlowModal
           opp={opp} flow={stageFlow} user={user} students={students}
+          sheetsConnected={sheetsConnected}
+          createTracker={createTracker}
+          addStageTab={addStageTab}
           onClose={() => setStageFlow(null)}
         />
       )}
@@ -455,7 +462,7 @@ function DetailModal({ opp, isAdmin, user, students, onClose }) {
   )
 }
 
-function InfoTab({ opp, isAdmin, user, students, setStageFlow }) {
+function InfoTab({ opp, isAdmin, user, students, sheetsConnected, setStageFlow }) {
   const rows = [
     { label: 'Type',          value: opp.type },
     { label: 'Organization',  value: opp.organization },
@@ -575,26 +582,41 @@ function ApplicantsTab({ applicants }) {
 
 // ── Stage Advance Flow Modal ──────────────────────────────────────────────────
 
-function StageFlowModal({ opp, flow, user, students, onClose }) {
-  const [step, setStep]         = useState('paste')
-  const [rawText, setRawText]   = useState('')
-  const [matched, setMatched]   = useState([])
-  const [message, setMessage]   = useState('')
-  const [waLink, setWaLink]     = useState('')
+// Stage configs: which tracker tab to create per stage type
+const STAGE_TRACKER_CONFIG = {
+  shortlist: { sheetTitle: 'EOI',           colHeader: 'Filled EOI'     },
+  interview: { sheetTitle: 'Joined Group',  colHeader: 'Joined Group'   },
+  selected:  { sheetTitle: 'Final Selected',colHeader: 'Offer Accepted' },
+}
+
+function StageFlowModal({ opp, flow, user, students, sheetsConnected, createTracker, addStageTab, onClose }) {
+  const [step, setStep]               = useState('paste')
+  const [rawText, setRawText]         = useState('')
+  const [matched, setMatched]         = useState([])
+  const [studentMode, setStudentMode] = useState('matched') // matched | all | ytp
+  const [message, setMessage]         = useState('')
+  const [waLink, setWaLink]           = useState('')
   const [trackerLink, setTrackerLink] = useState('')
-  const [busy, setBusy]         = useState(false)
-  const [err, setErr]           = useState('')
+  const [trackerCreating, setTrackerCreating] = useState(false)
+  const [busy, setBusy]               = useState(false)
+  const [err, setErr]                 = useState('')
 
   const isMessageOnly = flow.type === 'message'
-  const stageLabel = STAGE_TYPES[flow.type] || 'Update'
+  const stageLabel    = STAGE_TYPES[flow.type] || 'Update'
+  const trackerConfig = STAGE_TRACKER_CONFIG[flow.type]
 
-  // For message-only: jump straight to message generation
+  // Resolve which students to put in the tracker based on mode
+  const resolveStudentsForTracker = () => {
+    if (studentMode === 'all') return students
+    if (studentMode === 'ytp') return students.filter(s => !s._placed)
+    return matched  // matched = from shortlist paste
+  }
+
   const handleGenerateMessageOnly = async () => {
     setBusy(true); setErr('')
     try {
       const msg = await generateWhatsAppMessage(opp, 'opportunity')
-      setMessage(msg)
-      setStep('message')
+      setMessage(msg); setStep('message')
     } catch (e) { setErr(e.message) }
     setBusy(false)
   }
@@ -603,10 +625,31 @@ function StageFlowModal({ opp, flow, user, students, onClose }) {
     setBusy(true); setErr('')
     try {
       const result = await parseShortlist(rawText, students)
-      setMatched(result)
-      setStep('review')
+      setMatched(result); setStep('review')
     } catch (e) { setErr(e.message) }
     setBusy(false)
+  }
+
+  const handleCreateTracker = async () => {
+    if (!sheetsConnected) { setErr('Connect Google Sheets in Team Access first.'); return }
+    setTrackerCreating(true); setErr('')
+    try {
+      const studentsForTracker = resolveStudentsForTracker()
+      // If tracker already exists for this opp, add a new tab; otherwise create fresh sheet
+      const existingSheetId = opp.trackerSheetId
+      let result
+      if (existingSheetId) {
+        result = await addStageTab(existingSheetId, trackerConfig, studentsForTracker)
+      } else {
+        result = await createTracker(opp.title, studentsForTracker, trackerConfig)
+        // Persist the spreadsheet ID on the opportunity doc so future stages add tabs to same sheet
+        const { doc: fsDoc, updateDoc } = await import('firebase/firestore')
+        const { db } = await import('../lib/firebase')
+        await updateDoc(fsDoc(db, 'opportunities', opp.id), { trackerSheetId: result.spreadsheetId })
+      }
+      setTrackerLink(result.sheetUrl)
+    } catch (e) { setErr(e.message) }
+    setTrackerCreating(false)
   }
 
   const handleGenerateStageMessage = async () => {
@@ -617,8 +660,7 @@ function StageFlowModal({ opp, flow, user, students, onClose }) {
         extra.selectedStudents = matched.map(s => `${s.name} (${s.roll})${s.role ? ' — ' + s.role : ''}`).join('\n')
       }
       const msg = await generateWhatsAppMessage(opp, flow.type, extra)
-      setMessage(msg)
-      setStep('message')
+      setMessage(msg); setStep('message')
     } catch (e) { setErr(e.message) }
     setBusy(false)
   }
@@ -626,32 +668,26 @@ function StageFlowModal({ opp, flow, user, students, onClose }) {
   const handleSave = async () => {
     setBusy(true); setErr('')
     try {
-      if (!isMessageOnly) {
-        // Write each matched student to applicants subcollection
-        const statusByStage = { shortlist: 'shortlisted', interview: 'interviewing', selected: 'selected' }
-        const { doc, setDoc, collection } = await import('firebase/firestore')
-        const { db } = await import('../lib/firebase')
-        for (const s of matched) {
-          await setDoc(
-            doc(db, 'opportunities', opp.id, 'applicants', s.roll || s.email),
-            { ...s, status: statusByStage[flow.type] || 'shortlisted', updatedAt: new Date() },
-            { merge: true }
-          )
-        }
-        await advanceStage(opp.id, flow.type, {
-          message,
-          trackerLink,
-          whatsappGroupLink: waLink,
-          studentCount: matched.length,
-        }, user)
+      const statusByStage = { shortlist: 'shortlisted', interview: 'interviewing', selected: 'selected' }
+      const { doc: fsDoc, setDoc } = await import('firebase/firestore')
+      const { db } = await import('../lib/firebase')
+      for (const s of matched) {
+        await setDoc(
+          fsDoc(db, 'opportunities', opp.id, 'applicants', s.roll || s.email),
+          { ...s, status: statusByStage[flow.type] || 'shortlisted', updatedAt: new Date() },
+          { merge: true }
+        )
       }
+      await advanceStage(opp.id, flow.type, {
+        message, trackerLink, whatsappGroupLink: waLink, studentCount: matched.length,
+      }, user)
       onClose()
     } catch (e) { setErr(e.message) }
     setBusy(false)
   }
 
   return (
-    <Modal open onClose={onClose} title={isMessageOnly ? 'Generate WhatsApp Message' : stageLabel} width={680}>
+    <Modal open onClose={onClose} title={isMessageOnly ? 'Generate WhatsApp Message' : stageLabel} width={700}>
       {isMessageOnly && step === 'paste' && (
         <div>
           <p style={{ fontSize: 13, color: 'var(--text-2)', marginBottom: 12 }}>Generate a WhatsApp announcement for the current state of this opportunity.</p>
@@ -667,7 +703,7 @@ function StageFlowModal({ opp, flow, user, students, onClose }) {
         <PasteStep
           rawText={rawText} setRawText={setRawText}
           busy={busy} err={err}
-          placeholder={`Paste the ${stageLabel.toLowerCase()} text here…\n\nE.g. paste the WhatsApp message with names, roll numbers, tracker link, WhatsApp group link etc.`}
+          placeholder={`Paste the ${stageLabel.toLowerCase()} text here…\n\nInclude names, roll numbers, any links etc.`}
           onNext={handleParseShortlist}
           nextLabel="Match to Student DB →"
           onClose={onClose}
@@ -676,9 +712,16 @@ function StageFlowModal({ opp, flow, user, students, onClose }) {
 
       {step === 'review' && (
         <ReviewStep
+          opp={opp}
           matched={matched} setMatched={setMatched}
+          studentMode={studentMode} setStudentMode={setStudentMode}
+          students={students}
           waLink={waLink} setWaLink={setWaLink}
           trackerLink={trackerLink} setTrackerLink={setTrackerLink}
+          trackerConfig={trackerConfig}
+          sheetsConnected={sheetsConnected}
+          trackerCreating={trackerCreating}
+          onCreateTracker={handleCreateTracker}
           busy={busy} err={err}
           onBack={() => setStep('paste')}
           onNext={handleGenerateStageMessage}
@@ -691,7 +734,7 @@ function StageFlowModal({ opp, flow, user, students, onClose }) {
           busy={busy} err={err}
           onBack={() => isMessageOnly ? onClose() : setStep('review')}
           onPost={isMessageOnly ? onClose : handleSave}
-          label={isMessageOnly ? 'Done' : `Save & Advance Stage`}
+          label={isMessageOnly ? 'Done' : 'Save & Advance Stage'}
         />
       )}
     </Modal>
@@ -783,35 +826,36 @@ function PreviewStep({ parsed, setParsed, busy, err, onBack, onNext }) {
   )
 }
 
-function ReviewStep({ matched, setMatched, waLink, setWaLink, trackerLink, setTrackerLink, busy, err, onBack, onNext }) {
+function ReviewStep({
+  opp, matched, setMatched, studentMode, setStudentMode, students,
+  waLink, setWaLink, trackerLink, setTrackerLink,
+  trackerConfig, sheetsConnected, trackerCreating, onCreateTracker,
+  busy, err, onBack, onNext,
+}) {
+  const ytpCount = students.filter(s => !s._placed).length
+
+  const studentModeLabel = {
+    matched: `Shortlisted only (${matched.length})`,
+    ytp:     `All yet-to-be-placed (${ytpCount})`,
+    all:     `Entire batch (${students.length})`,
+  }
+
   return (
     <>
-      <p style={{ fontSize: 13, color: 'var(--text-2)', marginBottom: 10 }}>
-        Gemini matched <strong>{matched.length}</strong> student{matched.length !== 1 ? 's' : ''} from the student database. Review before proceeding.
+      <p style={{ fontSize: 13, color: 'var(--text-2)', marginBottom: 14 }}>
+        Gemini matched <strong>{matched.length}</strong> student{matched.length !== 1 ? 's' : ''} from the DB. Review the list, set up the tracker, then generate the WhatsApp message.
       </p>
 
-      <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
-        <div style={{ flex: 1 }}>
-          <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-3)', display: 'block', marginBottom: 4 }}>WhatsApp Group Link</label>
-          <input value={waLink} onChange={e => setWaLink(e.target.value)} placeholder="https://chat.whatsapp.com/…"
-            style={{ width: '100%', height: 32, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface2)', color: 'var(--text)', padding: '0 10px', fontSize: 13, fontFamily: 'var(--font-sans)' }} />
-        </div>
-        <div style={{ flex: 1 }}>
-          <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-3)', display: 'block', marginBottom: 4 }}>Tracker Link</label>
-          <input value={trackerLink} onChange={e => setTrackerLink(e.target.value)} placeholder="https://docs.google.com/…"
-            style={{ width: '100%', height: 32, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface2)', color: 'var(--text)', padding: '0 10px', fontSize: 13, fontFamily: 'var(--font-sans)' }} />
-        </div>
-      </div>
-
+      {/* Matched students table */}
       {matched.length > 0 ? (
-        <div style={{ maxHeight: 220, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', marginBottom: 12 }}>
+        <div style={{ maxHeight: 180, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', marginBottom: 14 }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
             <thead>
-              <tr style={{ background: 'var(--surface2)' }}>
+              <tr style={{ background: 'var(--surface2)', position: 'sticky', top: 0 }}>
                 <th style={{ padding: '6px 10px', textAlign: 'left', fontWeight: 700, color: 'var(--text-3)', fontSize: 11 }}>Roll</th>
                 <th style={{ padding: '6px 10px', textAlign: 'left', fontWeight: 700, color: 'var(--text-3)', fontSize: 11 }}>Name</th>
                 <th style={{ padding: '6px 10px', textAlign: 'left', fontWeight: 700, color: 'var(--text-3)', fontSize: 11 }}>Role</th>
-                <th style={{ padding: '6px 10px', width: 30 }}></th>
+                <th style={{ padding: '6px 10px', width: 28 }}></th>
               </tr>
             </thead>
             <tbody>
@@ -832,8 +876,64 @@ function ReviewStep({ matched, setMatched, waLink, setWaLink, trackerLink, setTr
           </table>
         </div>
       ) : (
-        <div style={{ fontSize: 13, color: 'var(--text-3)', padding: '12px 0', marginBottom: 12 }}>No students matched. You can still generate a message.</div>
+        <div style={{ fontSize: 13, color: 'var(--text-3)', padding: '8px 0', marginBottom: 14 }}>No students matched from the pasted text. You can still create the tracker with a broader student set.</div>
       )}
+
+      {/* Tracker creation section */}
+      {trackerConfig && (
+        <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '14px 16px', marginBottom: 14, background: 'var(--surface2)' }}>
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Sheet size={13} /> Create Tracker — <span style={{ color: 'var(--accent-dark)' }}>{trackerConfig.sheetTitle}</span> tab
+          </div>
+
+          <div style={{ marginBottom: 10 }}>
+            <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-3)', display: 'block', marginBottom: 6 }}>Students to include in tracker</label>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {Object.entries(studentModeLabel).map(([mode, label]) => (
+                <button key={mode} onClick={() => setStudentMode(mode)} style={{
+                  padding: '5px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                  border: `1px solid ${studentMode === mode ? 'var(--accent)' : 'var(--border)'}`,
+                  background: studentMode === mode ? 'var(--accent-bg)' : 'var(--surface)',
+                  color: studentMode === mode ? 'var(--accent-dark)' : 'var(--text-2)',
+                }}>{label}</button>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ fontSize: 12, color: 'var(--text-3)', marginBottom: 10 }}>
+            Sheet: <strong>{trackerConfig.sheetTitle}</strong> · Columns: Roll No. | Name | Official Email | <strong>{trackerConfig.colHeader}</strong> (Yes/No dropdown, default No)
+            {opp.trackerSheetId && <span style={{ marginLeft: 6, color: 'var(--amber-text)' }}>· Adds a new tab to existing tracker</span>}
+          </div>
+
+          {trackerLink ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Badge color="green">Tracker created</Badge>
+              <a href={trackerLink} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                <ExternalLink size={11} /> Open Sheet
+              </a>
+              <button onClick={() => setTrackerLink('')} style={{ fontSize: 11, color: 'var(--text-3)', border: 'none', background: 'none', cursor: 'pointer', marginLeft: 4 }}>Re-create</button>
+            </div>
+          ) : (
+            <Btn size="sm" variant={sheetsConnected ? 'primary' : 'default'} onClick={onCreateTracker} disabled={trackerCreating || !sheetsConnected}>
+              <Sheet size={12} /> {trackerCreating ? 'Creating…' : sheetsConnected ? 'Create Tracker Sheet' : 'Connect Sheets first (Team Access)'}
+            </Btn>
+          )}
+        </div>
+      )}
+
+      {/* Links */}
+      <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
+        <div style={{ flex: 1 }}>
+          <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-3)', display: 'block', marginBottom: 4 }}>WhatsApp Group Link</label>
+          <input value={waLink} onChange={e => setWaLink(e.target.value)} placeholder="https://chat.whatsapp.com/…"
+            style={{ width: '100%', height: 32, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface2)', color: 'var(--text)', padding: '0 10px', fontSize: 13, fontFamily: 'var(--font-sans)' }} />
+        </div>
+        <div style={{ flex: 1 }}>
+          <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-3)', display: 'block', marginBottom: 4 }}>Tracker Link (auto-filled above, or paste)</label>
+          <input value={trackerLink} onChange={e => setTrackerLink(e.target.value)} placeholder="https://docs.google.com/…"
+            style={{ width: '100%', height: 32, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface2)', color: 'var(--text)', padding: '0 10px', fontSize: 13, fontFamily: 'var(--font-sans)' }} />
+        </div>
+      </div>
 
       {err && <div style={{ fontSize: 13, color: 'var(--red-text)', marginBottom: 8 }}>{err}</div>}
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>

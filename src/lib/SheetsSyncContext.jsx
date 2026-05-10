@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useCallback, useEffect } fr
 import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth'
 import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore'
 import { auth, db } from './firebase'
-import { getOrCreateSpreadsheet, appendChangeLog, syncFullSnapshot, pushPlayground } from './sheetsSync'
+import { getOrCreateSpreadsheet, appendChangeLog, syncFullSnapshot, pushPlayground, createOpportunityTracker, addTrackerTab } from './sheetsSync'
 
 const SheetsSyncContext = createContext(null)
 
@@ -88,6 +88,20 @@ export function SheetsSyncProvider({ children }) {
     }
   }, [token])
 
+  // Creates a new Google Sheet for an opportunity with one tracker tab.
+  // stageConfig: { sheetTitle: 'EOI', colHeader: 'Filled EOI' }
+  // students: array of student objects
+  const createTracker = useCallback(async (oppTitle, students, stageConfig) => {
+    if (!token) throw new Error('Not connected to Google Sheets — reconnect in Team Access first.')
+    return createOpportunityTracker(token, oppTitle, students, stageConfig)
+  }, [token])
+
+  // Adds a new tab to an existing tracker sheet (for subsequent stages).
+  const addStageTab = useCallback(async (spreadsheetId, stageConfig, students) => {
+    if (!token) throw new Error('Not connected to Google Sheets — reconnect in Team Access first.')
+    return addTrackerTab(token, spreadsheetId, stageConfig, students)
+  }, [token])
+
   return (
     <SheetsSyncContext.Provider value={{
       connected: !!token,
@@ -100,6 +114,8 @@ export function SheetsSyncProvider({ children }) {
       appendChange,
       syncNow,
       pushToPlayground,
+      createTracker,
+      addStageTab,
     }}>
       {children}
     </SheetsSyncContext.Provider>
