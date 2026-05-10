@@ -7,12 +7,19 @@ import {
   postOpportunity, advanceStage, deleteOpportunity,
   STAGE_TYPES, blankOpportunity,
 } from '../lib/useOpportunities'
+import { OPPORTUNITY_ACTIONS, ACTION_META } from '../config/opportunityActions'
 import { PageHeader, Btn, Badge, Modal, Select, Spinner } from '../components/UI'
 import {
   Plus, Trash2, Briefcase, Trophy, FlaskConical,
   GraduationCap, CalendarClock, ChevronRight, Copy, Check,
-  MessageSquare, Users, Award, ExternalLink, Sheet,
+  MessageSquare, Users, Award, ExternalLink, Bell, FileText, XCircle,
 } from 'lucide-react'
+import { Sheet } from 'lucide-react'
+
+// Map icon string names from ACTION_META to actual Lucide components
+const ICON_MAP = {
+  MessageSquare, Users, Award, Sheet, Bell, FileText, XCircle, Plus,
+}
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -463,6 +470,8 @@ function DetailModal({ opp, isAdmin, user, students, sheetsConnected, createTrac
 }
 
 function InfoTab({ opp, isAdmin, user, students, sheetsConnected, setStageFlow }) {
+  const [showAll, setShowAll] = useState(false)
+
   const rows = [
     { label: 'Type',          value: opp.type },
     { label: 'Organization',  value: opp.organization },
@@ -480,17 +489,24 @@ function InfoTab({ opp, isAdmin, user, students, sheetsConnected, setStageFlow }
   ].filter(r => r.value)
 
   const links = [
-    { label: 'EOI Form',     url: opp.eoi_link },
-    { label: 'Apply',        url: opp.apply_link },
-    { label: 'Tracker',      url: opp.tracker_link },
+    { label: 'EOI Form', url: opp.eoi_link },
+    { label: 'Apply',    url: opp.apply_link },
+    { label: 'Tracker',  url: opp.tracker_link },
   ].filter(l => l.url)
 
-  const nextStages = {
-    open:         { type: 'shortlist',  label: 'Release Shortlist', icon: Users },
-    shortlisted:  { type: 'interview',  label: 'Post Interview Round', icon: MessageSquare },
-    interviewing: { type: 'selected',   label: 'Post Final Selection', icon: Award },
+  // Pull action list from config — fall back to all keys if type not found
+  const configEntry = OPPORTUNITY_ACTIONS[opp.type]
+  const allActionKeys = Object.keys(ACTION_META)
+  const configuredKeys = configEntry?.actions || allActionKeys
+  const visibleKeys = showAll ? allActionKeys : configuredKeys
+
+  const colorVariant = {
+    blue:   'default',
+    green:  'success',
+    amber:  'default',
+    purple: 'default',
+    red:    'danger',
   }
-  const next = nextStages[opp.status]
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -519,14 +535,59 @@ function InfoTab({ opp, isAdmin, user, students, sheetsConnected, setStageFlow }
         </div>
       )}
 
-      {isAdmin && next && opp.status !== 'closed' && (
-        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14, display: 'flex', gap: 8 }}>
-          <Btn variant="primary" size="sm" onClick={() => setStageFlow({ type: next.type })}>
-            <next.icon size={13} /> {next.label}
-          </Btn>
-          <Btn size="sm" variant="ghost" onClick={() => setStageFlow({ type: 'message' })}>
-            <MessageSquare size={13} /> Generate Message
-          </Btn>
+      {/* Action grid — driven by opportunityActions.js config */}
+      {isAdmin && opp.status !== 'closed' && (
+        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>
+            Actions
+            {!showAll && configuredKeys.length < allActionKeys.length && (
+              <button onClick={() => setShowAll(true)} style={{ marginLeft: 10, fontSize: 11, fontWeight: 600, color: 'var(--accent)', border: 'none', background: 'none', cursor: 'pointer', padding: 0 }}>
+                Show all →
+              </button>
+            )}
+            {showAll && (
+              <button onClick={() => setShowAll(false)} style={{ marginLeft: 10, fontSize: 11, fontWeight: 600, color: 'var(--text-3)', border: 'none', background: 'none', cursor: 'pointer', padding: 0 }}>
+                ← Show suggested
+              </button>
+            )}
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 8 }}>
+            {visibleKeys.map(actionKey => {
+              const meta = ACTION_META[actionKey]
+              if (!meta) return null
+              const Icon = ICON_MAP[meta.icon] || MessageSquare
+              const isSuggested = configuredKeys.includes(actionKey)
+              return (
+                <button
+                  key={actionKey}
+                  onClick={() => setStageFlow({ type: actionKey, meta })}
+                  style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
+                    gap: 4, padding: '10px 12px', borderRadius: 'var(--radius-sm)',
+                    border: `1px solid ${isSuggested ? 'var(--border)' : 'var(--border)'}`,
+                    background: isSuggested ? 'var(--surface)' : 'color-mix(in srgb, var(--surface2) 60%, transparent)',
+                    cursor: 'pointer', textAlign: 'left',
+                    opacity: isSuggested ? 1 : 0.6,
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--accent)'}
+                  onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>
+                    <Icon size={12} />
+                    {meta.label}
+                    {!isSuggested && <span style={{ fontSize: 10, color: 'var(--text-3)', fontWeight: 400 }}>not in config</span>}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-3)', lineHeight: 1.4 }}>{meta.description}</div>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {isAdmin && opp.status === 'closed' && (
+        <div style={{ fontSize: 13, color: 'var(--text-3)', borderTop: '1px solid var(--border)', paddingTop: 12 }}>
+          This opportunity is closed.
         </div>
       )}
     </div>
@@ -582,28 +643,46 @@ function ApplicantsTab({ applicants }) {
 
 // ── Stage Advance Flow Modal ──────────────────────────────────────────────────
 
-// Stage configs: which tracker tab to create per stage type
-const STAGE_TRACKER_CONFIG = {
-  shortlist: { sheetTitle: 'EOI',           colHeader: 'Filled EOI'     },
-  interview: { sheetTitle: 'Joined Group',  colHeader: 'Joined Group'   },
-  selected:  { sheetTitle: 'Final Selected',colHeader: 'Offer Accepted' },
-}
+// Which action types need a paste step (student matching)
+const NEEDS_PASTE = new Set([
+  'release_shortlist', 'post_interview', 'post_final_selection', 'post_submission',
+])
+// Which action types are message-only (no paste, no tracker)
+const MESSAGE_ONLY = new Set([
+  'generate_announcement', 'generate_shortlist_msg', 'generate_interview_msg',
+  'generate_final_msg', 'generate_reminder', 'generate_event_msg',
+])
+// Which action types create a tracker sheet
+const TRACKER_ACTIONS = new Set([
+  'create_eoi_tracker', 'create_shortlist_tracker', 'create_interview_tracker',
+  'create_final_tracker', 'create_attendance_tracker',
+])
 
 function StageFlowModal({ opp, flow, user, students, sheetsConnected, createTracker, addStageTab, onClose }) {
-  const [step, setStep]               = useState('paste')
+  // flow = { type: actionKey, meta: ACTION_META[actionKey] }
+  const meta          = flow.meta || ACTION_META[flow.type] || {}
+  const actionKey     = flow.type
+  const stageLabel    = meta.label || actionKey
+  const trackerConfig = meta.tracker || null
+
+  // Determine flow shape from action type
+  const isMessageOnly  = MESSAGE_ONLY.has(actionKey)
+  const isTrackerOnly  = TRACKER_ACTIONS.has(actionKey)
+  const isMarkClosed   = actionKey === 'mark_closed'
+  const needsPaste     = NEEDS_PASTE.has(actionKey)
+
+  const initialStep = isTrackerOnly ? 'tracker' : isMessageOnly ? 'confirm' : needsPaste ? 'paste' : 'confirm'
+
+  const [step, setStep]               = useState(initialStep)
   const [rawText, setRawText]         = useState('')
   const [matched, setMatched]         = useState([])
-  const [studentMode, setStudentMode] = useState('matched') // matched | all | ytp
+  const [studentMode, setStudentMode] = useState('matched')
   const [message, setMessage]         = useState('')
   const [waLink, setWaLink]           = useState('')
   const [trackerLink, setTrackerLink] = useState('')
   const [trackerCreating, setTrackerCreating] = useState(false)
   const [busy, setBusy]               = useState(false)
   const [err, setErr]                 = useState('')
-
-  const isMessageOnly = flow.type === 'message'
-  const stageLabel    = STAGE_TYPES[flow.type] || 'Update'
-  const trackerConfig = STAGE_TRACKER_CONFIG[flow.type]
 
   // Resolve which students to put in the tracker based on mode
   const resolveStudentsForTracker = () => {
@@ -612,14 +691,7 @@ function StageFlowModal({ opp, flow, user, students, sheetsConnected, createTrac
     return matched  // matched = from shortlist paste
   }
 
-  const handleGenerateMessageOnly = async () => {
-    setBusy(true); setErr('')
-    try {
-      const msg = await generateWhatsAppMessage(opp, 'opportunity')
-      setMessage(msg); setStep('message')
-    } catch (e) { setErr(e.message) }
-    setBusy(false)
-  }
+
 
   const handleParseShortlist = async () => {
     setBusy(true); setErr('')
@@ -635,32 +707,45 @@ function StageFlowModal({ opp, flow, user, students, sheetsConnected, createTrac
     setTrackerCreating(true); setErr('')
     try {
       const studentsForTracker = resolveStudentsForTracker()
-      // If tracker already exists for this opp, add a new tab; otherwise create fresh sheet
       const existingSheetId = opp.trackerSheetId
       let result
       if (existingSheetId) {
         result = await addStageTab(existingSheetId, trackerConfig, studentsForTracker)
       } else {
         result = await createTracker(opp.title, studentsForTracker, trackerConfig)
-        // Persist the spreadsheet ID on the opportunity doc so future stages add tabs to same sheet
         const { doc: fsDoc, updateDoc } = await import('firebase/firestore')
         const { db } = await import('../lib/firebase')
         await updateDoc(fsDoc(db, 'opportunities', opp.id), { trackerSheetId: result.spreadsheetId })
       }
       setTrackerLink(result.sheetUrl)
+      if (isTrackerOnly) {
+        await advanceStage(opp.id, actionKey, { trackerLink: result.sheetUrl, studentCount: resolveStudentsForTracker().length }, user)
+        onClose()
+      }
     } catch (e) { setErr(e.message) }
     setTrackerCreating(false)
   }
 
-  const handleGenerateStageMessage = async () => {
+  const handleGenerateMessage = async () => {
     setBusy(true); setErr('')
     try {
-      const extra = { whatsappGroupLink: waLink, trackerLink }
-      if (flow.type === 'selected') {
+      const extra = { whatsappGroupLink: waLink, trackerLink, actionType: actionKey }
+      if (actionKey === 'post_final_selection') {
         extra.selectedStudents = matched.map(s => `${s.name} (${s.roll})${s.role ? ' — ' + s.role : ''}`).join('\n')
       }
-      const msg = await generateWhatsAppMessage(opp, flow.type, extra)
+      const msg = await generateWhatsAppMessage(opp, actionKey, extra)
       setMessage(msg); setStep('message')
+    } catch (e) { setErr(e.message) }
+    setBusy(false)
+  }
+
+  const handleMarkClosed = async () => {
+    setBusy(true); setErr('')
+    try {
+      const { doc: fsDoc, updateDoc } = await import('firebase/firestore')
+      const { db } = await import('../lib/firebase')
+      await updateDoc(fsDoc(db, 'opportunities', opp.id), { status: 'closed' })
+      onClose()
     } catch (e) { setErr(e.message) }
     setBusy(false)
   }
@@ -668,17 +753,20 @@ function StageFlowModal({ opp, flow, user, students, sheetsConnected, createTrac
   const handleSave = async () => {
     setBusy(true); setErr('')
     try {
-      const statusByStage = { shortlist: 'shortlisted', interview: 'interviewing', selected: 'selected' }
+      const statusByAction = {
+        release_shortlist: 'shortlisted', post_interview: 'interviewing',
+        post_final_selection: 'selected', post_submission: 'shortlisted',
+      }
       const { doc: fsDoc, setDoc } = await import('firebase/firestore')
       const { db } = await import('../lib/firebase')
       for (const s of matched) {
         await setDoc(
           fsDoc(db, 'opportunities', opp.id, 'applicants', s.roll || s.email),
-          { ...s, status: statusByStage[flow.type] || 'shortlisted', updatedAt: new Date() },
+          { ...s, status: statusByAction[actionKey] || 'shortlisted', updatedAt: new Date() },
           { merge: true }
         )
       }
-      await advanceStage(opp.id, flow.type, {
+      await advanceStage(opp.id, actionKey, {
         message, trackerLink, whatsappGroupLink: waLink, studentCount: matched.length,
       }, user)
       onClose()
@@ -686,20 +774,62 @@ function StageFlowModal({ opp, flow, user, students, sheetsConnected, createTrac
     setBusy(false)
   }
 
+  // ── mark closed: just a confirm ─────────────────────────────────────────────
+  if (isMarkClosed) {
+    return (
+      <Modal open onClose={onClose} title="Mark as Closed" width={480}>
+        <p style={{ fontSize: 13, color: 'var(--text-2)', marginBottom: 16, lineHeight: 1.6 }}>
+          Are you sure you want to close <strong>{opp.title}</strong>? No further actions will be available.
+        </p>
+        {err && <div style={{ fontSize: 13, color: 'var(--red-text)', marginBottom: 8 }}>{err}</div>}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+          <Btn onClick={onClose}>Cancel</Btn>
+          <Btn variant="danger" onClick={handleMarkClosed} disabled={busy}>{busy ? 'Closing…' : 'Yes, Mark Closed'}</Btn>
+        </div>
+      </Modal>
+    )
+  }
+
+  // ── tracker-only actions: skip straight to tracker UI ───────────────────────
+  if (isTrackerOnly) {
+    return (
+      <Modal open onClose={onClose} title={stageLabel} width={580}>
+        <ReviewStep
+          opp={opp}
+          matched={[]} setMatched={() => {}}
+          studentMode={studentMode} setStudentMode={setStudentMode}
+          students={students}
+          waLink={waLink} setWaLink={setWaLink}
+          trackerLink={trackerLink} setTrackerLink={setTrackerLink}
+          trackerConfig={trackerConfig}
+          sheetsConnected={sheetsConnected}
+          trackerCreating={trackerCreating}
+          onCreateTracker={handleCreateTracker}
+          busy={busy} err={err}
+          onBack={onClose}
+          onNext={null}
+          trackerOnly
+        />
+      </Modal>
+    )
+  }
+
   return (
-    <Modal open onClose={onClose} title={isMessageOnly ? 'Generate WhatsApp Message' : stageLabel} width={700}>
-      {isMessageOnly && step === 'paste' && (
+    <Modal open onClose={onClose} title={stageLabel} width={700}>
+      {/* confirm step for message-only actions */}
+      {step === 'confirm' && (
         <div>
-          <p style={{ fontSize: 13, color: 'var(--text-2)', marginBottom: 12 }}>Generate a WhatsApp announcement for the current state of this opportunity.</p>
+          <p style={{ fontSize: 13, color: 'var(--text-2)', marginBottom: 4, lineHeight: 1.6 }}>{meta.description}</p>
+          <p style={{ fontSize: 13, color: 'var(--text-2)', marginBottom: 16 }}>Gemini will use the current opportunity details to generate the message.</p>
           {err && <div style={{ fontSize: 13, color: 'var(--red-text)', marginBottom: 8 }}>{err}</div>}
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
             <Btn onClick={onClose}>Cancel</Btn>
-            <Btn variant="primary" onClick={handleGenerateMessageOnly} disabled={busy}>{busy ? 'Generating…' : 'Generate Message'}</Btn>
+            <Btn variant="primary" onClick={handleGenerateMessage} disabled={busy}>{busy ? 'Generating…' : 'Generate Message →'}</Btn>
           </div>
         </div>
       )}
 
-      {!isMessageOnly && step === 'paste' && (
+      {step === 'paste' && (
         <PasteStep
           rawText={rawText} setRawText={setRawText}
           busy={busy} err={err}
@@ -724,7 +854,7 @@ function StageFlowModal({ opp, flow, user, students, sheetsConnected, createTrac
           onCreateTracker={handleCreateTracker}
           busy={busy} err={err}
           onBack={() => setStep('paste')}
-          onNext={handleGenerateStageMessage}
+          onNext={handleGenerateMessage}
         />
       )}
 
@@ -732,9 +862,9 @@ function StageFlowModal({ opp, flow, user, students, sheetsConnected, createTrac
         <MessageStep
           message={message} setMessage={setMessage}
           busy={busy} err={err}
-          onBack={() => isMessageOnly ? onClose() : setStep('review')}
-          onPost={isMessageOnly ? onClose : handleSave}
-          label={isMessageOnly ? 'Done' : 'Save & Advance Stage'}
+          onBack={() => needsPaste ? setStep('review') : setStep('confirm')}
+          onPost={needsPaste ? handleSave : onClose}
+          label={needsPaste ? 'Save & Record Stage' : 'Done'}
         />
       )}
     </Modal>
@@ -830,7 +960,7 @@ function ReviewStep({
   opp, matched, setMatched, studentMode, setStudentMode, students,
   waLink, setWaLink, trackerLink, setTrackerLink,
   trackerConfig, sheetsConnected, trackerCreating, onCreateTracker,
-  busy, err, onBack, onNext,
+  busy, err, onBack, onNext, trackerOnly = false,
 }) {
   const ytpCount = students.filter(s => !s._placed).length
 
@@ -938,7 +1068,9 @@ function ReviewStep({
       {err && <div style={{ fontSize: 13, color: 'var(--red-text)', marginBottom: 8 }}>{err}</div>}
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
         <Btn onClick={onBack}>← Back</Btn>
-        <Btn variant="primary" onClick={onNext} disabled={busy}>{busy ? 'Generating…' : 'Generate WhatsApp Message →'}</Btn>
+        {!trackerOnly && onNext && (
+          <Btn variant="primary" onClick={onNext} disabled={busy}>{busy ? 'Generating…' : 'Generate WhatsApp Message →'}</Btn>
+        )}
       </div>
     </>
   )
