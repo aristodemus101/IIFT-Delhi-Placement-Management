@@ -9,20 +9,23 @@ import {
 } from 'lucide-react'
 
 const TYPE_META = {
-  place:    { icon: CheckSquare, label: 'Mark Placed',   color: 'green'  },
-  unplace:  { icon: RotateCcw,   label: 'Unplace',       color: 'amber'  },
-  delete:   { icon: Trash2,      label: 'Delete Student', color: 'red'   },
-  import:   { icon: Upload,      label: 'Import File',   color: 'blue'   },
-  clearAll: { icon: AlertTriangle, label: 'Clear All',   color: 'red'    },
+  place:               { icon: CheckSquare,   label: 'Mark Placed',        color: 'green'  },
+  place_from_activity: { icon: CheckSquare,   label: 'Place via Activity',  color: 'green'  },
+  unplace:             { icon: RotateCcw,     label: 'Unplace',             color: 'amber'  },
+  delete:              { icon: Trash2,        label: 'Delete Student',      color: 'red'    },
+  import:              { icon: Upload,        label: 'Import File',         color: 'blue'   },
+  clearAll:            { icon: AlertTriangle, label: 'Clear All',           color: 'red'    },
 }
 
 function changeDescription(c) {
   const batchPart = c.batch ? ` [${String(c.batch).toUpperCase()}]` : ''
   switch (c.type) {
-    case 'place': {
+    case 'place':
+    case 'place_from_activity': {
       const company = c.placementDetails?.company || c.company || 'Unknown company'
       const via = c.placementDetails?.via ? ` via ${c.placementDetails.via}` : ''
-      return `${batchPart} Place ${c.studentName} (${c.studentRoll}) → ${company}${via}`
+      const opp = c.opportunityTitle ? ` · ${c.opportunityTitle}` : ''
+      return `${batchPart} Place ${c.studentName} (${c.studentRoll}) → ${company}${via}${opp}`
     }
     case 'unplace':  return `${batchPart} Unplace ${c.studentName} (${c.studentRoll}) from ${c.currentCompany}`
     case 'delete':   return `${batchPart} Permanently delete ${c.studentName} (${c.studentRoll})`

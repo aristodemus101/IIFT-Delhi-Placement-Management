@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react'
 import { useAuth } from '../lib/AuthContext'
 import { useStudents } from '../lib/useStudents'
 import { useSheetsSync } from '../lib/SheetsSyncContext'
+import { usePendingChanges } from '../lib/PendingChangesContext'
 import {
   useOpportunities, useStages, useApplicants,
   postOpportunity, advanceStage, deleteOpportunity,
@@ -178,6 +179,7 @@ export default function ActivityPage() {
   const { students } = useStudents()
   const { opportunities, loading } = useOpportunities()
   const { connected: sheetsConnected, createTracker, addStageTab } = useSheetsSync()
+  const { propose } = usePendingChanges()
 
   const [typeFilter, setTypeFilter]   = useState('all')
   const [batchFilter, setBatchFilter] = useState('all')
@@ -272,6 +274,7 @@ export default function ActivityPage() {
           sheetsConnected={sheetsConnected}
           createTracker={createTracker}
           addStageTab={addStageTab}
+          propose={propose}
           onClose={() => setDetailOpp(null)}
         />
       )}
@@ -425,7 +428,7 @@ function PostModal({ user, onClose }) {
 
 // ── Detail / Pipeline Modal ───────────────────────────────────────────────────
 
-function DetailModal({ opp, isAdmin, user, students, sheetsConnected, createTracker, addStageTab, onClose }) {
+function DetailModal({ opp, isAdmin, user, students, sheetsConnected, createTracker, addStageTab, propose, onClose }) {
   const stages = useStages(opp.id)
   const applicants = useApplicants(opp.id)
   const [tab, setTab] = useState('info')
@@ -462,6 +465,7 @@ function DetailModal({ opp, isAdmin, user, students, sheetsConnected, createTrac
           sheetsConnected={sheetsConnected}
           createTracker={createTracker}
           addStageTab={addStageTab}
+          propose={propose}
           onClose={() => setStageFlow(null)}
         />
       )}
@@ -658,7 +662,7 @@ const TRACKER_ACTIONS = new Set([
   'create_final_tracker', 'create_attendance_tracker',
 ])
 
-function StageFlowModal({ opp, flow, user, students, sheetsConnected, createTracker, addStageTab, onClose }) {
+function StageFlowModal({ opp, flow, user, students, sheetsConnected, createTracker, addStageTab, propose, onClose }) {
   // flow = { type: actionKey, meta: ACTION_META[actionKey] }
   const meta          = flow.meta || ACTION_META[flow.type] || {}
   const actionKey     = flow.type
@@ -759,16 +763,51 @@ function StageFlowModal({ opp, flow, user, students, sheetsConnected, createTrac
       }
       const { doc: fsDoc, setDoc } = await import('firebase/firestore')
       const { db } = await import('../lib/firebase')
+
       for (const s of matched) {
+        // Save to opportunity's applicants subcollection
         await setDoc(
           fsDoc(db, 'opportunities', opp.id, 'applicants', s.roll || s.email),
           { ...s, status: statusByAction[actionKey] || 'shortlisted', updatedAt: new Date() },
           { merge: true }
         )
+
+        // For final selection: route through the approval system — never write directly to students
+        if (actionKey === 'post_final_selection') {
+          // Find the matching student in the DB to get their Firestore document ID
+          const dbStudent = students.find(st =>
+            (st['Roll No.'] && st['Roll No.'] === s.roll) ||
+            (st['Official Email ID (d27/ba27)'] && st['Official Email ID (d27/ba27)'] === s.email) ||
+            (st['Personal Email ID'] && st['Personal Email ID'] === s.email)
+          )
+          if (!dbStudent) continue  // can't propose without a DB record — skip, don't silently place
+
+          await propose({
+            type: 'place_from_activity',
+            studentId: dbStudent._id,
+            studentName: s.name || dbStudent['Full Name'] || `${dbStudent['First Name'] || ''} ${dbStudent['Last Name'] || ''}`.trim(),
+            studentRoll: s.roll || dbStudent['Roll No.'] || '',
+            company: opp.organization || '',
+            batch: dbStudent._batch || 'final',
+            opportunityId: opp.id,
+            opportunityTitle: opp.title || '',
+            opportunityType: opp.type || '',
+            placementDetails: {
+              company: opp.organization || '',
+              role: s.role || '',
+              via: `Activity — ${opp.title || ''}`,
+              package: opp.ctc || opp.stipend || '',
+            },
+          })
+        }
       }
+
+      // Record stage regardless (for timeline + WhatsApp message history)
       await advanceStage(opp.id, actionKey, {
         message, trackerLink, whatsappGroupLink: waLink, studentCount: matched.length,
+        pendingApproval: actionKey === 'post_final_selection',
       }, user)
+
       onClose()
     } catch (e) { setErr(e.message) }
     setBusy(false)
@@ -864,7 +903,7 @@ function StageFlowModal({ opp, flow, user, students, sheetsConnected, createTrac
           busy={busy} err={err}
           onBack={() => needsPaste ? setStep('review') : setStep('confirm')}
           onPost={needsPaste ? handleSave : onClose}
-          label={needsPaste ? 'Save & Record Stage' : 'Done'}
+          label={actionKey === 'post_final_selection' ? 'Submit for Approval' : needsPaste ? 'Save & Record Stage' : 'Done'}
         />
       )}
     </Modal>

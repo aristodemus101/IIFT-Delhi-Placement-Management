@@ -39,7 +39,7 @@ export function PendingChangesProvider({ children }) {
       }
     }
 
-    if (changeData.type === 'place' || changeData.type === 'unplace' || changeData.type === 'delete') {
+    if (changeData.type === 'place' || changeData.type === 'place_from_activity' || changeData.type === 'unplace' || changeData.type === 'delete') {
       if (!changeData.studentId) throw new Error('Student no longer exists')
     }
 
@@ -127,7 +127,7 @@ export function PendingChangesProvider({ children }) {
     const schemaRef = doc(db, 'config', schemaDocIdForBatch(normalizeBatch(change.batch)))
 
     // Apply the actual change to students
-    if (change.type === 'place') {
+    if (change.type === 'place' || change.type === 'place_from_activity') {
       const snap = await getDoc(doc(db, 'students', change.studentId))
       if (!snap.exists()) throw new Error('Student no longer exists')
       const placement = normalizePlacementDetails(change)
@@ -324,10 +324,12 @@ export const usePendingChanges = () => useContext(PendingChangesContext)
 function describeChange(c) {
   const batchPart = c.batch ? ` [${c.batch}]` : ''
   switch (c.type) {
-    case 'place': {
+    case 'place':
+    case 'place_from_activity': {
       const company = c.placementDetails?.company || c.company || 'Unknown company'
       const via = c.placementDetails?.via ? ` via ${c.placementDetails.via}` : ''
-      return `Placed${batchPart} ${c.studentName} (${c.studentRoll}) at ${company}${via}`
+      const opp = c.opportunityTitle ? ` [via ${c.opportunityTitle}]` : ''
+      return `Placed${batchPart} ${c.studentName} (${c.studentRoll}) at ${company}${via}${opp}`
     }
     case 'unplace':  return `Unplaced${batchPart} ${c.studentName} (${c.studentRoll}) from ${c.currentCompany}`
     case 'delete':   return `Deleted${batchPart} ${c.studentName} (${c.studentRoll})`
