@@ -11,6 +11,12 @@ service cloud.firestore {
     function isAdmin()        { return isAuthed() && roleData().role == 'admin'; }
     function isMasterAdmin()  { return isAuthed() && roleData().isMasterAdmin == true; }
     function hasRole()        { return isAuthed() && roleData().role in ['admin', 'viewer']; }
+    
+    // TTL Validation: if __expiresAt field is present, it must be a timestamp
+    function hasValidTTL() {
+      return !('__expiresAt' in request.resource.data) || 
+             request.resource.data.__expiresAt is timestamp;
+    }
 
     // ── Students ────────────────────────────────────────────────────────────
     // Viewers: read only. Admins: read + write.
@@ -69,6 +75,13 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // ── Batches ─────────────────────────────────────────────────────────────
+    // Batch cohort docs (e.g. 2025_summer, 2025_final).
+    match /batches/{batchId} {
+      allow read: if isAuthed();
+      allow write: if isAdmin();
+    }
+
     // ── Config ──────────────────────────────────────────────────────────────
     // Stores shared app config (e.g. playground sheet URL). All users can read;
     // only admins can write.
@@ -87,6 +100,29 @@ service cloud.firestore {
     // Per-user UI preferences (column visibility, sorting, etc.).
     match /userPrefs/{uid} {
       allow read, write: if isAuthed() && request.auth.uid == uid;
+    }
+
+    // ── Opportunities & Pipeline ─────────────────────────────────────────────
+    // All authenticated users can read opportunities (the Activity feed).
+    // Only admins can create/update/delete opportunities and advance stages.
+    match /opportunities/{oppId} {
+      allow read: if isAuthed();
+      allow write: if isAdmin();
+
+      match /stages/{stageId} {
+        allow read: if isAuthed();
+        allow write: if isAdmin();
+      }
+
+      match /applicants/{applicantId} {
+        allow read: if isAuthed();
+        allow write: if isAdmin();
+      }
+    }
+
+    // collectionGroup query support for the heatmap (reads all applicants subcollections at once)
+    match /{path=**}/applicants/{applicantId} {
+      allow read: if isAuthed();
     }
 
     // Deny everything else

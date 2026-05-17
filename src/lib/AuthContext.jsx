@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import { onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth'
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore'
+import { doc, getDoc, setDoc, onSnapshot, serverTimestamp } from 'firebase/firestore'
 import { auth, googleProvider, db } from './firebase'
 import { ADMIN_EMAILS, MASTER_ADMIN_EMAIL } from './roleConfig'
 
@@ -13,22 +13,26 @@ export function AuthProvider({ children }) {
   const [authError, setAuthError] = useState(null)
 
   useEffect(() => {
-    let cancelled = false
+    let unsubRole = null
 
-    const unsub = onAuthStateChanged(
+    const unsubAuth = onAuthStateChanged(
       auth,
       async (u) => {
+        // Clean up any previous role listener when auth state changes
+        if (unsubRole) { unsubRole(); unsubRole = null }
+
         if (!u) {
-          if (!cancelled) { setUser(null); setRole(null) }
+          setUser(null); setRole(null); setIsMasterAdmin(false)
           return
         }
+
         try {
           const roleRef = doc(db, 'roles', u.uid)
           const roleSnap = await getDoc(roleRef)
 
-          let assignedRole
+          // First login: seed the role doc
           if (!roleSnap.exists()) {
-            assignedRole = ADMIN_EMAILS.includes(u.email) ? 'admin' : 'viewer'
+            const assignedRole = ADMIN_EMAILS.includes(u.email) ? 'admin' : 'viewer'
             await setDoc(roleRef, {
               role: assignedRole,
               isMasterAdmin: u.email === MASTER_ADMIN_EMAIL,
@@ -38,24 +42,31 @@ export function AuthProvider({ children }) {
               addedAt: serverTimestamp(),
               addedBy: 'system',
             })
-          } else {
-            assignedRole = roleSnap.data().role
           }
 
-          const isMaster = u.email === MASTER_ADMIN_EMAIL
-          if (!cancelled) { setUser(u); setRole(assignedRole); setIsMasterAdmin(isMaster) }
+          // Live listener on this user's role doc — picks up master admin transfers immediately
+          unsubRole = onSnapshot(roleRef, snap => {
+            if (!snap.exists()) return
+            const data = snap.data()
+            setUser(u)
+            setRole(data.role || 'viewer')
+            setIsMasterAdmin(data.isMasterAdmin === true)
+          }, err => {
+            console.error('Role listener error:', err)
+            setUser(u); setRole('viewer'); setIsMasterAdmin(false)
+          })
         } catch (err) {
           console.error('Role load error:', err)
-          if (!cancelled) { setUser(u); setRole('viewer'); setIsMasterAdmin(false) }
+          setUser(u); setRole('viewer'); setIsMasterAdmin(false)
         }
       },
       err => {
         console.error('Auth error:', err)
-        if (!cancelled) { setAuthError(err.message); setUser(null) }
+        setAuthError(err.message); setUser(null)
       }
     )
 
-    return () => { cancelled = true; unsub() }
+    return () => { unsubAuth(); if (unsubRole) unsubRole() }
   }, [])
 
   const login = () => signInWithPopup(auth, googleProvider)

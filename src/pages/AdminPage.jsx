@@ -4,17 +4,31 @@ import { useAuth } from '../lib/AuthContext'
 import { useStudents, useColumnSchema } from '../lib/useStudents'
 import { useSheetsSync } from '../lib/SheetsSyncContext'
 import { useBatch } from '../lib/BatchContext'
-import { batchLabel } from '../lib/batch'
+import { usePendingChanges } from '../lib/PendingChangesContext'
+import { cohortLabel, cohortYear, parseCohortId } from '../lib/batch'
 import { OUR_COLS } from '../lib/columns'
-import { PageHeader, Btn, Badge, Spinner, Modal } from '../components/UI'
-import { ShieldCheck, User, AlertTriangle, Sheet, RefreshCw, ExternalLink, CheckCircle, Database, Columns3 } from 'lucide-react'
+import { PageHeader, Btn, Badge, Spinner, Modal, Input } from '../components/UI'
+import CohortPicker from '../components/CohortPicker'
+import {
+  ShieldCheck, User, AlertTriangle, Sheet, RefreshCw, ExternalLink, CheckCircle,
+  Database, Columns3, Plus, Archive, Crown
+} from 'lucide-react'
+import {
+  collection, doc, setDoc, updateDoc, addDoc, serverTimestamp, writeBatch as writeBatchFn
+} from 'firebase/firestore'
+import { db } from '../lib/firebase'
+
+// Helper to derive cohort from a student doc (with fallback for old _batch field)
+function studentCohort(s) {
+  return s.cohort || s._batch?.split('_')[0] || 'unknown'
+}
 
 export default function AdminPage() {
-  const { roles, loading, setRole, adminCount } = useRoles()
-  const { user, isMasterAdmin } = useAuth()
+  const { roles, loading, setRole, adminCount, adminUsers } = useRoles()
+  const { user, isMasterAdmin, isAdmin } = useAuth()
   const { students } = useStudents()
-  const { selectedBatch } = useBatch()
-  const { schemaHeaders, setSchemaHeaders } = useColumnSchema(selectedBatch)
+  const { selectedCohort, batches, activeBatches, archivedBatches } = useBatch()
+  const { schemaHeaders, setSchemaHeaders } = useColumnSchema(selectedCohort)
   const { connected, sheetUrl, lastSync, syncing, authorize, syncNow } = useSheetsSync()
   const [busy, setBusy] = useState(null)
   const [syncMsg, setSyncMsg] = useState('')
@@ -23,6 +37,18 @@ export default function AdminPage() {
   const [schemaOpen, setSchemaOpen] = useState(false)
   const [schemaDraft, setSchemaDraft] = useState('')
   const [schemaMsg, setSchemaMsg] = useState('')
+
+  // Cohort management state
+  const [createCohortOpen, setCreateCohortOpen] = useState(false)
+  const [newCohortId, setNewCohortId] = useState('')
+  const [cohortBusy, setCohortBusy] = useState(false)
+  const [cohortMsg, setCohortMsg] = useState('')
+
+  // Master admin transfer state
+  const [transferOpen, setTransferOpen] = useState(false)
+  const [transferTarget, setTransferTarget] = useState('')
+  const [transferBusy, setTransferBusy] = useState(false)
+  const [transferMsg, setTransferMsg] = useState('')
 
   const sorted = [...roles].sort((a, b) => {
     if (a.role === b.role) return (a.displayName || '').localeCompare(b.displayName || '')
@@ -81,6 +107,76 @@ export default function AdminPage() {
     setTimeout(() => setSchemaMsg(''), 4000)
   }
 
+  const handleCreateCohort = async () => {
+    if (!newCohortId) { setCohortMsg('Please select year, campus, and programme.'); return }
+    const { yearCode, campus, programme } = parseCohortId(newCohortId)
+    if (!yearCode || !campus || !programme) { setCohortMsg('Please select year, campus, and programme.'); return }
+    setCohortBusy(true); setCohortMsg('')
+    try {
+      const year = cohortYear(newCohortId)
+      await setDoc(doc(db, 'batches', newCohortId), {
+        id: newCohortId,
+        label: cohortLabel(newCohortId),
+        year: year || new Date().getFullYear(),
+        campus,
+        programme,
+        status: 'active',
+        createdAt: serverTimestamp(),
+        createdBy: { uid: user.uid, name: user.displayName },
+      }, { merge: true })
+      setCohortMsg(`Cohort "${cohortLabel(newCohortId)}" created.`)
+      setCreateCohortOpen(false)
+      setNewCohortId('')
+      setTimeout(() => setCohortMsg(''), 4000)
+    } catch (e) {
+      setCohortMsg('Error: ' + e.message)
+    }
+    setCohortBusy(false)
+  }
+
+  const handleArchiveCohort = async (cohortId) => {
+    if (!window.confirm(`Archive cohort "${cohortLabel(cohortId)}"? It will be hidden from the cohort switcher.`)) return
+    setCohortBusy(true)
+    try {
+      await updateDoc(doc(db, 'batches', cohortId), { status: 'archived', archivedAt: serverTimestamp() })
+      setCohortMsg(`Cohort "${cohortLabel(cohortId)}" archived.`)
+      setTimeout(() => setCohortMsg(''), 4000)
+    } catch (e) {
+      setCohortMsg('Error: ' + e.message)
+    }
+    setCohortBusy(false)
+  }
+
+  const handleTransferMasterAdmin = async () => {
+    if (!transferTarget) return
+    const target = roles.find(r => r.uid === transferTarget)
+    if (!target) return
+    if (!window.confirm(`Transfer Master Admin to ${target.displayName || target.email}?\n\nYou will immediately lose master admin privileges. This cannot be undone without database access.`)) return
+
+    setTransferBusy(true); setTransferMsg('')
+    try {
+      const wb = writeBatchFn(db)
+      wb.update(doc(db, 'roles', user.uid), { isMasterAdmin: false })
+      wb.update(doc(db, 'roles', transferTarget), { isMasterAdmin: true, role: 'admin' })
+      await wb.commit()
+      await addDoc(collection(db, 'auditLog'), {
+        type: 'master_admin_transfer',
+        fromUid: user.uid,
+        fromName: user.displayName,
+        toUid: transferTarget,
+        toName: target.displayName || target.email,
+        transferredAt: serverTimestamp(),
+      })
+      setTransferMsg('Master admin transferred successfully.')
+      setTransferOpen(false)
+    } catch (e) {
+      setTransferMsg('Error: ' + e.message)
+    }
+    setTransferBusy(false)
+  }
+
+  const studentCountForCohort = (cohortId) => students.filter(s => studentCohort(s) === cohortId).length
+
   if (loading) return <Spinner />
 
   return (
@@ -90,7 +186,7 @@ export default function AdminPage() {
         subtitle="Manage who has admin (edit + approve) vs viewer (read-only) access"
       />
 
-      <div style={{ padding: '20px 28px' }}>
+      <div style={{ padding: '20px 28px', overflow: 'auto' }}>
         {/* Info banner */}
         <div style={{
           display: 'flex', gap: 10, background: 'var(--accent-bg)', border: '1px solid #BFDBFE',
@@ -142,6 +238,7 @@ export default function AdminPage() {
                   <div>
                     <div style={{ fontSize: 13, fontWeight: 500 }}>{m.displayName || '(no name)'}</div>
                     {isSelf && <div style={{ fontSize: 11, color: 'var(--text-3)' }}>You</div>}
+                    {m.isMasterAdmin && <div style={{ fontSize: 11, color: 'var(--amber-text)' }}>Master Admin</div>}
                   </div>
                 </div>
 
@@ -185,10 +282,83 @@ export default function AdminPage() {
           Admin count: {adminCount}/4 (1 master + 3 regular) · Members appear here automatically after their first login.
         </div>
 
+        {/* ── Cohort Management ─────────────────────────────────────────── */}
+        <div style={{ marginTop: 32 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 4 }}>
+            <h2 style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>Cohort Management</h2>
+            {isAdmin && (
+              <Btn size="sm" variant="primary" onClick={() => { setNewCohortId(''); setCreateCohortOpen(true) }}>
+                <Plus size={13} /> Create Cohort
+              </Btn>
+            )}
+          </div>
+          <p style={{ fontSize: 13, color: 'var(--text-2)', marginBottom: 12 }}>
+            Manage placement cohorts. Use programme suffixes to separate IB and BA (e.g. D27-IB, D27-BA). Each cohort tracks Summer and Final placements independently.
+          </p>
+
+          {cohortMsg && (
+            <div style={{ fontSize: 13, color: cohortMsg.startsWith('Error') ? 'var(--red-text)' : 'var(--green-text)', marginBottom: 10, display: 'flex', gap: 6, alignItems: 'center' }}>
+              {!cohortMsg.startsWith('Error') && <CheckCircle size={13} />} {cohortMsg}
+            </div>
+          )}
+
+          {batches.length === 0 ? (
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '20px 22px', fontSize: 13, color: 'var(--text-3)', textAlign: 'center' }}>
+              No cohorts yet. Create a cohort or import students to get started.
+            </div>
+          ) : (
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
+              <div style={{
+                padding: '10px 16px', background: 'var(--surface2)', borderBottom: '1px solid var(--border)',
+                display: 'grid', gridTemplateColumns: '1fr 100px 80px 80px',
+                fontSize: 11, fontWeight: 600, color: 'var(--text-3)',
+                textTransform: 'uppercase', letterSpacing: '0.04em',
+              }}>
+                <span>Cohort</span>
+                <span>Status</span>
+                <span>Students</span>
+                <span></span>
+              </div>
+
+              {[...activeBatches, ...archivedBatches].map((b, i) => {
+                const count = studentCountForCohort(b.id)
+                const isActive = b.status === 'active'
+                const allBatches = [...activeBatches, ...archivedBatches]
+                return (
+                  <div key={b.id} style={{
+                    display: 'grid', gridTemplateColumns: '1fr 100px 80px 80px',
+                    padding: '12px 16px', alignItems: 'center',
+                    borderBottom: i < allBatches.length - 1 ? '1px solid var(--border)' : 'none',
+                    opacity: isActive ? 1 : 0.6,
+                  }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 600 }}>{b.label || cohortLabel(b.id)}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-3)' }}>{b.id} · Year {b.year || cohortYear(b.id)}</div>
+                    </div>
+                    <div>
+                      <Badge color={isActive ? 'blue' : 'gray'}>
+                        {isActive ? 'Active' : 'Archived'}
+                      </Badge>
+                    </div>
+                    <div style={{ fontSize: 13, fontVariantNumeric: 'tabular-nums' }}>{count}</div>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      {isAdmin && isActive && (
+                        <Btn size="sm" variant="ghost" onClick={() => handleArchiveCohort(b.id)} disabled={cohortBusy}>
+                          <Archive size={12} />
+                        </Btn>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
         <div style={{ marginTop: 28 }}>
           <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>Column Structure</h2>
           <p style={{ fontSize: 13, color: 'var(--text-2)', marginBottom: 12 }}>
-            Control visible headers for roster UI and imports for <strong>{batchLabel(selectedBatch)}</strong>. You can add, remove, rename, and reorder columns.
+            Control visible headers for roster UI and imports for <strong>{selectedCohort ? cohortLabel(selectedCohort) : 'selected cohort'}</strong>. You can add, remove, rename, and reorder columns.
           </p>
           <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '16px 18px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, marginBottom: 10 }}>
@@ -305,6 +475,30 @@ export default function AdminPage() {
             </div>
           </div>
         )}
+
+        {/* ── Master Admin Transfer ────────────────────────────────────── */}
+        {isMasterAdmin && (
+          <div style={{ marginTop: 32, marginBottom: 20 }}>
+            <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>Master Admin Transfer</h2>
+            <p style={{ fontSize: 13, color: 'var(--text-2)', marginBottom: 12 }}>
+              Transfer your master admin privileges to another admin. This is immediate and cannot be undone without database access.
+            </p>
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '16px 18px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, marginBottom: 10, color: 'var(--amber-text)' }}>
+                <Crown size={14} />
+                Current master admin: <strong>{user?.displayName}</strong>
+              </div>
+              {transferMsg && (
+                <div style={{ fontSize: 13, color: transferMsg.startsWith('Error') ? 'var(--red-text)' : 'var(--green-text)', marginBottom: 10 }}>
+                  {transferMsg}
+                </div>
+              )}
+              <Btn variant="ghost" onClick={() => { setTransferTarget(''); setTransferOpen(true) }}>
+                Transfer Master Admin…
+              </Btn>
+            </div>
+          </div>
+        )}
       </div>
 
       <Modal open={schemaOpen} onClose={() => setSchemaOpen(false)} title="Edit column structure" width={680}>
@@ -332,6 +526,67 @@ export default function AdminPage() {
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
           <Btn onClick={() => setSchemaOpen(false)}>Cancel</Btn>
           <Btn variant="primary" onClick={saveSchema}>Save Structure</Btn>
+        </div>
+      </Modal>
+
+      {/* Create Cohort Modal */}
+      <Modal open={createCohortOpen} onClose={() => { setCreateCohortOpen(false); setNewCohortId('') }} title="Create New Cohort" width={480}>
+        <div style={{ display: 'grid', gap: 16 }}>
+          <p style={{ fontSize: 13, color: 'var(--text-2)', margin: 0, lineHeight: 1.6 }}>
+            Select the graduating year, campus, and programme. Campuses that don't offer a programme are shown as disabled.
+          </p>
+          <CohortPicker value={newCohortId} onChange={setNewCohortId} />
+          {cohortMsg && (
+            <div style={{ fontSize: 13, color: cohortMsg.startsWith('Error') ? 'var(--red-text)' : 'var(--green-text)' }}>
+              {cohortMsg}
+            </div>
+          )}
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <Btn onClick={() => { setCreateCohortOpen(false); setNewCohortId('') }}>Cancel</Btn>
+            <Btn variant="primary" onClick={handleCreateCohort} disabled={cohortBusy || !newCohortId}>
+              <Plus size={13} /> Create Cohort
+            </Btn>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Master Admin Transfer Modal */}
+      <Modal open={transferOpen} onClose={() => setTransferOpen(false)} title="Transfer Master Admin" width={480}>
+        <div style={{ display: 'grid', gap: 16 }}>
+          <div style={{ display: 'flex', gap: 10, background: 'var(--amber-bg)', border: '1px solid var(--amber)', borderRadius: 'var(--radius-sm)', padding: '12px 14px', fontSize: 13, color: 'var(--amber-text)' }}>
+            <AlertTriangle size={16} style={{ flexShrink: 0, marginTop: 1 }} />
+            <div>
+              This is immediate and cannot be undone from the UI. Only transfer to someone you trust completely.
+            </div>
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Transfer to admin</label>
+            <select
+              value={transferTarget}
+              onChange={e => setTransferTarget(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '8px 10px',
+                borderRadius: 'var(--radius-sm)',
+                border: '1px solid var(--border)',
+                background: 'var(--surface)',
+                color: 'var(--text)',
+                fontSize: 13,
+                fontFamily: 'var(--font-sans)',
+              }}
+            >
+              <option value="">Select an admin…</option>
+              {adminUsers.filter(a => a.uid !== user?.uid).map(a => (
+                <option key={a.uid} value={a.uid}>{a.displayName || a.email}</option>
+              ))}
+            </select>
+          </div>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <Btn onClick={() => setTransferOpen(false)}>Cancel</Btn>
+            <Btn variant="danger" onClick={handleTransferMasterAdmin} disabled={!transferTarget || transferBusy}>
+              <Crown size={13} /> Transfer Master Admin
+            </Btn>
+          </div>
         </div>
       </Modal>
     </div>

@@ -3,14 +3,19 @@ import React, { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStudents } from '../lib/useStudents'
 import { useBatch } from '../lib/BatchContext'
-import { batchLabel, normalizeBatch } from '../lib/batch'
+import { cohortLabel, seasonLabel } from '../lib/batch'
 import { getVal } from '../lib/columns'
 import { PageHeader, StatCard, Spinner, Badge, Btn } from '../components/UI'
 import { Users, CheckSquare, BarChart2, ChevronDown, ChevronRight } from 'lucide-react'
 
+// Helper to derive cohort from a student doc (with fallback for old _batch field)
+function studentCohort(s) {
+  return s.cohort || s._batch?.split('_')[0] || 'unknown'
+}
+
 export default function DashboardPage() {
   const { students, loading } = useStudents()
-  const { selectedBatch } = useBatch()
+  const { scopedCohorts, selectedCohort, selectedSeason, setSelectedSeason, batchesLoading } = useBatch()
   const navigate = useNavigate()
 
   const [collapsed, setCollapsed] = useState({
@@ -18,19 +23,29 @@ export default function DashboardPage() {
   })
   const toggle = (key) => setCollapsed(c => ({ ...c, [key]: !c[key] }))
 
-  const summerStudents = useMemo(() => students.filter(s => normalizeBatch(s._batch) === 'summer'), [students])
-  const finalStudents  = useMemo(() => students.filter(s => normalizeBatch(s._batch) === 'final'),  [students])
-  const scoped         = useMemo(() => students.filter(s => normalizeBatch(s._batch) === selectedBatch), [students, selectedBatch])
+  const scoped = useMemo(() => {
+    const ids = new Set(scopedCohorts)
+    return students.filter(s => ids.has(studentCohort(s)))
+  }, [students, scopedCohorts])
 
   const stats = useMemo(() => {
     if (!scoped.length) return {}
-    const active = scoped.filter(s => !s._placed)
-    const placed = scoped.filter(s => s._placed)
-    const cats   = scoped.map(s => parseFloat(getVal(s, 'cat'))).filter(Boolean)
-    const wxs    = scoped.map(s => parseFloat(getVal(s, 'wx'))).filter(Boolean)
+
+    // Season-specific stats
+    const summerPlaced = scoped.filter(s => s._placed_summer)
+    const summerYtp    = scoped.filter(s => !s._placed_summer)
+    const finalPlaced  = scoped.filter(s => s._placed_final)
+    const finalYtp     = scoped.filter(s => !s._placed_final)
+
+    // Season-scoped for charts
+    const placed = selectedSeason === 'summer' ? summerPlaced : finalPlaced
+    const active = selectedSeason === 'summer' ? summerYtp : finalYtp
+    const placePct = scoped.length ? Math.round(placed.length / scoped.length * 100) : 0
+
+    const cats = scoped.map(s => parseFloat(getVal(s, 'cat'))).filter(Boolean)
+    const wxs  = scoped.map(s => parseFloat(getVal(s, 'wx'))).filter(Boolean)
     const avgCat = cats.length ? (cats.reduce((a, b) => a + b, 0) / cats.length).toFixed(1) : '—'
     const avgWx  = wxs.length  ? Math.round(wxs.reduce((a, b) => a + b, 0) / wxs.length)    : '—'
-    const placePct = scoped.length ? Math.round(placed.length / scoped.length * 100) : 0
 
     const genderOf = (s) => {
       const g = String(getVal(s, 'gender') || '').trim().toLowerCase()
@@ -38,12 +53,14 @@ export default function DashboardPage() {
     }
     const initSplit = () => ({ total: 0, male: 0, female: 0, other: 0 })
 
+    const isPlaced = (s) => selectedSeason === 'summer' ? s._placed_summer : s._placed_final
+
     // ── category breakdown ──────────────────────────────────────────────────
     const catBreak = {}
     scoped.forEach(s => {
       const c = getVal(s, 'category') || 'Unknown'
       if (!catBreak[c]) catBreak[c] = { total: 0, ytp: initSplit(), placed: initSplit() }
-      const status = s._placed ? 'placed' : 'ytp'
+      const status = isPlaced(s) ? 'placed' : 'ytp'
       const g = genderOf(s)
       catBreak[c].total += 1
       catBreak[c][status].total += 1
@@ -67,7 +84,7 @@ export default function DashboardPage() {
       const k = wxKey(parseFloat(getVal(s, 'wx')))
       if (!k) return
       workEx[k].total += 1
-      s._placed ? workEx[k].placed++ : workEx[k].ytp++
+      isPlaced(s) ? workEx[k].placed++ : workEx[k].ytp++
     })
 
     // ── age distribution ────────────────────────────────────────────────────
@@ -108,14 +125,15 @@ export default function DashboardPage() {
       if (!k) return
       ageVals.push(a)
       ageGroups[k].total += 1
-      s._placed ? ageGroups[k].placed++ : ageGroups[k].ytp++
+      isPlaced(s) ? ageGroups[k].placed++ : ageGroups[k].ytp++
     })
     const avgAge = ageVals.length ? (ageVals.reduce((a, b) => a + b, 0) / ageVals.length).toFixed(1) : '—'
 
     // ── placed companies ────────────────────────────────────────────────────
     const companies = {}
     placed.forEach(s => {
-      const c = s._placedCompany || 'Unknown'
+      const pl = selectedSeason === 'summer' ? s._placement_summer : s._placement_final
+      const c = pl?.company || 'Unknown'
       companies[c] = (companies[c] || 0) + 1
     })
 
@@ -125,17 +143,21 @@ export default function DashboardPage() {
       placed: { total: 0, male: 0, female: 0, other: 0 },
     }
     scoped.forEach(s => {
-      const st = s._placed ? 'placed' : 'ytp'
+      const st = isPlaced(s) ? 'placed' : 'ytp'
       const g  = genderOf(s)
       statusGender[st].total += 1
       statusGender[st][g]    += 1
     })
 
     return {
-      total: scoped.length, active: active.length, placed: placed.length,
+      total: scoped.length,
+      active: active.length,
+      placed: placed.length,
+      summerYtp: summerYtp.length, summerPlaced: summerPlaced.length,
+      finalYtp: finalYtp.length, finalPlaced: finalPlaced.length,
       avgCat, avgWx, placePct, catBreak, workEx, ageGroups, avgAge, companies, statusGender,
     }
-  }, [scoped])
+  }, [scoped, selectedSeason])
 
   // ── shared styles ──────────────────────────────────────────────────────────
   const barTrack = {
@@ -202,32 +224,49 @@ export default function DashboardPage() {
     display: 'flex', flexDirection: 'column', gap: 0, ...extra,
   })
 
-  if (loading) return <Spinner />
+  if (loading || batchesLoading) return <Spinner />
 
   return (
     <div style={{ flex: 1 }}>
       <PageHeader
         title="Dashboard"
-        subtitle={`${batchLabel(selectedBatch)} overview — ${new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}`}
+        subtitle={`${scopedCohorts.length === 1 ? cohortLabel(scopedCohorts[0]) : `${scopedCohorts.length} cohorts`} overview — ${new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}`}
       />
       <div style={{ padding: '14px 24px 18px' }}>
 
-        {/* batch badges */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-          <Badge color="amber">Summer {summerStudents.length}</Badge>
-          <Badge color="blue">Final {finalStudents.length}</Badge>
-          <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-3)' }}>
-            Placed: Summer {summerStudents.filter(s => s._placed).length} · Final {finalStudents.filter(s => s._placed).length}
-          </span>
+        {/* Season tabs */}
+        <div style={{ display: 'flex', gap: 4, marginBottom: 14, borderBottom: '1px solid var(--border)', paddingBottom: 0 }}>
+          {['summer', 'final'].map(s => (
+            <button key={s} onClick={() => setSelectedSeason(s)} style={{
+              padding: '8px 16px', border: 'none', background: 'none', cursor: 'pointer',
+              fontSize: 13, fontWeight: selectedSeason === s ? 700 : 500,
+              color: selectedSeason === s ? (s === 'summer' ? 'var(--amber-text)' : 'var(--accent-dark)') : 'var(--text-2)',
+              borderBottom: selectedSeason === s ? `2px solid ${s === 'summer' ? 'var(--amber)' : 'var(--accent)'}` : '2px solid transparent',
+              marginBottom: -1,
+              fontFamily: 'var(--font-sans)',
+            }}>
+              {s === 'summer' ? 'Summer Internship' : 'Final Placement'}
+            </button>
+          ))}
         </div>
 
-        {/* stat cards */}
+        {/* cohort + season overview badges */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+          {scopedCohorts.length === 1
+            ? <Badge color="blue">{cohortLabel(scopedCohorts[0])}</Badge>
+            : <Badge color="blue">{scopedCohorts.length} cohorts</Badge>
+          }
+          <Badge color="amber">Summer YTP {stats.summerYtp ?? 0} · Placed {stats.summerPlaced ?? 0}</Badge>
+          <Badge color="blue">Final YTP {stats.finalYtp ?? 0} · Placed {stats.finalPlaced ?? 0}</Badge>
+        </div>
+
+        {/* stat cards — scoped to selected season */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(140px, 1fr))', gap: 10, marginBottom: 14, textAlign: 'center' }}>
-          <StatCard label="Total Candidates" value={stats.total    || 0}  sub="in database" />
-          <StatCard label="Available"         value={stats.active   || 0}  sub="not yet placed"          color="var(--accent)" />
-          <StatCard label="Placed"            value={stats.placed   || 0}  sub={`${stats.placePct || 0}% of batch`} color="var(--green)" />
-          <StatCard label="Avg CAT %ile"      value={stats.avgCat  || '—'} sub="across batch" />
-          <StatCard label="Avg Work Ex"       value={stats.avgWx ? `${stats.avgWx}mo` : '—'} sub="months" />
+          <StatCard label="Total in Cohort"  value={stats.total    || 0}  sub="in database" />
+          <StatCard label="YTP"              value={stats.active   || 0}  sub={`not placed (${seasonLabel(selectedSeason)})`} color="var(--accent)" />
+          <StatCard label="Placed"           value={stats.placed   || 0}  sub={`${stats.placePct || 0}% of cohort · ${seasonLabel(selectedSeason)}`} color="var(--green)" />
+          <StatCard label="Avg CAT %ile"     value={stats.avgCat  || '—'} sub="across cohort" />
+          <StatCard label="Avg Work Ex"      value={stats.avgWx ? `${stats.avgWx}mo` : '—'} sub="months" />
         </div>
 
         {/* detail cards grid */}

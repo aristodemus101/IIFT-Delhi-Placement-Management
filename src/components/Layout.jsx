@@ -5,70 +5,63 @@ import { usePendingChanges } from '../lib/PendingChangesContext'
 import { useTheme } from '../lib/ThemeContext'
 import { useBatch } from '../lib/BatchContext'
 import { useStudents } from '../lib/useStudents'
-import { batchLabel, normalizeBatch } from '../lib/batch'
+import { cohortLabel, seasonLabel } from '../lib/batch'
 import { Badge, Btn, Modal } from './UI'
 import {
   LayoutDashboard, Users, CheckSquare, ArrowLeftRight, Activity,
-  LogOut, GraduationCap, ShieldCheck, ClipboardCheck, User, Sun, Moon
+  LogOut, GraduationCap, ShieldCheck, ClipboardCheck, User, Sun, Moon, BarChart2
 } from 'lucide-react'
 
 export default function Layout() {
   const { user, role, logout } = useAuth()
   const { pendingCount } = usePendingChanges()
   const { theme, toggleTheme } = useTheme()
-  const { selectedBatch, setSelectedBatch, options } = useBatch()
+  const {
+    selectedSeason, setSelectedSeason,
+    selectedProgramme, setSelectedProgramme,
+    selectedCampuses, setSelectedCampuses,
+    scopedCohorts, selectedCohort,
+    activeBatches, batchesLoading,
+    availableCampuses, availableProgrammes,
+  } = useBatch()
   const { students } = useStudents()
   const navigate = useNavigate()
   const isAdmin = role === 'admin'
-  const [batchConfirmOpen, setBatchConfirmOpen] = useState(false)
-  const [nextBatch, setNextBatch] = useState(null)
   const [workspaceActions, setWorkspaceActions] = useState(null)
 
-  const batchCounts = students.reduce((acc, s) => {
-    const b = normalizeBatch(s._batch)
-    if (b === 'summer') acc.summer += 1
-    else acc.final += 1
-    return acc
-  }, { summer: 0, final: 0 })
+  // Aggregate stats across all scoped cohorts
+  const scopedStats = useMemo(() => {
+    const inScope = new Set(scopedCohorts)
+    let summerYtp = 0, summerPlaced = 0, finalYtp = 0, finalPlaced = 0, total = 0
+    students.forEach(s => {
+      const c = s.cohort || s._batch?.split('_')[0] || 'unknown'
+      if (!inScope.has(c)) return
+      total++
+      if (s._placed_summer) summerPlaced++; else summerYtp++
+      if (s._placed_final)  finalPlaced++;  else finalYtp++
+    })
+    return { total, summerYtp, summerPlaced, finalYtp, finalPlaced }
+  }, [students, scopedCohorts])
 
-  const batchStats = students.reduce((acc, s) => {
-    const b = normalizeBatch(s._batch)
-    if (b === 'summer') {
-      if (s._placed) acc.summer.placed += 1
-      else acc.summer.ytp += 1
+  const toggleCampus = (campus) => {
+    if (selectedCampuses.includes(campus)) {
+      setSelectedCampuses(selectedCampuses.filter(c => c !== campus))
     } else {
-      if (s._placed) acc.final.placed += 1
-      else acc.final.ytp += 1
+      setSelectedCampuses([...selectedCampuses, campus])
     }
-    return acc
-  }, { summer: { ytp: 0, placed: 0 }, final: { ytp: 0, placed: 0 } })
-
-  const selectedOption = useMemo(() => options.find(o => o.value === selectedBatch) || options[0], [options, selectedBatch])
-  const nextOption = useMemo(() => options.find(o => o.value === nextBatch), [options, nextBatch])
-
-  const requestBatchSwitch = (value) => {
-    if (value === selectedBatch) return
-    setNextBatch(value)
-    setBatchConfirmOpen(true)
-  }
-
-  const confirmBatchSwitch = () => {
-    if (!nextBatch) return
-    setSelectedBatch(nextBatch)
-    setBatchConfirmOpen(false)
-    setNextBatch(null)
   }
 
   const handleLogout = async () => { await logout(); navigate('/login') }
 
   const NAV = [
-    { to: '/',          icon: LayoutDashboard, label: 'Dashboard',    exact: true, adminOnly: false },
-    { to: '/roster',    icon: Users,           label: 'Roster',       exact: false, adminOnly: false },
-    { to: '/placed',    icon: CheckSquare,     label: 'Placed',       exact: false, adminOnly: false },
-    { to: '/activity',  icon: Activity,        label: 'Activity',     exact: false, adminOnly: false },
-    { to: '/remapper',  icon: ArrowLeftRight,  label: 'Col. Remapper',exact: false, adminOnly: false },
-    { to: '/approvals', icon: ClipboardCheck,  label: 'Approvals',    exact: false, adminOnly: true, badge: pendingCount },
-    { to: '/admin',     icon: ShieldCheck,     label: 'Team Access',  exact: false, adminOnly: true },
+    { to: '/',           icon: LayoutDashboard, label: 'Dashboard',     exact: true,  adminOnly: false },
+    { to: '/roster',     icon: Users,           label: 'Roster',        exact: false, adminOnly: false },
+    { to: '/placed',     icon: CheckSquare,     label: 'Placed',        exact: false, adminOnly: false },
+    { to: '/activity',   icon: Activity,        label: 'Activity',      exact: false, adminOnly: false },
+    { to: '/analytics',  icon: BarChart2,       label: 'Analytics',     exact: false, adminOnly: false },
+    { to: '/remapper',   icon: ArrowLeftRight,  label: 'Col. Remapper', exact: false, adminOnly: false },
+    { to: '/approvals',  icon: ClipboardCheck,  label: 'Approvals',     exact: false, adminOnly: true, badge: pendingCount },
+    { to: '/admin',      icon: ShieldCheck,     label: 'Team Access',   exact: false, adminOnly: true },
   ]
 
   return (
@@ -97,64 +90,89 @@ export default function Layout() {
         </div>
 
         {/* Nav */}
-        <nav style={{ flex: 1, padding: '8px 12px' }}>
+        <nav style={{ flex: 1, padding: '8px 12px', overflowY: 'auto' }}>
           <div style={{ marginBottom: 12, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: 8 }}>
-            <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-3)', fontWeight: 600, marginBottom: 8 }}>
-              Active Batch
+
+            {/* Season */}
+            <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-3)', fontWeight: 600, marginBottom: 5 }}>Season</div>
+            <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
+              {['summer', 'final'].map(s => (
+                <button key={s} onClick={() => setSelectedSeason(s)} style={{
+                  flex: 1, padding: '5px 0', borderRadius: 8, cursor: 'pointer', fontWeight: 700, fontSize: 11,
+                  border: `1px solid ${selectedSeason === s ? (s === 'summer' ? 'var(--amber)' : 'var(--accent)') : 'var(--border)'}`,
+                  background: selectedSeason === s ? (s === 'summer' ? 'var(--amber-bg)' : 'var(--accent-bg)') : 'var(--surface)',
+                  color: selectedSeason === s ? (s === 'summer' ? 'var(--amber-text)' : 'var(--accent-dark)') : 'var(--text-2)',
+                }}>
+                  {s === 'summer' ? 'Summer' : 'Final'}
+                </button>
+              ))}
             </div>
-            <div style={{ display: 'flex', gap: 6 }}>
-              {options.map(opt => {
-                const active = selectedBatch === opt.value
-                const isSummer = opt.value === 'summer'
-                return (
-                  <button
-                    key={opt.value}
-                    onClick={() => requestBatchSwitch(opt.value)}
-                    style={{
-                      flex: 1,
-                      borderRadius: 12,
-                      border: `1px solid ${active ? (isSummer ? 'var(--amber)' : 'var(--accent)') : 'var(--border)'}`,
-                      background: active ? (isSummer ? 'color-mix(in srgb, var(--batch-summer-bg) 78%, var(--surface))' : 'color-mix(in srgb, var(--batch-final-bg) 78%, var(--surface))') : 'var(--surface)',
-                      color: active ? (isSummer ? 'var(--amber-text)' : 'var(--accent-dark)') : 'var(--text-2)',
-                      boxShadow: active ? 'inset 0 0 0 1px color-mix(in srgb, currentColor 18%, transparent)' : 'none',
-                      fontSize: 12,
-                      fontWeight: 700,
-                      padding: '7px 6px',
-                      cursor: 'pointer',
-                    }}
-                    title={`Switch to ${opt.label}`}
-                  >
-                    {opt.short}
-                  </button>
-                )
-              })}
-            </div>
-            <div style={{ marginTop: 9 }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, color: 'var(--text-2)' }}>
-                <thead>
-                  <tr>
-                    <th style={{ textAlign: 'left', fontWeight: 600, color: 'var(--text-3)', paddingBottom: 3 }}>Batch</th>
-                    <th style={{ textAlign: 'right', fontWeight: 600, color: 'var(--text-3)', paddingBottom: 3 }}>YTP</th>
-                    <th style={{ textAlign: 'right', fontWeight: 600, color: 'var(--text-3)', paddingBottom: 3 }}>Placed</th>
-                    <th style={{ textAlign: 'right', fontWeight: 600, color: 'var(--text-3)', paddingBottom: 3 }}>Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td style={{ fontWeight: 700, color: 'var(--batch-summer-text)', paddingTop: 2 }}>Summer</td>
-                    <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums', paddingTop: 2 }}>{batchStats.summer.ytp}</td>
-                    <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: 'var(--green-text)', paddingTop: 2 }}>{batchStats.summer.placed}</td>
-                    <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums', paddingTop: 2 }}>{batchCounts.summer}</td>
-                  </tr>
-                  <tr>
-                    <td style={{ fontWeight: 700, color: 'var(--batch-final-text)', paddingTop: 2 }}>Final</td>
-                    <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums', paddingTop: 2 }}>{batchStats.final.ytp}</td>
-                    <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: 'var(--green-text)', paddingTop: 2 }}>{batchStats.final.placed}</td>
-                    <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums', paddingTop: 2 }}>{batchCounts.final}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+
+            {/* Programme filter */}
+            {availableProgrammes.length > 0 && (
+              <>
+                <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-3)', fontWeight: 600, marginBottom: 5 }}>Programme</div>
+                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 10 }}>
+                  <button onClick={() => setSelectedProgramme('')} style={{
+                    padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                    border: `1px solid ${!selectedProgramme ? 'var(--accent)' : 'var(--border)'}`,
+                    background: !selectedProgramme ? 'var(--accent-bg)' : 'var(--surface)',
+                    color: !selectedProgramme ? 'var(--accent-dark)' : 'var(--text-2)',
+                  }}>All</button>
+                  {availableProgrammes.map(p => (
+                    <button key={p} onClick={() => setSelectedProgramme(p === selectedProgramme ? '' : p)} style={{
+                      padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                      border: `1px solid ${selectedProgramme === p ? 'var(--accent)' : 'var(--border)'}`,
+                      background: selectedProgramme === p ? 'var(--accent-bg)' : 'var(--surface)',
+                      color: selectedProgramme === p ? 'var(--accent-dark)' : 'var(--text-2)',
+                    }}>{p}</button>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {/* Campus filter */}
+            {availableCampuses.length > 0 && (
+              <>
+                <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-3)', fontWeight: 600, marginBottom: 5 }}>Campus</div>
+                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 10 }}>
+                  <button onClick={() => setSelectedCampuses([])} style={{
+                    padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                    border: `1px solid ${selectedCampuses.length === 0 ? 'var(--accent)' : 'var(--border)'}`,
+                    background: selectedCampuses.length === 0 ? 'var(--accent-bg)' : 'var(--surface)',
+                    color: selectedCampuses.length === 0 ? 'var(--accent-dark)' : 'var(--text-2)',
+                  }}>All</button>
+                  {availableCampuses.map(c => {
+                    const short = c === 'Gift City' ? 'GC' : c === 'Kakinada' ? 'KKD' : c === 'Kolkata' ? 'KOL' : c
+                    const active = selectedCampuses.includes(c)
+                    return (
+                      <button key={c} onClick={() => toggleCampus(c)} title={c} style={{
+                        padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                        border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
+                        background: active ? 'var(--accent-bg)' : 'var(--surface)',
+                        color: active ? 'var(--accent-dark)' : 'var(--text-2)',
+                      }}>{short}</button>
+                    )
+                  })}
+                </div>
+              </>
+            )}
+
+            {/* Scope summary */}
+            {batchesLoading ? (
+              <div style={{ fontSize: 11, color: 'var(--text-3)' }}>Loading…</div>
+            ) : activeBatches.length === 0 ? (
+              <div style={{ fontSize: 11, color: 'var(--text-3)', lineHeight: 1.5 }}>No cohorts — import to create one</div>
+            ) : (
+              <div style={{ fontSize: 11, color: 'var(--text-3)', lineHeight: 1.6 }}>
+                <span style={{ fontWeight: 600, color: 'var(--text-2)' }}>{scopedCohorts.length}</span> cohort{scopedCohorts.length !== 1 ? 's' : ''} ·{' '}
+                <span style={{ fontWeight: 600, color: 'var(--text-2)' }}>{scopedStats.total}</span> students ·{' '}
+                {selectedSeason === 'summer'
+                  ? <><span style={{ color: 'var(--green-text)', fontWeight: 600 }}>{scopedStats.summerPlaced}</span> placed</>
+                  : <><span style={{ color: 'var(--accent-dark)', fontWeight: 600 }}>{scopedStats.finalPlaced}</span> placed</>
+                }
+              </div>
+            )}
           </div>
 
           {NAV.filter(n => !n.adminOnly || isAdmin).map(({ to, icon: Icon, label, exact, badge }) => (
@@ -241,7 +259,16 @@ export default function Layout() {
           flexShrink: 0,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <Badge color={selectedBatch === 'summer' ? 'amber' : 'blue'}>{batchLabel(selectedBatch)}</Badge>
+            {scopedCohorts.length === 0 ? (
+              <Badge color="gray">No cohorts selected</Badge>
+            ) : scopedCohorts.length === 1 ? (
+              <Badge color="blue">{cohortLabel(scopedCohorts[0])}</Badge>
+            ) : (
+              <Badge color="blue">{scopedCohorts.length} cohorts</Badge>
+            )}
+            <Badge color={selectedSeason === 'summer' ? 'amber' : 'blue'}>
+              {seasonLabel(selectedSeason)}
+            </Badge>
             Workspace
           </div>
           {workspaceActions ? (
@@ -255,16 +282,6 @@ export default function Layout() {
         </div>
       </main>
 
-      <Modal open={batchConfirmOpen} onClose={() => setBatchConfirmOpen(false)} title="Switch active batch?" width={520}>
-        <p style={{ fontSize: 13, color: 'var(--text-2)', marginBottom: 14, lineHeight: 1.6 }}>
-          You are currently in <strong>{batchLabel(selectedBatch)}</strong>.
-          {nextOption ? <> Switch to <strong>{nextOption.label}</strong>?</> : null}
-        </p>
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-          <Btn onClick={() => setBatchConfirmOpen(false)}>Stay Here</Btn>
-          <Btn variant="primary" onClick={confirmBatchSwitch}>Yes, Switch Batch</Btn>
-        </div>
-      </Modal>
     </div>
   )
 }

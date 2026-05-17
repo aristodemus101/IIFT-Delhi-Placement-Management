@@ -3,22 +3,44 @@ import { useStudents } from '../lib/useStudents'
 import { usePendingChanges } from '../lib/PendingChangesContext'
 import { useAuth } from '../lib/AuthContext'
 import { useBatch } from '../lib/BatchContext'
-import { batchLabel, normalizeBatch } from '../lib/batch'
+import { cohortLabel, seasonLabel } from '../lib/batch'
 import { getVal } from '../lib/columns'
 import { exportToCSV } from '../lib/csv'
 import { PageHeader, Btn, Badge, CategoryBadge, Input, Spinner, Table, Modal } from '../components/UI'
 import { Download, RotateCcw, Search, Eye, CheckCircle, Lock } from 'lucide-react'
 
+// Helper to derive cohort from a student doc (with fallback for old _batch field)
+function studentCohort(s) {
+  return s.cohort || s._batch?.split('_')[0] || 'unknown'
+}
+
 export default function PlacedPage() {
   const { students, loading } = useStudents()
   const { propose } = usePendingChanges()
   const { isAdmin } = useAuth()
-  const { selectedBatch } = useBatch()
+  const { scopedCohorts, selectedCohort, selectedSeason, setSelectedSeason, batchesLoading } = useBatch()
   const [search, setSearch] = useState('')
   const [viewModal, setViewModal] = useState(null)
   const [successMsg, setSuccessMsg] = useState('')
 
-  const placed = students.filter(s => normalizeBatch(s._batch) === selectedBatch && s._placed)
+  // Filter by cohort, then by season's placed flag
+  const placed = useMemo(() => {
+    const ids = new Set(scopedCohorts)
+    return students.filter(s => {
+      if (!ids.has(studentCohort(s))) return false
+      if (selectedSeason === 'summer') return s._placed_summer === true
+      return s._placed_final === true
+    })
+  }, [students, scopedCohorts, selectedSeason])
+
+  // Get the right placement object for the selected season
+  const getPlacement = (s) => {
+    if (selectedSeason === 'summer') return s._placement_summer || {}
+    return s._placement_final || {}
+  }
+
+  const getPlacedCompany = (s) => getPlacement(s).company || '—'
+  const getPlacedAt = (s) => getPlacement(s).placedAtIso || null
 
   const filtered = useMemo(() => {
     if (!search) return placed
@@ -26,20 +48,21 @@ export default function PlacedPage() {
     return placed.filter(s =>
       getVal(s, 'name').toLowerCase().includes(q) ||
       getVal(s, 'roll').toLowerCase().includes(q) ||
-      (s._placedCompany || '').toLowerCase().includes(q)
+      (getPlacedCompany(s) || '').toLowerCase().includes(q)
     )
-  }, [placed, search])
+  }, [placed, search, selectedSeason])
 
   const flash = (msg) => { setSuccessMsg(msg); setTimeout(() => setSuccessMsg(''), 4000) }
 
   const proposeUnplace = async (s) => {
     await propose({
       type: 'unplace',
-      batch: selectedBatch,
+      cohort: selectedCohort,
+      season: selectedSeason,
       studentId: s._id,
       studentName: getVal(s, 'name'),
       studentRoll: getVal(s, 'roll'),
-      currentCompany: s._placedCompany,
+      currentCompany: getPlacedCompany(s),
     })
     flash(`Unplace proposal for ${getVal(s, 'name')} submitted — awaiting approval.`)
   }
@@ -56,45 +79,66 @@ export default function PlacedPage() {
     { label: 'Actions' },
   ]
 
-  const rows = filtered.map(s => [
-    <span style={{ fontSize: 12, color: 'var(--text-3)', fontFamily: 'var(--font-mono)' }}>{getVal(s, 'roll')}</span>,
-    <span style={{ fontWeight: 500 }}>{getVal(s, 'name')}</span>,
-    <span style={{ color: 'var(--text-2)' }}>{getVal(s, 'gender')}</span>,
-    <strong>{parseFloat(getVal(s, 'cat')).toFixed(2) || '—'}</strong>,
-    <CategoryBadge category={getVal(s, 'category')} />,
-    <span>{getVal(s, 'wx') || '0'} mo</span>,
-    <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 20, fontSize: 12, background: 'var(--green-bg)', color: 'var(--green-text)', border: '1px solid var(--green-border)', fontWeight: 500 }}>
-      {s._placedCompany || '—'}
-    </span>,
-    <span style={{ fontSize: 12, color: 'var(--text-3)' }}>
-      {s._placedAt ? new Date(s._placedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}
-    </span>,
-    <div style={{ display: 'flex', gap: 6 }}>
-      <Btn size="sm" variant="ghost" onClick={() => setViewModal(s)}><Eye size={13} /></Btn>
-      {isAdmin && (
-        <Btn size="sm" variant="ghost" onClick={() => proposeUnplace(s)} title="Propose unplace">
-          <RotateCcw size={13} /> Unplace
-        </Btn>
-      )}
-    </div>
-  ])
+  const rows = filtered.map(s => {
+    const company = getPlacedCompany(s)
+    const placedAt = getPlacedAt(s)
+    return [
+      <span style={{ fontSize: 12, color: 'var(--text-3)', fontFamily: 'var(--font-mono)' }}>{getVal(s, 'roll')}</span>,
+      <span style={{ fontWeight: 500 }}>{getVal(s, 'name')}</span>,
+      <span style={{ color: 'var(--text-2)' }}>{getVal(s, 'gender')}</span>,
+      <strong>{parseFloat(getVal(s, 'cat')).toFixed(2) || '—'}</strong>,
+      <CategoryBadge category={getVal(s, 'category')} />,
+      <span>{getVal(s, 'wx') || '0'} mo</span>,
+      <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 20, fontSize: 12, background: selectedSeason === 'summer' ? 'var(--amber-bg)' : 'var(--green-bg)', color: selectedSeason === 'summer' ? 'var(--amber-text)' : 'var(--green-text)', border: `1px solid ${selectedSeason === 'summer' ? 'var(--amber)' : 'var(--green-border)'}`, fontWeight: 500 }}>
+        {company}
+      </span>,
+      <span style={{ fontSize: 12, color: 'var(--text-3)' }}>
+        {placedAt ? new Date(placedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}
+      </span>,
+      <div style={{ display: 'flex', gap: 6 }}>
+        <Btn size="sm" variant="ghost" onClick={() => setViewModal(s)}><Eye size={13} /></Btn>
+        {isAdmin && (
+          <Btn size="sm" variant="ghost" onClick={() => proposeUnplace(s)} title="Propose unplace">
+            <RotateCcw size={13} /> Unplace
+          </Btn>
+        )}
+      </div>
+    ]
+  })
 
-  if (loading) return <Spinner />
+  if (loading || batchesLoading) return <Spinner />
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <PageHeader
         title="Placed Students"
-        subtitle={`${batchLabel(selectedBatch)} · ${placed.length} student${placed.length !== 1 ? 's' : ''} placed so far`}
+        subtitle={`${scopedCohorts.length === 1 ? cohortLabel(scopedCohorts[0]) : `${scopedCohorts.length} cohorts`} · ${seasonLabel(selectedSeason)} · ${placed.length} student${placed.length !== 1 ? 's' : ''} placed`}
         actions={
           <>
-            <Badge color={selectedBatch === 'summer' ? 'amber' : 'blue'}>{selectedBatch === 'summer' ? 'Summer Batch' : 'Final Batch'}</Badge>
             <Btn size="sm" onClick={() => exportToCSV(filtered, 'placed_students.csv')} disabled={!filtered.length} title={!filtered.length ? 'No placed records to export' : 'Export placed students'}>
               <Download size={13} /> Export Placed Sheet
             </Btn>
           </>
         }
       />
+
+      {/* Season tabs */}
+      <div style={{ padding: '0 28px', borderBottom: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', gap: 4 }}>
+        {['summer', 'final'].map(s => (
+          <button key={s} onClick={() => setSelectedSeason(s)} style={{
+            padding: '10px 14px', border: 'none', background: 'none', cursor: 'pointer',
+            fontSize: 13, fontWeight: selectedSeason === s ? 600 : 400,
+            color: selectedSeason === s ? (s === 'summer' ? 'var(--amber-text)' : 'var(--accent-dark)') : 'var(--text-2)',
+            borderBottom: selectedSeason === s ? `2px solid ${s === 'summer' ? 'var(--amber)' : 'var(--accent)'}` : '2px solid transparent',
+            fontFamily: 'var(--font-sans)',
+          }}>
+            {s === 'summer' ? 'Summer Internship' : 'Final Placement'}
+            <span style={{ marginLeft: 6, fontSize: 11, fontWeight: 600, opacity: 0.7 }}>
+              ({(() => { const ids = new Set(scopedCohorts); return students.filter(st => ids.has(studentCohort(st)) && (s === 'summer' ? st._placed_summer : st._placed_final)).length })()} )
+            </span>
+          </button>
+        ))}
+      </div>
 
       {!isAdmin && (
         <div style={{ margin: '12px 28px 0', padding: '9px 14px', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: 13, display: 'flex', gap: 8, alignItems: 'center', color: 'var(--text-2)' }}>
@@ -116,30 +160,36 @@ export default function PlacedPage() {
       </div>
 
       <div style={{ flex: 1, overflow: 'auto' }}>
-        <Table headers={headers} rows={rows} emptyMessage={placed.length ? 'No matches' : 'No placements recorded yet'} />
+        <Table headers={headers} rows={rows} emptyMessage={placed.length ? 'No matches' : `No ${seasonLabel(selectedSeason).toLowerCase()} placements recorded yet`} />
       </div>
 
-      <Modal open={!!viewModal} onClose={() => setViewModal(null)} title={viewModal ? `${getVal(viewModal, 'name')} — ${viewModal._placedCompany}` : ''} width={480}>
-        {viewModal && (
-          <div style={{ display: 'grid', gap: 12 }}>
-            {[
-              ['Roll No.', getVal(viewModal, 'roll')],
-              ['CAT Percentile', getVal(viewModal, 'cat')],
-              ['Category', getVal(viewModal, 'category')],
-              ['Work Experience', `${getVal(viewModal, 'wx')} months`],
-              ['UG Degree', `${getVal(viewModal, 'ug')} — ${getVal(viewModal, 'ugpct')}%`],
-              ['Class X', `${getVal(viewModal, 'x10pct')}%`],
-              ['Class XII', `${getVal(viewModal, 'x12pct')}%`],
-              ['Placed At', viewModal._placedCompany],
-              ['Placed On', viewModal._placedAt ? new Date(viewModal._placedAt).toLocaleDateString('en-IN') : '—'],
-            ].map(([k, v]) => (
-              <div key={k} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>
-                <span style={{ color: 'var(--text-2)' }}>{k}</span>
-                <span style={{ fontWeight: 500 }}>{v || '—'}</span>
-              </div>
-            ))}
-          </div>
-        )}
+      <Modal open={!!viewModal} onClose={() => setViewModal(null)} title={viewModal ? `${getVal(viewModal, 'name')} — ${getPlacedCompany(viewModal)}` : ''} width={480}>
+        {viewModal && (() => {
+          const pl = getPlacement(viewModal)
+          return (
+            <div style={{ display: 'grid', gap: 12 }}>
+              {[
+                ['Roll No.', getVal(viewModal, 'roll')],
+                ['CAT Percentile', getVal(viewModal, 'cat')],
+                ['Category', getVal(viewModal, 'category')],
+                ['Work Experience', `${getVal(viewModal, 'wx')} months`],
+                ['UG Degree', `${getVal(viewModal, 'ug')} — ${getVal(viewModal, 'ugpct')}%`],
+                ['Class X', `${getVal(viewModal, 'x10pct')}%`],
+                ['Class XII', `${getVal(viewModal, 'x12pct')}%`],
+                ['Season', seasonLabel(selectedSeason)],
+                ['Company', pl.company || '—'],
+                ['Role', pl.role || '—'],
+                ['Package', pl.package || '—'],
+                ['Placed On', pl.placedAtIso ? new Date(pl.placedAtIso).toLocaleDateString('en-IN') : '—'],
+              ].map(([k, v]) => (
+                <div key={k} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>
+                  <span style={{ color: 'var(--text-2)' }}>{k}</span>
+                  <span style={{ fontWeight: 500 }}>{v || '—'}</span>
+                </div>
+              ))}
+            </div>
+          )
+        })()}
       </Modal>
     </div>
   )

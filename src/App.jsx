@@ -14,6 +14,7 @@ import RemapperPage from './pages/RemapperPage'
 import ApprovalsPage from './pages/ApprovalsPage'
 import AdminPage from './pages/AdminPage'
 import ActivityPage from './pages/ActivityPage'
+import AnalyticsPage from './pages/AnalyticsPage'
 
 function ProtectedRoute({ children, adminOnly = false }) {
   const { user, role } = useAuth()
@@ -46,7 +47,8 @@ function AppRoutes() {
         <Route path="roster"  element={<RosterPage />} />
         <Route path="placed"  element={<PlacedPage />} />
         <Route path="remapper" element={<RemapperPage />} />
-        <Route path="activity" element={<ActivityPage />} />
+        <Route path="activity"   element={<ActivityPage />} />
+        <Route path="analytics"  element={<AnalyticsPage />} />
         <Route path="approvals" element={<ProtectedRoute adminOnly><ApprovalsPage /></ProtectedRoute>} />
         <Route path="admin"   element={<ProtectedRoute adminOnly><AdminPage /></ProtectedRoute>} />
       </Route>

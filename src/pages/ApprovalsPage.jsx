@@ -1,7 +1,8 @@
 import React, { useState } from 'react'
 import { usePendingChanges } from '../lib/PendingChangesContext'
 import { useAuth } from '../lib/AuthContext'
-import { batchLabel, normalizeBatch } from '../lib/batch'
+import { useBatch } from '../lib/BatchContext'
+import { cohortLabel, seasonLabel } from '../lib/batch'
 import { PageHeader, Btn, Badge, Spinner, Modal } from '../components/UI'
 import {
   CheckCircle, XCircle, Clock, CheckSquare, Trash2,
@@ -18,19 +19,27 @@ const TYPE_META = {
 }
 
 function changeDescription(c) {
-  const batchPart = c.batch ? ` [${String(c.batch).toUpperCase()}]` : ''
+  const cohortId = c.cohort || c.batch
+  const cohortPart = cohortId ? ` [${cohortId}]` : ''
+  const seasonPart = c.season ? ` (${seasonLabel(c.season)})` : ''
   switch (c.type) {
     case 'place':
     case 'place_from_activity': {
       const company = c.placementDetails?.company || c.company || 'Unknown company'
       const via = c.placementDetails?.via ? ` via ${c.placementDetails.via}` : ''
       const opp = c.opportunityTitle ? ` · ${c.opportunityTitle}` : ''
-      return `${batchPart} Place ${c.studentName} (${c.studentRoll}) → ${company}${via}${opp}`
+      return `${cohortPart}${seasonPart} Place ${c.studentName} (${c.studentRoll}) → ${company}${via}${opp}`
     }
-    case 'unplace':  return `${batchPart} Unplace ${c.studentName} (${c.studentRoll}) from ${c.currentCompany}`
-    case 'delete':   return `${batchPart} Permanently delete ${c.studentName} (${c.studentRoll})`
-    case 'import':   return `${batchPart} ${c.replaceExisting ? 'Replace existing and import' : 'Import'} ${c.rowCount} student${c.rowCount !== 1 ? 's' : ''} from file`
-    case 'clearAll': return `${batchPart} Delete all ${c.studentCount} students from database`
+    case 'unplace':  return `${cohortPart}${seasonPart} Unplace ${c.studentName} (${c.studentRoll}) from ${c.currentCompany}`
+    case 'delete':   return `${cohortPart} Permanently delete ${c.studentName} (${c.studentRoll})`
+    case 'import': {
+      const cl = cohortId ? cohortLabel(cohortId) : ''
+      return `${cl ? `[${cl}] ` : ''}${c.replaceExisting ? 'Replace existing and import' : 'Import'} ${c.rowCount} student${c.rowCount !== 1 ? 's' : ''} from file`
+    }
+    case 'clearAll': {
+      const cl = cohortId ? cohortLabel(cohortId) : ''
+      return `${cl ? `[${cl}] ` : ''}Delete all ${c.studentCount} students from database`
+    }
     default:         return c.type
   }
 }
@@ -44,20 +53,21 @@ function fmtTime(ts) {
 export default function ApprovalsPage() {
   const { changes, loading, approve, reject, withdraw } = usePendingChanges()
   const { user } = useAuth()
+  const { activeBatches } = useBatch()
   const [tab, setTab] = useState('pending')
-  const [batchScope, setBatchScope] = useState('all')
+  const [cohortScope, setCohortScope] = useState('all')
   const [reviewing, setReviewing] = useState(null) // { change, action }
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
 
-  const batchScoped = batchScope === 'all'
+  const cohortScoped = cohortScope === 'all'
     ? changes
-    : changes.filter(c => normalizeBatch(c.batch) === batchScope)
+    : changes.filter(c => (c.cohort || c.batch) === cohortScope)
 
   const filtered = tab === 'all'
-    ? batchScoped
-    : batchScoped.filter(c => c.status === tab)
+    ? cohortScoped
+    : cohortScoped.filter(c => c.status === tab)
 
   const openReview = (change, action) => { setReviewing({ change, action }); setNote(''); setErr('') }
 
@@ -76,7 +86,7 @@ export default function ApprovalsPage() {
   }
 
   const tabs = [
-    { key: 'pending',  label: 'Pending',  count: batchScoped.filter(c => c.status === 'pending').length },
+    { key: 'pending',  label: 'Pending',  count: cohortScoped.filter(c => c.status === 'pending').length },
     { key: 'approved', label: 'Approved', count: null },
     { key: 'rejected', label: 'Rejected', count: null },
     { key: 'withdrawn', label: 'Withdrawn', count: null },
@@ -110,10 +120,13 @@ export default function ApprovalsPage() {
             )}
           </button>
         ))}
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
-          {[{ key: 'all', label: 'All Batches' }, { key: 'summer', label: 'Summer' }, { key: 'final', label: 'Final' }].map(b => (
-            <Btn key={b.key} size="sm" variant={batchScope === b.key ? 'default' : 'ghost'} onClick={() => setBatchScope(b.key)}>
-              {b.label}
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          <Btn size="sm" variant={cohortScope === 'all' ? 'default' : 'ghost'} onClick={() => setCohortScope('all')}>
+            All Cohorts
+          </Btn>
+          {activeBatches.map(b => (
+            <Btn key={b.id} size="sm" variant={cohortScope === b.id ? 'default' : 'ghost'} onClick={() => setCohortScope(b.id)}>
+              {b.label || cohortLabel(b.id)}
             </Btn>
           ))}
         </div>
@@ -137,6 +150,8 @@ export default function ApprovalsPage() {
                 ((c.type === 'place' || c.type === 'unplace' || c.type === 'delete') && !c.studentId)
               )
 
+              const cohortId = c.cohort || c.batch
+
               return (
                 <div key={c._id} style={{
                   background: 'var(--surface)', border: '1px solid var(--border)',
@@ -155,7 +170,8 @@ export default function ApprovalsPage() {
                       <div style={{ flex: 1 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                           <Badge color={meta.color}>{meta.label}</Badge>
-                          <Badge color={normalizeBatch(c.batch) === 'summer' ? 'amber' : 'blue'}>{batchLabel(c.batch)}</Badge>
+                          {cohortId && <Badge color="blue">{cohortLabel(cohortId)}</Badge>}
+                          {c.season && <Badge color={c.season === 'summer' ? 'amber' : 'blue'}>{seasonLabel(c.season)}</Badge>}
                           {isOwn && isPending && <Badge color="gray">Your proposal</Badge>}
                           {invalidPending && <Badge color="red">Invalid request</Badge>}
                           {!isPending && (

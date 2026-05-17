@@ -8,7 +8,9 @@ import { useBatch } from '../lib/BatchContext'
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 import { getVal, OUR_COLS } from '../lib/columns'
-import { batchLabel, batchShortLabel, normalizeBatch } from '../lib/batch'
+import { cohortLabel, seasonLabel, seasonShort } from '../lib/batch'
+import CohortPicker from '../components/CohortPicker'
+import { useSearch } from '../lib/useSearch'
 import { parseDataFile, exportToCSV, exportToTSV, exportToExcel } from '../lib/csv'
 import {
   PageHeader, Btn, Badge, CategoryBadge, Input, Select,
@@ -19,7 +21,7 @@ import {
 } from 'lucide-react'
 
 const NUMERIC = ['cat', 'wx', 'ugpct', 'x10pct', 'x12pct', 'age', 'cat_score']
-const DEFAULT_FILTERS = { name: '', catMin: '', wxMin: '', category: '', gender: '', pwdOnly: false }
+const DEFAULT_FILTERS = { catMin: '', wxMin: '', category: '', gender: '', pwdOnly: false }
 
 const newPlacementForm = () => ({
   date: new Date().toISOString().slice(0, 10),
@@ -31,10 +33,21 @@ const newPlacementForm = () => ({
   via: '',
 })
 
+// Helper to derive cohort from a student doc (with fallback for old _batch field)
+function studentCohort(s) {
+  return s.cohort || s._batch?.split('_')[0] || 'unknown'
+}
+
+// Helper to check if a student is active (not placed) in a given season
+function isActiveInSeason(s, season) {
+  if (season === 'summer') return !s._placed_summer
+  return !s._placed_final
+}
+
 export default function RosterPage() {
   const { students, loading } = useStudents()
-  const { selectedBatch } = useBatch()
-  const { schemaHeaders } = useColumnSchema(selectedBatch)
+  const { scopedCohorts, selectedCohort, selectedSeason, batchesLoading, activeBatches } = useBatch()
+  const { schemaHeaders } = useColumnSchema(selectedCohort || 'final')
   const { propose } = usePendingChanges()
   const { isAdmin, user } = useAuth()
   const { playgroundUrl, playgroundPushing, pushToPlayground, connected: sheetsConnected } = useSheetsSync()
@@ -42,6 +55,7 @@ export default function RosterPage() {
 
   const [sortCol, setSortCol] = useState('name')
   const [sortDir, setSortDir] = useState(1)
+  const [courseFilter, setCourseFilter] = useState('all')
   const [filters, setFilters] = useState(DEFAULT_FILTERS)
   const [placeModal, setPlaceModal] = useState(null)
   const [placementForm, setPlacementForm] = useState(newPlacementForm)
@@ -51,6 +65,11 @@ export default function RosterPage() {
   const [importing, setImporting] = useState(false)
   const [replaceOnImport, setReplaceOnImport] = useState(false)
   const [importMsg, setImportMsg] = useState('')
+  const [importModalOpen, setImportModalOpen] = useState(false)
+  const [importCohort, setImportCohort] = useState('')
+  const [importFile, setImportFile] = useState(null)
+  const [importParsed, setImportParsed] = useState(null) // { rows, headers }
+  const [importStep, setImportStep] = useState(1) // 1=pick cohort, 2=file chosen
   const [busy, setBusy] = useState(false)
   const [successMsg, setSuccessMsg] = useState('')
   const [playgroundMsg, setPlaygroundMsg] = useState('')
@@ -60,9 +79,20 @@ export default function RosterPage() {
   const [visibleCols, setVisibleCols] = useState([])
   const [prefsReady, setPrefsReady] = useState(false)
   const fileRef = useRef()
+  const mountedRef = useRef(true)
+  useEffect(() => () => { mountedRef.current = false }, [])
 
-  const scopedStudents = students.filter(s => normalizeBatch(s._batch) === selectedBatch)
-  const active = scopedStudents.filter(s => !s._placed)
+  // Initialize importCohort to selectedCohort when modal opens
+  useEffect(() => {
+    if (importModalOpen && !importCohort && selectedCohort) {
+      setImportCohort(selectedCohort)
+    }
+  }, [importModalOpen, selectedCohort, importCohort])
+
+  const _scopedIds = useMemo(() => new Set(scopedCohorts), [scopedCohorts])
+  const scopedStudents = useMemo(() => students.filter(s => _scopedIds.has(studentCohort(s))), [students, _scopedIds])
+  const active = scopedStudents.filter(s => isActiveInSeason(s, selectedSeason))
+  const { searchTerm, setSearchTerm, match: searchMatch } = useSearch(active)
   const hasStudents = scopedStudents.length > 0
   const schemaCols = useMemo(() => (schemaHeaders || []).filter(Boolean), [schemaHeaders])
   const usingSchema = schemaCols.length > 0
@@ -115,7 +145,7 @@ export default function RosterPage() {
         }
 
         const rosterRoot = snap.data()?.roster || {}
-        const roster = rosterRoot[selectedBatch] || rosterRoot
+        const roster = rosterRoot[selectedCohort] || rosterRoot
         if (typeof roster.sortCol === 'string' && roster.sortCol) setSortCol(roster.sortCol)
         if (roster.sortDir === 1 || roster.sortDir === -1) setSortDir(roster.sortDir)
         if (roster.filters && typeof roster.filters === 'object') {
@@ -138,14 +168,14 @@ export default function RosterPage() {
 
     loadPrefs()
     return () => { cancelled = true }
-  }, [user?.uid, allColumnDefs, selectedBatch])
+  }, [user?.uid, allColumnDefs, selectedCohort])
 
   useEffect(() => {
     if (!user?.uid || !prefsReady || !visibleCols.length) return
     const t = setTimeout(() => {
       setDoc(doc(db, 'userPrefs', user.uid), {
         roster: {
-          [selectedBatch]: {
+          [selectedCohort]: {
             sortCol,
             sortDir,
             visibleCols,
@@ -156,7 +186,7 @@ export default function RosterPage() {
       }, { merge: true }).catch(err => console.error('Failed to save roster preferences:', err))
     }, 250)
     return () => clearTimeout(t)
-  }, [user?.uid, prefsReady, sortCol, sortDir, visibleCols, filters, selectedBatch])
+  }, [user?.uid, prefsReady, sortCol, sortDir, visibleCols, filters, selectedCohort])
 
   const visibleDefs = useMemo(() => {
     if (!visibleCols.length) return allColumnDefs
@@ -199,10 +229,9 @@ export default function RosterPage() {
   }, [sortCol, sortOptions, allColumnDefs])
 
   const filtered = useMemo(() => {
-    return active.filter(s => {
-      const name = getVal(s, 'name').toLowerCase()
-      const roll = getVal(s, 'roll').toLowerCase()
-      if (filters.name && !name.includes(filters.name.toLowerCase()) && !roll.includes(filters.name.toLowerCase())) return false
+    return active.filter((s, i) => {
+      if (searchMatch && !searchMatch.has(i)) return false
+      if (courseFilter !== 'all' && (s['COURSE'] || s['Course'] || '').toUpperCase() !== courseFilter) return false
       if (filters.catMin && parseFloat(getVal(s, 'cat')) < parseFloat(filters.catMin)) return false
       if (filters.wxMin && parseFloat(getVal(s, 'wx')) < parseFloat(filters.wxMin)) return false
       if (filters.category && getVal(s, 'category') !== filters.category) return false
@@ -210,7 +239,7 @@ export default function RosterPage() {
       if (filters.pwdOnly && (getVal(s, 'pwd') || '').toLowerCase() !== 'yes') return false
       return true
     })
-  }, [active, filters])
+  }, [active, searchMatch, courseFilter, filters.catMin, filters.wxMin, filters.category, filters.gender, filters.pwdOnly])
 
   const getCellValue = (student, headerOrKey) => {
     if (student?.[headerOrKey] !== undefined && student?.[headerOrKey] !== null) return student[headerOrKey]
@@ -250,7 +279,7 @@ export default function RosterPage() {
   }, [sortedFiltered, visibleDefs])
 
   const setF = (k, v) => setFilters(f => ({ ...f, [k]: v }))
-  const clearFilters = () => setFilters(DEFAULT_FILTERS)
+  const clearFilters = () => { setFilters(DEFAULT_FILTERS); setSearchTerm(''); setCourseFilter('all') }
   const handleSort = col => {
     if (sortCol === col) setSortDir(d => -d)
     else { setSortCol(col); setSortDir(1) }
@@ -302,7 +331,7 @@ export default function RosterPage() {
           </Btn>
         )}
         {isAdmin && (
-          <Btn size="sm" variant="primary" onClick={() => fileRef.current.click()} disabled={importing}>
+          <Btn size="sm" variant="primary" onClick={() => { setImportStep(1); setImportFile(null); setImportParsed(null); setImportMsg(''); if (fileRef.current) fileRef.current.value = ''; setImportModalOpen(true) }} disabled={importing}>
             <Upload size={13} /> {importing ? 'Importing…' : 'Import File'}
           </Btn>
         )}
@@ -310,39 +339,52 @@ export default function RosterPage() {
     )
 
     return () => setWorkspaceActions(null)
-  }, [setWorkspaceActions, selectedBatch, isAdmin, exportRows.length, importing])
+  }, [setWorkspaceActions, selectedCohort, isAdmin, exportRows.length, importing])
 
   const handlePushPlayground = async () => {
     setPlaygroundMsg('')
     try {
       const { count } = await pushToPlayground(scopedStudents)
-      setPlaygroundMsg(`${count} ${batchShortLabel(selectedBatch)} batch students pushed to playground sheet.`)
+      setPlaygroundMsg(`${count} ${selectedCohort} cohort students pushed to playground sheet.`)
       setTimeout(() => setPlaygroundMsg(''), 5000)
     } catch (e) {
       setPlaygroundMsg('Error: ' + e.message)
     }
   }
 
-  const handleImport = async e => {
+  const handleImportFileChosen = async e => {
     const file = e.target.files[0]; if (!file) return
-    setImporting(true); setImportMsg('')
     try {
-      const { rows, headers } = await parseDataFile(file)
+      const parsed = await parseDataFile(file)
+      setImportFile(file)
+      setImportParsed(parsed)
+      setImportStep(2)
+    } catch (err) {
+      setImportMsg('Could not read file: ' + err.message)
+    }
+    e.target.value = ''
+  }
+
+  const handleProposeImport = async () => {
+    if (!importParsed) return
+    const cohortId = (importCohort || selectedCohort || '').trim()
+    setImporting(true); setImportMsg(''); setImportModalOpen(false)
+    try {
+      const { rows, headers } = importParsed
       await propose({
         type: 'import',
         rows,
         headers,
         rowCount: rows.length,
-        batch: selectedBatch,
+        cohort: cohortId,
         replaceExisting: replaceOnImport,
         updateSchema: true,
       })
-      flash(`${replaceOnImport ? 'Replace + import' : 'Import'} of ${rows.length} students to ${batchLabel(selectedBatch)} (${headers.length} columns) proposed — awaiting approval from another admin.`)
+      if (mountedRef.current) flash(`${replaceOnImport ? 'Replace + import' : 'Import'} of ${rows.length} students to ${cohortLabel(cohortId)} (${headers.length} columns) proposed — awaiting approval from another admin.`)
     } catch (err) {
-      setImportMsg('Import failed: ' + err.message)
+      if (mountedRef.current) setImportMsg('Import failed: ' + err.message)
     }
-    setImporting(false)
-    fileRef.current.value = ''
+    if (mountedRef.current) setImporting(false)
   }
 
   const proposePlace = async () => {
@@ -356,7 +398,8 @@ export default function RosterPage() {
     try {
       await propose({
         type: 'place',
-        batch: selectedBatch,
+        cohort: selectedCohort,
+        season: selectedSeason,
         studentId: placeModal._id,
         studentName: getVal(placeModal, 'name'),
         studentRoll: getVal(placeModal, 'roll'),
@@ -382,7 +425,7 @@ export default function RosterPage() {
   const proposeDelete = async (s) => {
     await propose({
       type: 'delete',
-      batch: selectedBatch,
+      cohort: selectedCohort,
       studentId: s._id,
       studentName: getVal(s, 'name'),
       studentRoll: getVal(s, 'roll'),
@@ -397,11 +440,11 @@ export default function RosterPage() {
     }
     await propose({
       type: 'clearAll',
-      batch: selectedBatch,
+      cohort: selectedCohort,
       studentIds: scopedStudents.map(s => s._id),
       studentCount: scopedStudents.length,
     })
-    flash(`Clear-all for ${batchLabel(selectedBatch)} proposed — awaiting approval from another admin.`)
+    flash(`Clear-all for ${cohortLabel(selectedCohort)} proposed — awaiting approval from another admin.`)
     setConfirmClear(false)
     setActionsOpen(false)
   }
@@ -453,16 +496,16 @@ export default function RosterPage() {
     ]
   })
 
-  if (loading) return <Spinner />
+  if (loading || batchesLoading) return <Spinner />
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <PageHeader
         title="Roster"
-        subtitle={`${batchLabel(selectedBatch)} · ${sortedFiltered.length} of ${active.length} available candidates · ${visibleDefs.length} visible columns`}
+        subtitle={`${scopedCohorts.length === 1 ? cohortLabel(scopedCohorts[0]) : `${scopedCohorts.length} cohorts`} · ${seasonLabel(selectedSeason)} · ${sortedFiltered.length} of ${active.length} available · ${visibleDefs.length} visible columns`}
       />
 
-      {isAdmin && <input ref={fileRef} type="file" accept=".csv,.tsv,.txt,.xls,.xlsx" style={{ display: 'none' }} onChange={handleImport} />}
+      {isAdmin && <input ref={fileRef} type="file" accept=".csv,.tsv,.txt,.xls,.xlsx" style={{ display: 'none' }} onChange={handleImportFileChosen} />}
 
       {/* Viewer notice */}
       {!isAdmin && (
@@ -497,9 +540,21 @@ export default function RosterPage() {
 
       {/* Filters */}
       <div style={{ padding: '14px 28px', borderBottom: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+        {/* Course toggle */}
+        <div style={{ display: 'flex', background: 'var(--surface2)', borderRadius: 20, padding: 3, gap: 2, border: '1px solid var(--border)', flexShrink: 0 }}>
+          {['all', 'IB', 'BA'].map(c => (
+            <button key={c} onClick={() => setCourseFilter(c)} style={{
+              padding: '4px 14px', borderRadius: 16, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: 'none',
+              background: courseFilter === c ? 'var(--surface)' : 'transparent',
+              color: courseFilter === c ? 'var(--text)' : 'var(--text-3)',
+              boxShadow: courseFilter === c ? 'var(--shadow-sm)' : 'none',
+              transition: 'all 0.12s',
+            }}>{c === 'all' ? 'All' : c}</button>
+          ))}
+        </div>
         <div style={{ position: 'relative' }}>
           <Search size={13} style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-3)' }} />
-          <Input placeholder="Name or Roll No." value={filters.name} onChange={e => setF('name', e.target.value)} style={{ paddingLeft: 28, width: 200 }} />
+          <Input placeholder="Search all columns…" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} style={{ paddingLeft: 28, width: 200 }} />
         </div>
         <Input placeholder="CAT %ile ≥" type="number" value={filters.catMin} onChange={e => setF('catMin', e.target.value)} style={{ width: 110 }} />
         <Input placeholder="Work ex ≥ (mo)" type="number" value={filters.wxMin} onChange={e => setF('wxMin', e.target.value)} style={{ width: 130 }} />
@@ -581,11 +636,11 @@ export default function RosterPage() {
       )}
 
       {/* Propose Placement Modal */}
-      <Modal open={!!placeModal} onClose={() => setPlaceModal(null)} title="Propose Placement">
+      <Modal open={!!placeModal} onClose={() => setPlaceModal(null)} title={`Propose ${seasonShort(selectedSeason)} Placement`}>
         {placeModal && (
           <div>
             <div style={{ background: 'var(--surface2)', borderRadius: 'var(--radius-sm)', padding: '10px 14px', marginBottom: 16, fontSize: 13 }}>
-              Proposing placement for <strong>{getVal(placeModal, 'name')}</strong>.
+              Proposing <strong>{seasonLabel(selectedSeason)}</strong> placement for <strong>{getVal(placeModal, 'name')}</strong>.
               A second admin will need to approve before the change is applied.
             </div>
             <div style={{ display: 'grid', gap: 10, marginBottom: 16 }}>
@@ -707,7 +762,7 @@ export default function RosterPage() {
         <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 20 }}>
           <AlertTriangle size={18} color="var(--amber)" style={{ flexShrink: 0, marginTop: 2 }} />
           <p style={{ fontSize: 14, color: 'var(--text-2)', lineHeight: 1.6 }}>
-            This will submit a proposal to delete all {scopedStudents.length} students from <strong>{batchLabel(selectedBatch)}</strong>. A second admin must approve before anything is deleted.
+            This will submit a proposal to delete all {scopedStudents.length} students from <strong>{cohortLabel(selectedCohort)}</strong>. A second admin must approve before anything is deleted.
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
@@ -772,12 +827,12 @@ export default function RosterPage() {
           )}
 
           <Btn variant="ghost" onClick={handlePushPlayground} disabled={playgroundPushing || !sheetsConnected} title={!sheetsConnected ? 'Connect Sheets in Team Access first' : 'Push current roster to playground sheet'}>
-            <Sheet size={13} /> {playgroundPushing ? 'Pushing…' : `Push ${batchShortLabel(selectedBatch)} to Playground`}
+            <Sheet size={13} /> {playgroundPushing ? 'Pushing…' : `Push ${selectedCohort || ''} to Playground`}
           </Btn>
 
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, color: 'var(--text-2)', padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: replaceOnImport ? 'var(--amber-bg)' : 'var(--surface2)' }}>
             <input type="checkbox" checked={replaceOnImport} onChange={e => setReplaceOnImport(e.target.checked)} />
-            Replace existing {batchShortLabel(selectedBatch)} roster on next import
+            Replace existing {selectedCohort || ''} roster on next import
           </label>
 
           <Btn variant="danger" onClick={() => { setConfirmClear(true); setActionsOpen(false) }} disabled={!hasStudents}>
@@ -785,6 +840,88 @@ export default function RosterPage() {
           </Btn>
         </div>
       </Modal>
+
+      {/* Import Modal */}
+      <Modal open={importModalOpen} onClose={() => { setImportModalOpen(false); setImportFile(null); setImportParsed(null); setImportStep(1); if (fileRef.current) fileRef.current.value = '' }} title="Import Students" width={540}>
+        {importStep === 1 && (
+          <div style={{ display: 'grid', gap: 16 }}>
+            <p style={{ fontSize: 13, color: 'var(--text-2)', margin: 0, lineHeight: 1.6 }}>
+              Select which cohort to import into, then choose your file. The season is not stored on students — it's a view filter.
+            </p>
+            <div>
+              <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 8 }}>Cohort</label>
+              {activeBatches.length > 0 && (
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+                  <span style={{ fontSize: 11, color: 'var(--text-3)', alignSelf: 'center', marginRight: 2 }}>Existing:</span>
+                  {activeBatches.map(b => (
+                    <button
+                      key={b.id}
+                      onClick={() => setImportCohort(b.id)}
+                      style={{
+                        padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600,
+                        cursor: 'pointer',
+                        border: `1px solid ${importCohort === b.id ? 'var(--accent)' : 'var(--border)'}`,
+                        background: importCohort === b.id ? 'var(--accent-bg)' : 'var(--surface)',
+                        color: importCohort === b.id ? 'var(--accent-dark)' : 'var(--text-2)',
+                      }}
+                    >{b.label || cohortLabel(b.id)}</button>
+                  ))}
+                </div>
+              )}
+              <CohortPicker value={importCohort} onChange={setImportCohort} showPreview={!!importCohort} />
+            </div>
+
+            <ImportCohortNote cohortId={importCohort || selectedCohort} students={students} />
+
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, color: 'var(--text-2)', padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: replaceOnImport ? 'var(--amber-bg)' : 'var(--surface2)' }}>
+              <input type="checkbox" checked={replaceOnImport} onChange={e => setReplaceOnImport(e.target.checked)} />
+              Replace existing students in this cohort on import
+            </label>
+
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <Btn onClick={() => setImportModalOpen(false)}>Cancel</Btn>
+              <Btn variant="primary" onClick={() => fileRef.current.click()}>
+                <Upload size={13} /> Choose File →
+              </Btn>
+            </div>
+          </div>
+        )}
+
+        {importStep === 2 && importParsed && (
+          <div style={{ display: 'grid', gap: 16 }}>
+            <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '12px 14px', fontSize: 13 }}>
+              <div style={{ fontWeight: 600, marginBottom: 4 }}>File: {importFile?.name}</div>
+              <div style={{ color: 'var(--text-2)' }}>{importParsed.rows.length} rows · {importParsed.headers.length} columns</div>
+              <div style={{ color: 'var(--text-3)', marginTop: 4 }}>
+                Target cohort: <strong>{cohortLabel(importCohort || selectedCohort)}</strong>
+                {replaceOnImport && <span style={{ color: 'var(--amber-text)', marginLeft: 8 }}>(replacing existing)</span>}
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <Btn onClick={() => setImportStep(1)}>Back</Btn>
+              <Btn variant="primary" onClick={handleProposeImport} disabled={importing}>
+                <CheckCircle size={13} /> Propose Import
+              </Btn>
+            </div>
+          </div>
+        )}
+      </Modal>
+    </div>
+  )
+}
+
+function ImportCohortNote({ cohortId, students }) {
+  const count = students.filter(s => {
+    const c = s.cohort || s._batch?.split('_')[0] || 'unknown'
+    return c === cohortId
+  }).length
+  return (
+    <div style={{ fontSize: 13, color: 'var(--text-2)', padding: '8px 12px', background: 'var(--surface2)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+      {count > 0
+        ? <>Adding to existing: <strong>{cohortLabel(cohortId)}</strong> ({count} students already)</>
+        : <>Will create new cohort: <strong>{cohortLabel(cohortId || '…')}</strong></>
+      }
     </div>
   )
 }

@@ -1,0 +1,187 @@
+import React, { useState } from 'react'
+import { Copy, Check } from 'lucide-react'
+import { Modal, Btn } from '../../components/UI'
+import { postOpportunity, blankOpportunity } from '../../lib/useOpportunities'
+import { parseOpportunity, generateWhatsAppMessage } from '../../lib/gemini'
+import { TYPES, VIA_OPTIONS } from './OppCard'
+
+export default function PostModal({ user, onClose }) {
+  const [step, setStep]       = useState('paste')
+  const [rawText, setRawText] = useState('')
+  const [parsed, setParsed]   = useState(null)
+  const [message, setMessage] = useState('')
+  const [busy, setBusy]       = useState(false)
+  const [err, setErr]         = useState('')
+
+  const handleParse = async () => {
+    setBusy(true); setErr('')
+    try {
+      const result = await parseOpportunity(rawText)
+      setParsed({ ...blankOpportunity(), ...result })
+      setStep('preview')
+    } catch (e) { setErr(e.message) }
+    setBusy(false)
+  }
+
+  const handleGenerateMessage = async () => {
+    setBusy(true); setErr('')
+    try {
+      setMessage(await generateWhatsAppMessage(parsed, 'opportunity'))
+      setStep('message')
+    } catch (e) { setErr(e.message) }
+    setBusy(false)
+  }
+
+  const handlePost = async () => {
+    setBusy(true); setErr('')
+    try {
+      await postOpportunity({ ...parsed, _whatsappMessage: message }, user)
+      onClose()
+    } catch (e) { setErr(e.message) }
+    setBusy(false)
+  }
+
+  return (
+    <Modal open onClose={onClose} title="Post Opportunity" width={700}>
+      {step === 'paste' && (
+        <PasteStep rawText={rawText} setRawText={setRawText} busy={busy} err={err} onNext={handleParse} onClose={onClose} />
+      )}
+      {step === 'preview' && parsed && (
+        <PreviewStep parsed={parsed} setParsed={setParsed} busy={busy} err={err} onBack={() => setStep('paste')} onNext={handleGenerateMessage} />
+      )}
+      {step === 'message' && (
+        <MessageStep message={message} setMessage={setMessage} busy={busy} err={err} onBack={() => setStep('preview')} onPost={handlePost} label="Post Opportunity" />
+      )}
+    </Modal>
+  )
+}
+
+export function PasteStep({ rawText, setRawText, busy, err, placeholder, onNext, nextLabel = 'Parse with Gemini →', onClose }) {
+  return (
+    <>
+      <p style={{ fontSize: 13, color: 'var(--text-2)', marginBottom: 10, lineHeight: 1.6 }}>
+        Paste the text in any format — WhatsApp message, email, announcement, etc. Gemini will extract the structured data.
+      </p>
+      <textarea
+        value={rawText}
+        onChange={e => setRawText(e.target.value)}
+        placeholder={placeholder || 'Paste opportunity text here…'}
+        style={{ width: '100%', minHeight: 180, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'var(--surface2)', color: 'var(--text)', padding: 12, fontSize: 13, lineHeight: 1.6, resize: 'vertical', fontFamily: 'var(--font-sans)', marginBottom: 10 }}
+      />
+      {err && <div style={{ fontSize: 13, color: 'var(--red-text)', marginBottom: 8 }}>{err}</div>}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+        <Btn onClick={onClose}>Cancel</Btn>
+        <Btn variant="primary" onClick={onNext} disabled={busy || !rawText.trim()}>
+          {busy ? 'Processing…' : nextLabel}
+        </Btn>
+      </div>
+    </>
+  )
+}
+
+const FIELD_DEFS = [
+  { key: 'title',         label: 'Title',         type: 'text' },
+  { key: 'type',          label: 'Type',          type: 'select', options: TYPES },
+  { key: 'via',           label: 'Via',           type: 'select', options: VIA_OPTIONS },
+  { key: 'organization',  label: 'Organization',  type: 'text' },
+  { key: 'applicability', label: 'Applicability', type: 'select', options: [{ value: 'summer', label: 'Summer' }, { value: 'final', label: 'Final' }, { value: 'both', label: 'Both' }] },
+  { key: 'roles',         label: 'Roles',         type: 'text', hint: 'comma separated', transform: v => Array.isArray(v) ? v.join(', ') : v, parse: v => v.split(',').map(s => s.trim()).filter(Boolean) },
+  { key: 'stipend',       label: 'Stipend',       type: 'text' },
+  { key: 'ctc',           label: 'CTC',           type: 'text' },
+  { key: 'duration',      label: 'Duration',      type: 'text' },
+  { key: 'location',      label: 'Location',      type: 'text' },
+  { key: 'deadline',      label: 'Deadline',      type: 'text' },
+  { key: 'eligibility',   label: 'Eligibility',   type: 'text' },
+  { key: 'eoi_link',      label: 'EOI Link',      type: 'text' },
+  { key: 'apply_link',    label: 'Apply Link',    type: 'text' },
+  { key: 'tracker_link',  label: 'Tracker Link',  type: 'text' },
+  { key: 'description',   label: 'Description',   type: 'textarea' },
+  { key: 'notes',         label: 'Internal Notes', type: 'textarea' },
+]
+
+export function PreviewStep({ parsed, setParsed, busy, err, onBack, onNext, nextLabel = 'Generate WhatsApp Message →', backLabel = '← Edit Text' }) {
+  const set = (key, val, fieldDef) => {
+    const v = fieldDef?.parse ? fieldDef.parse(val) : val
+    setParsed(p => ({ ...p, [key]: v }))
+  }
+
+  return (
+    <>
+      <p style={{ fontSize: 13, color: 'var(--text-2)', marginBottom: 12 }}>Review and edit before generating the WhatsApp message.</p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14, maxHeight: 400, overflowY: 'auto', paddingRight: 4 }}>
+        {FIELD_DEFS.map(f => {
+          const raw = parsed[f.key]
+          const display = f.transform ? f.transform(raw) : (raw == null ? '' : String(raw))
+          return (
+            <div key={f.key} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', fontSize: 13 }}>
+              <span style={{ width: 110, flexShrink: 0, color: 'var(--text-3)', fontWeight: 600, paddingTop: f.type === 'textarea' ? 6 : 8, fontSize: 12 }}>{f.label}</span>
+              {f.type === 'select' ? (
+                <select value={display} onChange={e => set(f.key, e.target.value, f)}
+                  style={{ flex: 1, height: 32, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface2)', color: 'var(--text)', padding: '0 10px', fontSize: 13, fontFamily: 'var(--font-sans)' }}>
+                  {f.options.map(o => typeof o === 'string' ? <option key={o} value={o}>{o}</option> : <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              ) : f.type === 'textarea' ? (
+                <textarea value={display} onChange={e => set(f.key, e.target.value, f)}
+                  style={{ flex: 1, minHeight: 60, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface2)', color: 'var(--text)', padding: '6px 10px', fontSize: 13, resize: 'vertical', fontFamily: 'var(--font-sans)' }} />
+              ) : (
+                <input value={display} onChange={e => set(f.key, e.target.value, f)}
+                  placeholder={f.hint || ''}
+                  style={{ flex: 1, height: 32, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface2)', color: 'var(--text)', padding: '0 10px', fontSize: 13, fontFamily: 'var(--font-sans)' }} />
+              )}
+            </div>
+          )
+        })}
+      </div>
+      {err && <div style={{ fontSize: 13, color: 'var(--red-text)', marginBottom: 8 }}>{err}</div>}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+        <Btn onClick={onBack}>{backLabel}</Btn>
+        <Btn variant="primary" onClick={onNext} disabled={busy}>{busy ? '…' : nextLabel}</Btn>
+      </div>
+    </>
+  )
+}
+
+export function MessageStep({ message, setMessage, busy, err, onBack, onPost, label }) {
+  const [copied, setCopied] = useState(false)
+  const handleCopy = () => {
+    navigator.clipboard.writeText(message)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <>
+      <p style={{ fontSize: 13, color: 'var(--text-2)', marginBottom: 10 }}>
+        WhatsApp-ready message generated. Copy and float it on the batch group.
+      </p>
+      <div style={{ position: 'relative', marginBottom: 12 }}>
+        <textarea
+          value={message}
+          onChange={e => setMessage(e.target.value)}
+          style={{ width: '100%', minHeight: 220, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'var(--surface2)', color: 'var(--text)', padding: 12, fontSize: 13, lineHeight: 1.7, resize: 'vertical', fontFamily: 'var(--font-sans)' }}
+        />
+        <button onClick={handleCopy} style={{ position: 'absolute', top: 8, right: 8, border: '1px solid var(--border)', background: 'var(--surface)', borderRadius: 6, padding: '4px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--text-2)' }}>
+          {copied ? <><Check size={11} /> Copied</> : <><Copy size={11} /> Copy</>}
+        </button>
+      </div>
+      {err && <div style={{ fontSize: 13, color: 'var(--red-text)', marginBottom: 8 }}>{err}</div>}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+        <Btn onClick={onBack}>← Back</Btn>
+        <Btn variant="primary" onClick={onPost} disabled={busy}>{busy ? 'Saving…' : label}</Btn>
+      </div>
+    </>
+  )
+}
+
+export function MessageBox({ message }) {
+  const [copied, setCopied] = useState(false)
+  const handleCopy = () => { navigator.clipboard.writeText(message); setCopied(true); setTimeout(() => setCopied(false), 2000) }
+  return (
+    <div style={{ position: 'relative', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 36px 10px 12px', fontSize: 12, color: 'var(--text-2)', lineHeight: 1.7, whiteSpace: 'pre-wrap', marginTop: 4, marginBottom: 4 }}>
+      {message}
+      <button onClick={handleCopy} style={{ position: 'absolute', top: 6, right: 6, border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-3)', padding: 2 }} title="Copy">
+        {copied ? <Check size={12} /> : <Copy size={12} />}
+      </button>
+    </div>
+  )
+}

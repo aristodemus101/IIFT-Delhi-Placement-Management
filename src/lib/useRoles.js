@@ -1,18 +1,25 @@
 import { useState, useEffect } from 'react'
 import { collection, onSnapshot, updateDoc, doc } from 'firebase/firestore'
-import { db } from './firebase'
+import { db, auth } from './firebase'
 
 export function useRoles() {
   const [roles, setRoles] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const unsub = onSnapshot(
-      collection(db, 'roles'),
-      snap => { setRoles(snap.docs.map(d => ({ uid: d.id, ...d.data() }))); setLoading(false) },
-      err => { console.error('roles error:', err); setLoading(false) }
-    )
-    return unsub
+    let unsubSnap = null
+
+    const unsubAuth = auth.onAuthStateChanged(u => {
+      if (unsubSnap) { unsubSnap(); unsubSnap = null }
+      if (!u) { setRoles([]); setLoading(false); return }
+      unsubSnap = onSnapshot(
+        collection(db, 'roles'),
+        snap => { setRoles(snap.docs.map(d => ({ uid: d.id, ...d.data() }))); setLoading(false) },
+        err => { console.error('roles error:', err); setLoading(false) }
+      )
+    })
+
+    return () => { unsubAuth(); if (unsubSnap) unsubSnap() }
   }, [])
 
   const setRole = async (uid, newRole) => {
@@ -20,6 +27,7 @@ export function useRoles() {
   }
 
   const adminCount = roles.filter(r => r.role === 'admin').length
+  const adminUsers = roles.filter(r => r.role === 'admin')
 
-  return { roles, loading, setRole, adminCount }
+  return { roles, loading, setRole, adminCount, adminUsers }
 }

@@ -6,7 +6,7 @@ import {
 import { db } from './firebase'
 import { useAuth } from './AuthContext'
 import { useSheetsSync } from './SheetsSyncContext'
-import { normalizeBatch, schemaDocIdForBatch } from './batch'
+import { cohortLabel, seasonLabel, schemaDocIdForBatch, normalizeBatch } from './batch'
 
 const PendingChangesContext = createContext(null)
 
@@ -45,6 +45,20 @@ export function PendingChangesProvider({ children }) {
 
     if (changeData.type === 'import' && Array.isArray(changeData.rows)) {
       if (!changeData.rows.length) throw new Error('Import file has no rows')
+
+      // Ensure cohort doc exists before proposing import
+      if (changeData.cohort) {
+        const { cohort } = changeData
+        await setDoc(doc(db, 'batches', cohort), {
+          id: cohort,
+          label: cohortLabel(cohort),
+          year: (cohort.match(/\d+/) ? (2000 + parseInt(cohort.match(/\d+/)[0])) : new Date().getFullYear()),
+          status: 'active',
+          createdAt: serverTimestamp(),
+          createdBy: { uid: user.uid, name: user.displayName },
+        }, { merge: true })
+      }
+
       const importId = `${Date.now()}_${user.uid}`
       const chunks = chunkRowsBySize(changeData.rows)
 
@@ -62,7 +76,9 @@ export function PendingChangesProvider({ children }) {
       await addDoc(collection(db, 'pendingChanges'), {
         type: 'import',
         rowCount: changeData.rows.length,
-        batch: changeData.batch || 'final',
+        cohort: changeData.cohort || null,
+        // legacy field kept for schema compat
+        batch: changeData.cohort || null,
         headers: Array.isArray(changeData.headers) ? changeData.headers : [],
         updateSchema: !!changeData.updateSchema,
         replaceExisting: !!changeData.replaceExisting,
@@ -124,50 +140,44 @@ export function PendingChangesProvider({ children }) {
     }
 
     const batch = writeBatch(db)
-    const schemaRef = doc(db, 'config', schemaDocIdForBatch(normalizeBatch(change.batch)))
+    // For schema lookups, use cohort if available, fall back to legacy batch field
+    const schemaKey = change.cohort || change.batch || 'final'
+    const schemaRef = doc(db, 'config', schemaDocIdForBatch(normalizeBatch(schemaKey)))
 
     // Apply the actual change to students
     if (change.type === 'place' || change.type === 'place_from_activity') {
       const snap = await getDoc(doc(db, 'students', change.studentId))
       if (!snap.exists()) throw new Error('Student no longer exists')
       const placement = normalizePlacementDetails(change)
-      batch.update(doc(db, 'students', change.studentId), {
-        _placed: true,
-        _placedCompany: placement.company || change.company || null,
-        _placedAt: placement.placedAtIso || new Date().toISOString(),
-        _placement: placement,
-      })
+      const season = change.season || 'final'
+      const updateData = {}
+      if (season === 'summer') {
+        updateData._placed_summer = true
+        updateData._placement_summer = placement
+      } else {
+        updateData._placed_final = true
+        updateData._placement_final = placement
+      }
+      batch.update(doc(db, 'students', change.studentId), updateData)
     } else if (change.type === 'unplace') {
       const snap = await getDoc(doc(db, 'students', change.studentId))
       if (!snap.exists()) throw new Error('Student no longer exists')
-      batch.update(doc(db, 'students', change.studentId), {
-        _placed: false,
-        _placedCompany: null,
-        _placedAt: null,
-        _placement: null,
-      })
+      const season = change.season || 'final'
+      const updateData = {}
+      if (season === 'summer') {
+        updateData._placed_summer = false
+        updateData._placement_summer = null
+      } else {
+        updateData._placed_final = false
+        updateData._placement_final = null
+      }
+      batch.update(doc(db, 'students', change.studentId), updateData)
     } else if (change.type === 'delete') {
       const snap = await getDoc(doc(db, 'students', change.studentId))
       if (!snap.exists()) throw new Error('Student no longer exists')
       batch.delete(doc(db, 'students', change.studentId))
     } else if (change.type === 'import') {
-      change.rows.forEach(row => {
-        const ref = doc(collection(db, 'students'))
-        batch.set(ref, { ...row, _batch: change.batch || 'final', _placed: false, _placedCompany: null, _placedAt: null, _createdAt: serverTimestamp() })
-      })
-
-      if (Array.isArray(change.headers) && change.headers.length) {
-        const schemaSnap = await getDoc(schemaRef)
-        if (!schemaSnap.exists() || change.updateSchema === true) {
-          batch.set(schemaRef, {
-            headers: change.headers,
-            updatedAt: serverTimestamp(),
-            updatedBy: user.uid,
-            updatedByName: user.displayName,
-            source: 'import',
-          }, { merge: true })
-        }
-      }
+      // Handled above by approveImport — should not reach here
     } else if (change.type === 'clearAll') {
       if (!Array.isArray(change.studentIds) || !change.studentIds.length || !change.studentCount) {
         throw new Error('No students available to clear')
@@ -225,7 +235,11 @@ export function PendingChangesProvider({ children }) {
   }
 
   const approveImport = async (changeId, change, note) => {
-    const schemaRef = doc(db, 'config', schemaDocIdForBatch(normalizeBatch(change.batch)))
+    const cohortId = change.cohort || change.batch || null
+    const schemaRef = cohortId
+      ? doc(db, 'config', schemaDocIdForBatch(normalizeBatch(cohortId)))
+      : doc(db, 'config', 'columnSchema')
+
     let rows = []
 
     if (change.importId && change.chunkCount) {
@@ -242,10 +256,13 @@ export function PendingChangesProvider({ children }) {
 
     if (!rows.length) throw new Error('Import payload is empty or missing')
 
-    if (change.replaceExisting) {
+    if (change.replaceExisting && cohortId) {
       const allStudents = await getDocs(collection(db, 'students'))
       const ids = allStudents.docs
-        .filter(d => (d.data()?._batch || 'final') === (change.batch || 'final'))
+        .filter(d => {
+          const data = d.data()
+          return (data.cohort || data._batch?.split('_')[0] || null) === cohortId
+        })
         .map(d => d.id)
       for (let i = 0; i < ids.length; i += 400) {
         const batch = writeBatch(db)
@@ -259,7 +276,15 @@ export function PendingChangesProvider({ children }) {
       const batch = writeBatch(db)
       chunk.forEach(row => {
         const ref = doc(collection(db, 'students'))
-        batch.set(ref, { ...row, _batch: change.batch || 'final', _placed: false, _placedCompany: null, _placedAt: null, _createdAt: serverTimestamp() })
+        batch.set(ref, {
+          ...row,
+          cohort: cohortId,
+          _placed_summer: false,
+          _placed_final: false,
+          _placement_summer: null,
+          _placement_final: null,
+          _createdAt: serverTimestamp(),
+        })
       })
       await batch.commit()
     }
@@ -322,19 +347,26 @@ export function PendingChangesProvider({ children }) {
 export const usePendingChanges = () => useContext(PendingChangesContext)
 
 function describeChange(c) {
-  const batchPart = c.batch ? ` [${c.batch}]` : ''
+  const cohortPart = c.cohort ? ` [${c.cohort}]` : (c.batch ? ` [${c.batch}]` : '')
+  const seasonPart = c.season ? ` (${seasonLabel(c.season)})` : ''
   switch (c.type) {
     case 'place':
     case 'place_from_activity': {
       const company = c.placementDetails?.company || c.company || 'Unknown company'
       const via = c.placementDetails?.via ? ` via ${c.placementDetails.via}` : ''
       const opp = c.opportunityTitle ? ` [via ${c.opportunityTitle}]` : ''
-      return `Placed${batchPart} ${c.studentName} (${c.studentRoll}) at ${company}${via}${opp}`
+      return `Placed${cohortPart}${seasonPart} ${c.studentName} (${c.studentRoll}) at ${company}${via}${opp}`
     }
-    case 'unplace':  return `Unplaced${batchPart} ${c.studentName} (${c.studentRoll}) from ${c.currentCompany}`
-    case 'delete':   return `Deleted${batchPart} ${c.studentName} (${c.studentRoll})`
-    case 'import':   return `${c.replaceExisting ? 'Replaced and imported' : 'Imported'}${batchPart} ${c.rowCount} student${c.rowCount !== 1 ? 's' : ''}${c.headers?.length ? ` (${c.headers.length} columns)` : ''}`
-    case 'clearAll': return `Cleared${batchPart} all ${c.studentCount} students`
+    case 'unplace':  return `Unplaced${cohortPart}${seasonPart} ${c.studentName} (${c.studentRoll}) from ${c.currentCompany}`
+    case 'delete':   return `Deleted${cohortPart} ${c.studentName} (${c.studentRoll})`
+    case 'import': {
+      const cohortStr = c.cohort ? cohortLabel(c.cohort) : (c.batch || '')
+      return `${c.replaceExisting ? 'Replaced and imported' : 'Imported'} ${c.rowCount} student${c.rowCount !== 1 ? 's' : ''} into ${cohortStr}${c.headers?.length ? ` (${c.headers.length} columns)` : ''}`
+    }
+    case 'clearAll': {
+      const cohortStr = c.cohort ? cohortLabel(c.cohort) : (c.batch || '')
+      return `Cleared all ${c.studentCount} students from ${cohortStr}`
+    }
     default:         return `Action: ${c.type}`
   }
 }

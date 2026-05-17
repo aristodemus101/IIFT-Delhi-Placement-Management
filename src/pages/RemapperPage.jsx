@@ -3,7 +3,7 @@ import React, { useState, useMemo } from 'react'
 import { useStudents } from '../lib/useStudents'
 import { useTemplates } from '../lib/useStudents'
 import { useBatch } from '../lib/BatchContext'
-import { batchLabel, batchShortLabel, normalizeBatch } from '../lib/batch'
+import { batchLabel, batchShortLabel } from '../lib/batch'
 import { autoMapColumns, OUR_COLS } from '../lib/columns'
 import { exportRemapped } from '../lib/csv'
 import { PageHeader, Btn, Badge, Input, Select, Spinner, Modal } from '../components/UI'
@@ -47,8 +47,11 @@ export default function RemapperPage() {
     setTimeout(() => setSavedMsg(''), 3000)
   }
 
-  const scopedStudents = students.filter(s => normalizeBatch(s._batch) === selectedBatch)
-  const activeStudents = scopedStudents.filter(s => !s._placed)
+  const scopedStudents = students.filter(s => {
+    const c = s.cohort || s._batch?.split('_')[0] || 'unknown'
+    return c === selectedBatch
+  })
+  const activeStudents = scopedStudents.filter(s => !s._placed_final && !s._placed_summer && !s._placed)
   const autoCount = mappings ? mappings.filter(m => m.auto).length : 0
   const manualCount = mappings ? mappings.filter(m => !m.auto && m.ourKey).length : 0
   const skipCount = mappings ? mappings.filter(m => !m.ourKey).length : 0
