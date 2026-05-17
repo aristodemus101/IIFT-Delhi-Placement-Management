@@ -29,7 +29,10 @@ function AuthGate({ children }) {
 }
 
 function PageGate({ page, children }) {
+  const { role } = useAuth()
   const { canAccessPage } = usePermissions()
+  // Wait for role to resolve before redirecting (avoids flash redirect while loading)
+  if (!role) return null
   if (!canAccessPage(page)) return <Navigate to="/" replace />
   return children
 }
