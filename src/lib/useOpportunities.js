@@ -19,12 +19,13 @@ export const STAGE_TYPES = {
 export function blankOpportunity() {
   return {
     title:        '',
-    type:         'SIP Hiring',          // SIP Hiring | Hiring | Case Comp | Live Project | Event
+    type:         'SIP Hiring',          // SIP Hiring | Hiring | Live Project | Event
+    via:          '',                    // Case Comp | PPO | Hackathon | Referral | Direct | ''
     organization: '',
     applicability:'both',                // summer | final | both
-    roles:        [],                    // ["Research Analyst Intern", ...]
-    stipend:      '',                    // "₹20,000–30,000/month"
-    ctc:          '',                    // "18 LPA" — final hiring
+    roles:        [],
+    stipend:      '',
+    ctc:          '',
     duration:     '',
     location:     '',
     deadline:     '',
@@ -33,6 +34,7 @@ export function blankOpportunity() {
     apply_link:   '',
     tracker_link: '',
     description:  '',
+    notes:        '',
     status:       'open',
   }
 }

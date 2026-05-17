@@ -3,7 +3,7 @@ import {
   collection, onSnapshot, addDoc, deleteDoc,
   doc, query, orderBy, serverTimestamp, setDoc, getDoc
 } from 'firebase/firestore'
-import { db } from './firebase'
+import { db, auth } from './firebase'
 import { normalizeBatch, schemaDocIdForBatch } from './batch'
 
 // Read-only hook for student data.
@@ -12,7 +12,16 @@ export function useStudents() {
   const [students, setStudents] = useState([])
   const [loading, setLoading] = useState(true)
 
+  const [uid, setUid] = useState(undefined)
   useEffect(() => {
+    const unsub = auth.onAuthStateChanged(u => setUid(u ? u.uid : null))
+    return unsub
+  }, [])
+
+  useEffect(() => {
+    if (uid === undefined) return
+    if (uid === null) { setStudents([]); setLoading(false); return }
+
     const q = query(collection(db, 'students'), orderBy('_createdAt', 'desc'))
     const unsub = onSnapshot(
       q,
@@ -20,7 +29,7 @@ export function useStudents() {
       err => { console.error('Firestore error:', err); setLoading(false) }
     )
     return unsub
-  }, [])
+  }, [uid])
 
   return { students, loading }
 }
