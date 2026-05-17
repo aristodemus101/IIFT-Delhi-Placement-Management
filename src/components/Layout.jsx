@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react'
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../lib/AuthContext'
+import { usePermissions } from '../lib/usePermissions'
 import { usePendingChanges } from '../lib/PendingChangesContext'
 import { useTheme } from '../lib/ThemeContext'
 import { useBatch } from '../lib/BatchContext'
@@ -14,6 +15,7 @@ import {
 
 export default function Layout() {
   const { user, role, logout } = useAuth()
+  const { canAccessPage } = usePermissions()
   const { pendingCount } = usePendingChanges()
   const { theme, toggleTheme } = useTheme()
   const {
@@ -54,15 +56,15 @@ export default function Layout() {
   const handleLogout = async () => { await logout(); navigate('/login') }
 
   const NAV = [
-    { to: '/',           icon: LayoutDashboard, label: 'Dashboard',     exact: true,  adminOnly: false },
-    { to: '/roster',     icon: Users,           label: 'Roster',        exact: false, adminOnly: false },
-    { to: '/placed',     icon: CheckSquare,     label: 'Placed',        exact: false, adminOnly: false },
-    { to: '/activity',   icon: Activity,        label: 'Activity',      exact: false, adminOnly: false },
-    { to: '/analytics',  icon: BarChart2,       label: 'Analytics',     exact: false, adminOnly: false },
-    { to: '/remapper',   icon: ArrowLeftRight,  label: 'Col. Remapper', exact: false, adminOnly: false },
-    { to: '/approvals',  icon: ClipboardCheck,  label: 'Approvals',     exact: false, adminOnly: true, badge: pendingCount },
-    { to: '/admin',      icon: ShieldCheck,     label: 'Team Access',   exact: false, adminOnly: true },
-  ]
+    { to: '/',           icon: LayoutDashboard, label: 'Dashboard',     exact: true,  page: 'dashboard' },
+    { to: '/roster',     icon: Users,           label: 'Roster',        exact: false, page: 'roster' },
+    { to: '/placed',     icon: CheckSquare,     label: 'Placed',        exact: false, page: 'placed' },
+    { to: '/activity',   icon: Activity,        label: 'Activity',      exact: false, page: 'activity' },
+    { to: '/analytics',  icon: BarChart2,       label: 'Analytics',     exact: false, page: 'analytics' },
+    { to: '/remapper',   icon: ArrowLeftRight,  label: 'Col. Remapper', exact: false, page: 'remapper' },
+    { to: '/approvals',  icon: ClipboardCheck,  label: 'Approvals',     exact: false, page: 'approvals', badge: pendingCount },
+    { to: '/admin',      icon: ShieldCheck,     label: 'Team Access',   exact: false, page: 'admin' },
+  ].filter(n => canAccessPage(n.page))
 
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
@@ -175,7 +177,7 @@ export default function Layout() {
             )}
           </div>
 
-          {NAV.filter(n => !n.adminOnly || isAdmin).map(({ to, icon: Icon, label, exact, badge }) => (
+          {NAV.map(({ to, icon: Icon, label, exact, badge }) => (
             <NavLink key={to} to={to} end={exact} style={({ isActive }) => ({
               display: 'flex', alignItems: 'center', gap: 10, padding: '9px 10px',
               borderRadius: 'var(--radius-sm)', marginBottom: 2, textDecoration: 'none',
@@ -230,8 +232,8 @@ export default function Layout() {
             )}
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 13, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.displayName}</div>
-              <div style={{ fontSize: 10, color: isAdmin ? 'var(--accent)' : 'var(--text-3)', fontWeight: isAdmin ? 600 : 400 }}>
-                {isAdmin ? '⬡ Admin' : 'Viewer'}
+              <div style={{ fontSize: 10, fontWeight: 600, color: role === 'admin' ? 'var(--accent)' : role === 'committee' ? 'var(--amber-text)' : 'var(--text-3)' }}>
+                {role === 'admin' ? '⬡ Admin' : role === 'committee' ? '◈ Committee' : 'Viewer'}
               </div>
             </div>
             <button onClick={handleLogout} style={{ border: 'none', background: 'none', padding: 4, cursor: 'pointer', color: 'var(--text-3)', borderRadius: 4, display: 'flex' }} title="Sign out">

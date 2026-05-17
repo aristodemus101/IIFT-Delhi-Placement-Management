@@ -7,10 +7,11 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/roles/$(request.auth.uid)).data;
     }
 
-    function isAuthed()  { return request.auth != null; }
-    function isAdmin()        { return isAuthed() && roleData().role == 'admin'; }
-    function isMasterAdmin()  { return isAuthed() && roleData().isMasterAdmin == true; }
-    function hasRole()        { return isAuthed() && roleData().role in ['admin', 'viewer']; }
+    function isAuthed()      { return request.auth != null; }
+    function isAdmin()       { return isAuthed() && roleData().role == 'admin'; }
+    function isMasterAdmin() { return isAuthed() && roleData().isMasterAdmin == true; }
+    function isCommittee()   { return isAuthed() && roleData().role == 'committee'; }
+    function hasRole()       { return isAuthed() && roleData().role in ['admin', 'committee', 'viewer']; }
     
     // TTL Validation: if __expiresAt field is present, it must be a timestamp
     function hasValidTTL() {

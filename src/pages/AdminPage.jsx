@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useRoles } from '../lib/useRoles'
 import { useAuth } from '../lib/AuthContext'
 import { useStudents, useColumnSchema } from '../lib/useStudents'
@@ -9,12 +9,13 @@ import { cohortLabel, cohortYear, parseCohortId } from '../lib/batch'
 import { OUR_COLS } from '../lib/columns'
 import { PageHeader, Btn, Badge, Spinner, Modal, Input } from '../components/UI'
 import CohortPicker from '../components/CohortPicker'
+import { ROLES, ROLE_LABELS, CONFIGURABLE_FIELDS } from '../lib/permissions'
 import {
   ShieldCheck, User, AlertTriangle, Sheet, RefreshCw, ExternalLink, CheckCircle,
   Database, Columns3, Plus, Archive, Crown
 } from 'lucide-react'
 import {
-  collection, doc, setDoc, updateDoc, addDoc, serverTimestamp, writeBatch as writeBatchFn
+  collection, doc, setDoc, updateDoc, addDoc, getDoc, serverTimestamp, writeBatch as writeBatchFn
 } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 
@@ -44,6 +45,36 @@ export default function AdminPage() {
   const [cohortBusy, setCohortBusy] = useState(false)
   const [cohortMsg, setCohortMsg] = useState('')
 
+  // Field visibility permissions state
+  const [fieldPerms, setFieldPerms] = useState({})   // fieldKey → roles[]
+  const [fieldPermsBusy, setFieldPermsBusy] = useState(false)
+  const [fieldPermsMsg, setFieldPermsMsg] = useState('')
+
+  // Load field permissions config on mount
+  useEffect(() => {
+    getDoc(doc(db, 'config', 'rolePermissions')).then(snap => {
+      if (snap.exists()) setFieldPerms(snap.data())
+    })
+  }, [])
+
+  const saveFieldPerms = async () => {
+    setFieldPermsBusy(true); setFieldPermsMsg('')
+    try {
+      await setDoc(doc(db, 'config', 'rolePermissions'), fieldPerms)
+      setFieldPermsMsg('Saved.')
+      setTimeout(() => setFieldPermsMsg(''), 3000)
+    } catch (e) { setFieldPermsMsg('Error: ' + e.message) }
+    setFieldPermsBusy(false)
+  }
+
+  const toggleFieldRole = (fieldKey, role, defaultRoles) => {
+    const current = fieldPerms[fieldKey] ?? defaultRoles
+    const next = current.includes(role) ? current.filter(r => r !== role) : [...current, role]
+    // Admin always has access — enforce it
+    const enforced = next.includes('admin') ? next : ['admin', ...next]
+    setFieldPerms(prev => ({ ...prev, [fieldKey]: enforced }))
+  }
+
   // Master admin transfer state
   const [transferOpen, setTransferOpen] = useState(false)
   const [transferTarget, setTransferTarget] = useState('')
@@ -71,13 +102,13 @@ export default function AdminPage() {
     } catch (e) { setSyncMsg('Error: ' + e.message) }
   }
 
-  const toggleRole = async (member) => {
-    const newRole = member.role === 'admin' ? 'viewer' : 'admin'
+  const changeRole = async (member, newRole) => {
+    if (newRole === member.role) return
     if (newRole === 'admin' && adminCount >= 4) {
       alert('Maximum 4 admins allowed (1 master + 3 regular). Demote an existing admin first.')
       return
     }
-    if (newRole === 'viewer' && adminCount <= 1) {
+    if (member.role === 'admin' && newRole !== 'admin' && adminCount <= 1) {
       alert('At least one admin must remain.')
       return
     }
@@ -183,7 +214,7 @@ export default function AdminPage() {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <PageHeader
         title="Team Access"
-        subtitle="Manage who has admin (edit + approve) vs viewer (read-only) access"
+        subtitle="Manage team roles: Admin · Committee Member · Viewer"
       />
 
       <div style={{ padding: '20px 28px', overflow: 'auto' }}>
@@ -194,7 +225,9 @@ export default function AdminPage() {
         }}>
           <ShieldCheck size={16} color="var(--accent)" style={{ flexShrink: 0, marginTop: 1 }} />
           <div style={{ fontSize: 13, color: 'var(--accent-text)', lineHeight: 1.6 }}>
-            <strong>Master Admin</strong> (you) can manage roles and connect Google Sheets backup.&nbsp;
+            <strong>Admin</strong> — full access, propose + approve changes.&nbsp;
+            <strong>Committee Member</strong> — read access + Placed/Analytics pages, no financials.&nbsp;
+            <strong>Viewer</strong> — roster + activity only, no placement data.&nbsp;
             <strong>Admin</strong> users can propose changes (place, delete, import) and approve proposals
             made by <em>other</em> admins — no admin can approve their own change.&nbsp;
             <strong>Viewer</strong> users have read-only access: view and download only, no edits.&nbsp;
@@ -247,8 +280,10 @@ export default function AdminPage() {
                 </div>
 
                 <div>
-                  <Badge color={m.role === 'admin' ? 'blue' : 'gray'}>
-                    {m.role === 'admin' ? <><ShieldCheck size={10} /> Admin</> : <><User size={10} /> Viewer</>}
+                  <Badge color={m.role === 'admin' ? 'blue' : m.role === 'committee' ? 'amber' : 'gray'}>
+                    {m.role === 'admin' ? <><ShieldCheck size={10} /> Admin</>
+                     : m.role === 'committee' ? <><User size={10} /> Committee</>
+                     : <><User size={10} /> Viewer</>}
                   </Badge>
                 </div>
 
@@ -256,14 +291,18 @@ export default function AdminPage() {
                   {isSelf || !isMasterAdmin ? (
                     <span style={{ fontSize: 12, color: 'var(--text-3)' }}>—</span>
                   ) : (
-                    <Btn
-                      size="sm"
-                      variant={m.role === 'admin' ? 'ghost' : 'default'}
+                    <select
+                      value={m.role || 'viewer'}
                       disabled={busy === m.uid}
-                      onClick={() => toggleRole(m)}
+                      onChange={e => changeRole(m, e.target.value)}
+                      style={{
+                        height: 28, padding: '0 8px', border: '1px solid var(--border)',
+                        borderRadius: 'var(--radius-sm)', background: 'var(--surface)',
+                        color: 'var(--text)', fontSize: 12, cursor: 'pointer',
+                      }}
                     >
-                      {busy === m.uid ? '…' : m.role === 'admin' ? 'Make Viewer' : 'Make Admin'}
-                    </Btn>
+                      {ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+                    </select>
                   )}
                 </div>
               </div>
@@ -281,6 +320,62 @@ export default function AdminPage() {
           <AlertTriangle size={12} />
           Admin count: {adminCount}/4 (1 master + 3 regular) · Members appear here automatically after their first login.
         </div>
+
+        {/* ── Field Visibility ───────────────────────────────────────────── */}
+        {isMasterAdmin && (
+          <div style={{ marginTop: 32 }}>
+            <h2 style={{ fontSize: 15, fontWeight: 600, margin: '0 0 4px' }}>Field Visibility</h2>
+            <p style={{ fontSize: 13, color: 'var(--text-2)', marginBottom: 14, lineHeight: 1.6 }}>
+              Control which roles can see sensitive fields. Admins always have full access.
+            </p>
+            <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                <thead>
+                  <tr style={{ background: 'var(--surface2)' }}>
+                    <th style={{ textAlign: 'left', padding: '8px 14px', fontWeight: 600, fontSize: 11, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.04em', borderBottom: '1px solid var(--border)' }}>Field</th>
+                    {ROLES.map(r => (
+                      <th key={r} style={{ textAlign: 'center', padding: '8px 14px', fontWeight: 600, fontSize: 11, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.04em', borderBottom: '1px solid var(--border)', minWidth: 100 }}>
+                        {ROLE_LABELS[r]}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {CONFIGURABLE_FIELDS.map((field, i) => {
+                    const currentRoles = fieldPerms[field.key] ?? field.defaultRoles
+                    return (
+                      <tr key={field.key} style={{ borderBottom: i < CONFIGURABLE_FIELDS.length - 1 ? '1px solid var(--border)' : 'none', background: i % 2 === 0 ? 'var(--surface)' : 'var(--surface2)' }}>
+                        <td style={{ padding: '10px 14px', fontWeight: 500 }}>{field.label}</td>
+                        {ROLES.map(r => {
+                          const checked = currentRoles.includes(r)
+                          const isAdmin = r === 'admin'
+                          return (
+                            <td key={r} style={{ textAlign: 'center', padding: '10px 14px' }}>
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                disabled={isAdmin}
+                                title={isAdmin ? 'Admins always have access' : undefined}
+                                onChange={() => toggleFieldRole(field.key, r, field.defaultRoles)}
+                                style={{ width: 16, height: 16, cursor: isAdmin ? 'not-allowed' : 'pointer', accentColor: 'var(--accent)' }}
+                              />
+                            </td>
+                          )
+                        })}
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 12 }}>
+              <Btn variant="primary" onClick={saveFieldPerms} disabled={fieldPermsBusy}>
+                <CheckCircle size={13} /> {fieldPermsBusy ? 'Saving…' : 'Save Field Visibility'}
+              </Btn>
+              {fieldPermsMsg && <span style={{ fontSize: 13, color: fieldPermsMsg.startsWith('Error') ? 'var(--red-text)' : 'var(--green-text)' }}>{fieldPermsMsg}</span>}
+            </div>
+          </div>
+        )}
 
         {/* ── Cohort Management ─────────────────────────────────────────── */}
         <div style={{ marginTop: 32 }}>

@@ -6,6 +6,7 @@ import { useBatch } from '../lib/BatchContext'
 import { cohortLabel, seasonLabel } from '../lib/batch'
 import { getVal } from '../lib/columns'
 import { exportToCSV } from '../lib/csv'
+import { usePermissions } from '../lib/usePermissions'
 import { PageHeader, Btn, Badge, CategoryBadge, Input, Spinner, Table, Modal } from '../components/UI'
 import { Download, RotateCcw, Search, Eye, CheckCircle, Lock } from 'lucide-react'
 
@@ -19,6 +20,7 @@ export default function PlacedPage() {
   const { propose } = usePendingChanges()
   const { isAdmin } = useAuth()
   const { scopedCohorts, selectedCohort, selectedSeason, setSelectedSeason, batchesLoading } = useBatch()
+  const { fieldVisible, canDo } = usePermissions()
   const [search, setSearch] = useState('')
   const [viewModal, setViewModal] = useState(null)
   const [successMsg, setSuccessMsg] = useState('')
@@ -75,13 +77,20 @@ export default function PlacedPage() {
     { label: 'Category' },
     { label: 'Work Ex' },
     { label: 'Company' },
+    ...(fieldVisible('ctc') || fieldVisible('stipend') ? [{ label: selectedSeason === 'summer' ? 'Stipend' : 'CTC' }] : []),
     { label: 'Placed On' },
     { label: 'Actions' },
   ]
 
+  const placementKey = selectedSeason === 'summer' ? '_placement_summer' : '_placement_final'
+  const canSeePlacement = fieldVisible(placementKey)
+  const canSeeCtc = fieldVisible('ctc')
+  const canSeeStipend = fieldVisible('stipend')
+
   const rows = filtered.map(s => {
-    const company = getPlacedCompany(s)
+    const company = canSeePlacement ? getPlacedCompany(s) : '—'
     const placedAt = getPlacedAt(s)
+    const placement = getPlacement(s)
     return [
       <span style={{ fontSize: 12, color: 'var(--text-3)', fontFamily: 'var(--font-mono)' }}>{getVal(s, 'roll')}</span>,
       <span style={{ fontWeight: 500 }}>{getVal(s, 'name')}</span>,
@@ -89,21 +98,31 @@ export default function PlacedPage() {
       <strong>{parseFloat(getVal(s, 'cat')).toFixed(2) || '—'}</strong>,
       <CategoryBadge category={getVal(s, 'category')} />,
       <span>{getVal(s, 'wx') || '0'} mo</span>,
-      <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 20, fontSize: 12, background: selectedSeason === 'summer' ? 'var(--amber-bg)' : 'var(--green-bg)', color: selectedSeason === 'summer' ? 'var(--amber-text)' : 'var(--green-text)', border: `1px solid ${selectedSeason === 'summer' ? 'var(--amber)' : 'var(--green-border)'}`, fontWeight: 500 }}>
-        {company}
-      </span>,
+      canSeePlacement ? (
+        <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 20, fontSize: 12, background: selectedSeason === 'summer' ? 'var(--amber-bg)' : 'var(--green-bg)', color: selectedSeason === 'summer' ? 'var(--amber-text)' : 'var(--green-text)', border: `1px solid ${selectedSeason === 'summer' ? 'var(--amber)' : 'var(--green-border)'}`, fontWeight: 500 }}>
+          {company}
+        </span>
+      ) : <span style={{ color: 'var(--text-3)', fontSize: 12 }}>Hidden</span>,
+      canSeeCtc || canSeeStipend ? (
+        <span style={{ fontSize: 12, color: 'var(--text-2)' }}>
+          {selectedSeason === 'summer'
+            ? (canSeeStipend ? placement.stipend || '—' : '—')
+            : (canSeeCtc ? placement.ctc || '—' : '—')
+          }
+        </span>
+      ) : null,
       <span style={{ fontSize: 12, color: 'var(--text-3)' }}>
         {placedAt ? new Date(placedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}
       </span>,
       <div style={{ display: 'flex', gap: 6 }}>
-        <Btn size="sm" variant="ghost" onClick={() => setViewModal(s)}><Eye size={13} /></Btn>
-        {isAdmin && (
+        {canSeePlacement && <Btn size="sm" variant="ghost" onClick={() => setViewModal(s)}><Eye size={13} /></Btn>}
+        {canDo('proposeUnplace') && (
           <Btn size="sm" variant="ghost" onClick={() => proposeUnplace(s)} title="Propose unplace">
             <RotateCcw size={13} /> Unplace
           </Btn>
         )}
       </div>
-    ]
+    ].filter(cell => cell !== null)
   })
 
   if (loading || batchesLoading) return <Spinner />
