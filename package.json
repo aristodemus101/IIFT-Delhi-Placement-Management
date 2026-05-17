@@ -6,7 +6,11 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "build:staging": "vite build --mode staging",
+    "build:production": "vite build --mode production",
+    "deploy:staging": "npm run build:staging && firebase deploy --only hosting --project placement-mgmt-staging",
+    "deploy:production": "npm run build:production && firebase deploy --only hosting --project production"
   },
   "dependencies": {
     "react": "^18.3.1",

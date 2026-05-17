@@ -1,0 +1,8 @@
+{
+  "projects": {
+    "staging": "placement-mgmt-staging",
+    "production": "placement-management-6133f"
+  },
+  "targets": {},
+  "etags": {}
+}
