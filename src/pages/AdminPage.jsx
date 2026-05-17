@@ -29,7 +29,7 @@ export default function AdminPage() {
   const { user, isMasterAdmin, isAdmin } = useAuth()
   const { students } = useStudents()
   const { selectedCohort, batches, activeBatches, archivedBatches } = useBatch()
-  const { schemaHeaders, setSchemaHeaders } = useColumnSchema(selectedCohort)
+  const { schemaHeaders, setSchemaHeaders } = useColumnSchema(selectedCohort || 'default')
   const { connected, sheetUrl, lastSync, syncing, authorize, syncNow } = useSheetsSync()
   const [busy, setBusy] = useState(null)
   const [syncMsg, setSyncMsg] = useState('')

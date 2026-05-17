@@ -77,17 +77,17 @@ service cloud.firestore {
     }
 
     // ── Batches ─────────────────────────────────────────────────────────────
-    // Batch cohort docs (e.g. 2025_summer, 2025_final).
+    // Cohort docs (e.g. D27-Delhi-IB). Readable by all role holders.
     match /batches/{batchId} {
-      allow read: if isAuthed();
+      allow read:  if hasRole();
       allow write: if isAdmin();
     }
 
     // ── Config ──────────────────────────────────────────────────────────────
-    // Stores shared app config (e.g. playground sheet URL). All users can read;
+    // Shared app config (sheet URL, rolePermissions). Readable by all role holders;
     // only admins can write.
     match /config/{docId} {
-      allow read:  if isAuthed();
+      allow read:  if hasRole();
       allow write: if isAdmin();
     }
 
