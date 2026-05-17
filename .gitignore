@@ -8,3 +8,4 @@ dist
 .claude/*.log
 .DS_Store
 *.log
+graphify-out/
