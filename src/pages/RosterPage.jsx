@@ -398,7 +398,7 @@ export default function RosterPage() {
     try {
       await propose({
         type: 'place',
-        cohort: selectedCohort,
+        cohort: studentCohort(placeModal),  // always derived from the student's own doc
         season: selectedSeason,
         studentId: placeModal._id,
         studentName: getVal(placeModal, 'name'),
@@ -425,7 +425,7 @@ export default function RosterPage() {
   const proposeDelete = async (s) => {
     await propose({
       type: 'delete',
-      cohort: selectedCohort,
+      cohort: studentCohort(s),  // derived from the student's own doc
       studentId: s._id,
       studentName: getVal(s, 'name'),
       studentRoll: getVal(s, 'roll'),

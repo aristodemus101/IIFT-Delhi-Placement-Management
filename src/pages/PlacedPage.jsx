@@ -59,7 +59,7 @@ export default function PlacedPage() {
   const proposeUnplace = async (s) => {
     await propose({
       type: 'unplace',
-      cohort: selectedCohort,
+      cohort: studentCohort(s),  // derived from the student's own doc
       season: selectedSeason,
       studentId: s._id,
       studentName: getVal(s, 'name'),
