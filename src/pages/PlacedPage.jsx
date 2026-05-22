@@ -10,9 +10,9 @@ import { usePermissions } from '../lib/usePermissions'
 import { PageHeader, Btn, Badge, CategoryBadge, Input, Spinner, Table, Modal } from '../components/UI'
 import { Download, RotateCcw, Search, Eye, CheckCircle, Lock } from 'lucide-react'
 
-// Helper to derive cohort from a student doc (with fallback for old _batch field)
+// Helper to derive cohort from a student doc
 function studentCohort(s) {
-  return s.cohort || s._batch?.split('_')[0] || 'unknown'
+  return s.cohort || 'unknown'
 }
 
 export default function PlacedPage() {

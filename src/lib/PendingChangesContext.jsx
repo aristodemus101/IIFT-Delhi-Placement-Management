@@ -6,7 +6,7 @@ import {
 import { db } from './firebase'
 import { useAuth } from './AuthContext'
 import { useSheetsSync } from './SheetsSyncContext'
-import { cohortLabel, seasonLabel, schemaDocIdForBatch, normalizeBatch } from './batch'
+import { cohortLabel, seasonLabel, schemaDocIdForBatch } from './batch'
 
 const PendingChangesContext = createContext(null)
 
@@ -45,22 +45,15 @@ export function PendingChangesProvider({ children }) {
 
     if (changeData.type === 'import' && Array.isArray(changeData.rows)) {
       if (!changeData.rows.length) throw new Error('Import file has no rows')
+      if (!changeData.cohort) throw new Error('Import cohort is required')
 
-      // Ensure cohort doc exists before proposing import
-      if (changeData.cohort) {
-        const { cohort } = changeData
-        await setDoc(doc(db, 'batches', cohort), {
-          id: cohort,
-          label: cohortLabel(cohort),
-          year: (cohort.match(/\d+/) ? (2000 + parseInt(cohort.match(/\d+/)[0])) : new Date().getFullYear()),
-          status: 'active',
-          createdAt: serverTimestamp(),
-          createdBy: { uid: user.uid, name: user.displayName },
-        }, { merge: true })
-      }
+      const normalizedRows = changeData.rows.map(row => ({
+        ...row,
+        cohort: changeData.cohort,
+      }))
 
       const importId = `${Date.now()}_${user.uid}`
-      const chunks = chunkRowsBySize(changeData.rows)
+      const chunks = chunkRowsBySize(normalizedRows)
 
       for (let i = 0; i < chunks.length; i += 1) {
         await setDoc(doc(db, 'config', `importPayload_${importId}_${i}`), {
@@ -75,10 +68,8 @@ export function PendingChangesProvider({ children }) {
 
       await addDoc(collection(db, 'pendingChanges'), {
         type: 'import',
-        rowCount: changeData.rows.length,
-        cohort: changeData.cohort || null,
-        // legacy field kept for schema compat
-        batch: changeData.cohort || null,
+        rowCount: normalizedRows.length,
+        cohort: changeData.cohort,
         headers: Array.isArray(changeData.headers) ? changeData.headers : [],
         updateSchema: !!changeData.updateSchema,
         replaceExisting: !!changeData.replaceExisting,
@@ -140,9 +131,8 @@ export function PendingChangesProvider({ children }) {
     }
 
     const batch = writeBatch(db)
-    // For schema lookups, use cohort if available, fall back to legacy batch field
-    const schemaKey = change.cohort || change.batch || 'final'
-    const schemaRef = doc(db, 'config', schemaDocIdForBatch(normalizeBatch(schemaKey)))
+    const schemaKey = change.cohort || 'final'
+    const schemaRef = doc(db, 'config', schemaDocIdForBatch(schemaKey))
 
     // Apply the actual change to students
     if (change.type === 'place' || change.type === 'place_from_activity') {
@@ -235,10 +225,20 @@ export function PendingChangesProvider({ children }) {
   }
 
   const approveImport = async (changeId, change, note) => {
-    const cohortId = change.cohort || change.batch || null
-    const schemaRef = cohortId
-      ? doc(db, 'config', schemaDocIdForBatch(normalizeBatch(cohortId)))
-      : doc(db, 'config', 'columnSchema')
+    const cohortId = change.cohort || null
+    if (!cohortId) throw new Error('Import cohort is missing')
+    const schemaRef = doc(db, 'config', schemaDocIdForBatch(cohortId))
+    const season = change.season || 'final'
+
+    await setDoc(doc(db, 'batches', cohortId), {
+      id: cohortId,
+      label: cohortLabel(cohortId),
+      year: (cohortId.match(/\d+/) ? (2000 + parseInt(cohortId.match(/\d+/)[0])) : new Date().getFullYear()),
+      season,
+      status: 'active',
+      createdAt: serverTimestamp(),
+      createdBy: { uid: user.uid, name: user.displayName },
+    }, { merge: true })
 
     let rows = []
 
@@ -259,10 +259,7 @@ export function PendingChangesProvider({ children }) {
     if (change.replaceExisting && cohortId) {
       const allStudents = await getDocs(collection(db, 'students'))
       const ids = allStudents.docs
-        .filter(d => {
-          const data = d.data()
-          return (data.cohort || data._batch?.split('_')[0] || null) === cohortId
-        })
+        .filter(d => d.data()?.cohort === cohortId)
         .map(d => d.id)
       for (let i = 0; i < ids.length; i += 400) {
         const batch = writeBatch(db)
@@ -347,7 +344,7 @@ export function PendingChangesProvider({ children }) {
 export const usePendingChanges = () => useContext(PendingChangesContext)
 
 function describeChange(c) {
-  const cohortPart = c.cohort ? ` [${c.cohort}]` : (c.batch ? ` [${c.batch}]` : '')
+  const cohortPart = c.cohort ? ` [${c.cohort}]` : ''
   const seasonPart = c.season ? ` (${seasonLabel(c.season)})` : ''
   switch (c.type) {
     case 'place':
@@ -360,11 +357,11 @@ function describeChange(c) {
     case 'unplace':  return `Unplaced${cohortPart}${seasonPart} ${c.studentName} (${c.studentRoll}) from ${c.currentCompany}`
     case 'delete':   return `Deleted${cohortPart} ${c.studentName} (${c.studentRoll})`
     case 'import': {
-      const cohortStr = c.cohort ? cohortLabel(c.cohort) : (c.batch || '')
+      const cohortStr = c.cohort ? cohortLabel(c.cohort) : ''
       return `${c.replaceExisting ? 'Replaced and imported' : 'Imported'} ${c.rowCount} student${c.rowCount !== 1 ? 's' : ''} into ${cohortStr}${c.headers?.length ? ` (${c.headers.length} columns)` : ''}`
     }
     case 'clearAll': {
-      const cohortStr = c.cohort ? cohortLabel(c.cohort) : (c.batch || '')
+      const cohortStr = c.cohort ? cohortLabel(c.cohort) : ''
       return `Cleared all ${c.studentCount} students from ${cohortStr}`
     }
     default:         return `Action: ${c.type}`

@@ -6,8 +6,8 @@ import { usePendingChanges } from '../lib/PendingChangesContext'
 import { useTheme } from '../lib/ThemeContext'
 import { useBatch } from '../lib/BatchContext'
 import { useStudents } from '../lib/useStudents'
-import { cohortLabel, seasonLabel } from '../lib/batch'
-import { Badge, Btn, Modal } from './UI'
+import { cohortLabel } from '../lib/batch'
+import { Badge } from './UI'
 import {
   LayoutDashboard, Users, CheckSquare, ArrowLeftRight, Activity,
   LogOut, GraduationCap, ShieldCheck, ClipboardCheck, User, Sun, Moon, BarChart2
@@ -20,29 +20,34 @@ export default function Layout() {
   const { theme, toggleTheme } = useTheme()
   const {
     selectedSeason, setSelectedSeason,
+    selectedYearCode, setSelectedYearCode,
     selectedProgramme, setSelectedProgramme,
     selectedCampuses, setSelectedCampuses,
-    scopedCohorts, selectedCohort,
+    scopedCohorts,
     activeBatches, batchesLoading,
-    availableCampuses, availableProgrammes,
+    availableCampuses, availableProgrammes, availableYears,
   } = useBatch()
   const { students } = useStudents()
   const navigate = useNavigate()
-  const isAdmin = role === 'admin'
   const [workspaceActions, setWorkspaceActions] = useState(null)
 
-  // Aggregate stats across all scoped cohorts
+  const hasActiveCohorts = activeBatches.length > 0
+  const courseAllLabel = 'All'
+
   const scopedStats = useMemo(() => {
     const inScope = new Set(scopedCohorts)
-    let summerYtp = 0, summerPlaced = 0, finalYtp = 0, finalPlaced = 0, total = 0
+    let summerPlaced = 0
+    let finalPlaced = 0
+    let total = 0
+
     students.forEach(s => {
-      const c = s.cohort || s._batch?.split('_')[0] || 'unknown'
-      if (!inScope.has(c)) return
-      total++
-      if (s._placed_summer) summerPlaced++; else summerYtp++
-      if (s._placed_final)  finalPlaced++;  else finalYtp++
+      if (!inScope.has(s.cohort || 'unknown')) return
+      total += 1
+      if (s._placed_summer) summerPlaced += 1
+      if (s._placed_final) finalPlaced += 1
     })
-    return { total, summerYtp, summerPlaced, finalYtp, finalPlaced }
+
+    return { total, summerPlaced, finalPlaced }
   }, [students, scopedCohorts])
 
   const toggleCampus = (campus) => {
@@ -53,17 +58,24 @@ export default function Layout() {
     }
   }
 
-  const handleLogout = async () => { await logout(); navigate('/login') }
+  const toggleYear = (yearCode) => {
+    setSelectedYearCode(selectedYearCode === yearCode ? '' : yearCode)
+  }
+
+  const handleLogout = async () => {
+    await logout()
+    navigate('/login')
+  }
 
   const NAV = [
-    { to: '/',           icon: LayoutDashboard, label: 'Dashboard',     exact: true,  page: 'dashboard' },
-    { to: '/roster',     icon: Users,           label: 'Roster',        exact: false, page: 'roster' },
-    { to: '/placed',     icon: CheckSquare,     label: 'Placed',        exact: false, page: 'placed' },
-    { to: '/activity',   icon: Activity,        label: 'Activity',      exact: false, page: 'activity' },
-    { to: '/analytics',  icon: BarChart2,       label: 'Analytics',     exact: false, page: 'analytics' },
-    { to: '/remapper',   icon: ArrowLeftRight,  label: 'Col. Remapper', exact: false, page: 'remapper' },
-    { to: '/approvals',  icon: ClipboardCheck,  label: 'Approvals',     exact: false, page: 'approvals', badge: pendingCount },
-    { to: '/admin',      icon: ShieldCheck,     label: 'Team Access',   exact: false, page: 'admin' },
+    { to: '/',           icon: LayoutDashboard, label: 'Dashboard',  exact: true,  page: 'dashboard' },
+    { to: '/roster',     icon: Users,           label: 'Roster',     exact: false, page: 'roster' },
+    { to: '/placed',     icon: CheckSquare,     label: 'Placed',     exact: false, page: 'placed' },
+    { to: '/activity',   icon: Activity,        label: 'Activity',   exact: false, page: 'activity' },
+    { to: '/analytics',  icon: BarChart2,       label: 'Analytics',  exact: false, page: 'analytics' },
+    { to: '/remapper',   icon: ArrowLeftRight,  label: 'Remapper',   exact: false, page: 'remapper' },
+    { to: '/approvals',  icon: ClipboardCheck,  label: 'Approvals',  exact: false, page: 'approvals', badge: pendingCount },
+    { to: '/admin',      icon: ShieldCheck,     label: 'Team Access', exact: false, page: 'admin' },
   ].filter(n => canAccessPage(n.page))
 
   return (
@@ -78,7 +90,6 @@ export default function Layout() {
         padding: '20px 0',
         backdropFilter: 'blur(20px)',
       }}>
-        {/* Logo */}
         <div style={{ padding: '0 20px 24px', borderBottom: '1px solid var(--border)', marginBottom: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{ width: 34, height: 34, borderRadius: 'var(--radius-sm)', background: 'var(--accent-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -91,16 +102,18 @@ export default function Layout() {
           </div>
         </div>
 
-        {/* Nav */}
         <nav style={{ flex: 1, padding: '8px 12px', overflowY: 'auto' }}>
           <div style={{ marginBottom: 12, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: 8 }}>
-
-            {/* Season */}
-            <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-3)', fontWeight: 600, marginBottom: 5 }}>Season</div>
-            <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
+            <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-3)', fontWeight: 600, marginBottom: 5 }}>Cycle</div>
+            <div style={{ display: 'flex', gap: 4, marginBottom: hasActiveCohorts ? 10 : 0 }}>
               {['summer', 'final'].map(s => (
                 <button key={s} onClick={() => setSelectedSeason(s)} style={{
-                  flex: 1, padding: '5px 0', borderRadius: 8, cursor: 'pointer', fontWeight: 700, fontSize: 11,
+                  flex: 1,
+                  padding: '5px 0',
+                  borderRadius: 8,
+                  cursor: 'pointer',
+                  fontWeight: 700,
+                  fontSize: 11,
                   border: `1px solid ${selectedSeason === s ? (s === 'summer' ? 'var(--amber)' : 'var(--accent)') : 'var(--border)'}`,
                   background: selectedSeason === s ? (s === 'summer' ? 'var(--amber-bg)' : 'var(--accent-bg)') : 'var(--surface)',
                   color: selectedSeason === s ? (s === 'summer' ? 'var(--amber-text)' : 'var(--accent-dark)') : 'var(--text-2)',
@@ -110,69 +123,107 @@ export default function Layout() {
               ))}
             </div>
 
-            {/* Programme filter */}
-            {availableProgrammes.length > 0 && (
+            {hasActiveCohorts ? (
               <>
-                <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-3)', fontWeight: 600, marginBottom: 5 }}>Programme</div>
-                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 10 }}>
-                  <button onClick={() => setSelectedProgramme('')} style={{
-                    padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, cursor: 'pointer',
-                    border: `1px solid ${!selectedProgramme ? 'var(--accent)' : 'var(--border)'}`,
-                    background: !selectedProgramme ? 'var(--accent-bg)' : 'var(--surface)',
-                    color: !selectedProgramme ? 'var(--accent-dark)' : 'var(--text-2)',
-                  }}>All</button>
-                  {availableProgrammes.map(p => (
-                    <button key={p} onClick={() => setSelectedProgramme(p === selectedProgramme ? '' : p)} style={{
-                      padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, cursor: 'pointer',
-                      border: `1px solid ${selectedProgramme === p ? 'var(--accent)' : 'var(--border)'}`,
-                      background: selectedProgramme === p ? 'var(--accent-bg)' : 'var(--surface)',
-                      color: selectedProgramme === p ? 'var(--accent-dark)' : 'var(--text-2)',
-                    }}>{p}</button>
-                  ))}
-                </div>
-              </>
-            )}
-
-            {/* Campus filter */}
-            {availableCampuses.length > 0 && (
-              <>
-                <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-3)', fontWeight: 600, marginBottom: 5 }}>Campus</div>
-                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 10 }}>
-                  <button onClick={() => setSelectedCampuses([])} style={{
-                    padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, cursor: 'pointer',
-                    border: `1px solid ${selectedCampuses.length === 0 ? 'var(--accent)' : 'var(--border)'}`,
-                    background: selectedCampuses.length === 0 ? 'var(--accent-bg)' : 'var(--surface)',
-                    color: selectedCampuses.length === 0 ? 'var(--accent-dark)' : 'var(--text-2)',
-                  }}>All</button>
-                  {availableCampuses.map(c => {
-                    const short = c === 'Gift City' ? 'GC' : c === 'Kakinada' ? 'KKD' : c === 'Kolkata' ? 'KOL' : c
-                    const active = selectedCampuses.includes(c)
-                    return (
-                      <button key={c} onClick={() => toggleCampus(c)} title={c} style={{
+                {availableYears.length > 0 && (
+                  <>
+                    <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-3)', fontWeight: 600, marginBottom: 5 }}>Year</div>
+                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 10 }}>
+                      <button onClick={() => setSelectedYearCode('')} style={{
                         padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, cursor: 'pointer',
-                        border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
-                        background: active ? 'var(--accent-bg)' : 'var(--surface)',
-                        color: active ? 'var(--accent-dark)' : 'var(--text-2)',
-                      }}>{short}</button>
-                    )
-                  })}
-                </div>
-              </>
-            )}
+                        border: `1px solid ${!selectedYearCode ? 'var(--accent)' : 'var(--border)'}`,
+                        background: !selectedYearCode ? 'var(--accent-bg)' : 'var(--surface)',
+                        color: !selectedYearCode ? 'var(--accent-dark)' : 'var(--text-2)',
+                      }}>All</button>
+                      {availableYears.map(y => (
+                        <button key={y} onClick={() => toggleYear(y)} style={{
+                          padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                          border: `1px solid ${selectedYearCode === y ? 'var(--accent)' : 'var(--border)'}`,
+                          background: selectedYearCode === y ? 'var(--accent-bg)' : 'var(--surface)',
+                          color: selectedYearCode === y ? 'var(--accent-dark)' : 'var(--text-2)',
+                        }}>{y}</button>
+                      ))}
+                    </div>
+                  </>
+                )}
 
-            {/* Scope summary */}
-            {batchesLoading ? (
-              <div style={{ fontSize: 11, color: 'var(--text-3)' }}>Loading…</div>
-            ) : activeBatches.length === 0 ? (
-              <div style={{ fontSize: 11, color: 'var(--text-3)', lineHeight: 1.5 }}>No cohorts — import to create one</div>
+                {availableProgrammes.length > 0 && (
+                  <>
+                    <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-3)', fontWeight: 600, marginBottom: 5 }}>Course</div>
+                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 10 }}>
+                      <button onClick={() => setSelectedProgramme('')} style={{
+                        padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                        border: `1px solid ${!selectedProgramme ? 'var(--accent)' : 'var(--border)'}`,
+                        background: !selectedProgramme ? 'var(--accent-bg)' : 'var(--surface)',
+                        color: !selectedProgramme ? 'var(--accent-dark)' : 'var(--text-2)',
+                      }}>{courseAllLabel}</button>
+                      {availableProgrammes.map(p => (
+                        <button key={p} onClick={() => setSelectedProgramme(p === selectedProgramme ? '' : p)} style={{
+                          padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                          border: `1px solid ${selectedProgramme === p ? 'var(--accent)' : 'var(--border)'}`,
+                          background: selectedProgramme === p ? 'var(--accent-bg)' : 'var(--surface)',
+                          color: selectedProgramme === p ? 'var(--accent-dark)' : 'var(--text-2)',
+                        }}>{p}</button>
+                      ))}
+                    </div>
+                  </>
+                )}
+
+                {availableCampuses.length > 0 && (
+                  <>
+                    <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-3)', fontWeight: 600, marginBottom: 5 }}>Campus</div>
+                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 10 }}>
+                      <button onClick={() => setSelectedCampuses([])} style={{
+                        padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                        border: `1px solid ${selectedCampuses.length === 0 ? 'var(--accent)' : 'var(--border)'}`,
+                        background: selectedCampuses.length === 0 ? 'var(--accent-bg)' : 'var(--surface)',
+                        color: selectedCampuses.length === 0 ? 'var(--accent-dark)' : 'var(--text-2)',
+                      }}>All</button>
+                      {availableCampuses.map(c => {
+                        const short = c === 'Gift City' ? 'GC' : c === 'Kakinada' ? 'KKD' : c === 'Kolkata' ? 'KOL' : c
+                        const active = selectedCampuses.includes(c)
+                        return (
+                          <button key={c} onClick={() => toggleCampus(c)} title={c} style={{
+                            padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                            border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
+                            background: active ? 'var(--accent-bg)' : 'var(--surface)',
+                            color: active ? 'var(--accent-dark)' : 'var(--text-2)',
+                          }}>{short}</button>
+                        )
+                      })}
+                    </div>
+                  </>
+                )}
+
+                {batchesLoading ? (
+                  <div style={{ fontSize: 11, color: 'var(--text-3)' }}>Loading…</div>
+                ) : (
+                  <div style={{ fontSize: 11, color: 'var(--text-3)', lineHeight: 1.6 }}>
+                    <span style={{ fontWeight: 600, color: 'var(--text-2)' }}>{scopedStats.total}</span> students ·{' '}
+                    {selectedSeason === 'summer'
+                      ? <><span style={{ color: 'var(--green-text)', fontWeight: 600 }}>{scopedStats.summerPlaced}</span> placed</>
+                      : <><span style={{ color: 'var(--accent-dark)', fontWeight: 600 }}>{scopedStats.finalPlaced}</span> placed</>
+                    }
+                  </div>
+                )}
+              </>
             ) : (
-              <div style={{ fontSize: 11, color: 'var(--text-3)', lineHeight: 1.6 }}>
-                <span style={{ fontWeight: 600, color: 'var(--text-2)' }}>{scopedCohorts.length}</span> cohort{scopedCohorts.length !== 1 ? 's' : ''} ·{' '}
-                <span style={{ fontWeight: 600, color: 'var(--text-2)' }}>{scopedStats.total}</span> students ·{' '}
-                {selectedSeason === 'summer'
-                  ? <><span style={{ color: 'var(--green-text)', fontWeight: 600 }}>{scopedStats.summerPlaced}</span> placed</>
-                  : <><span style={{ color: 'var(--accent-dark)', fontWeight: 600 }}>{scopedStats.finalPlaced}</span> placed</>
-                }
+              <div style={{ marginTop: 10, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: 12, fontSize: 12, color: 'var(--text-3)', lineHeight: 1.6 }}>
+                No active cohorts yet.
+                <div style={{ marginTop: 8 }}>
+                  <button onClick={() => navigate('/admin')} style={{
+                    border: '1px solid var(--border)',
+                    background: 'var(--surface)',
+                    color: 'var(--text-2)',
+                    borderRadius: 20,
+                    padding: '5px 10px',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}>
+                    Create the first cohort
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -197,7 +248,6 @@ export default function Layout() {
           ))}
         </nav>
 
-        {/* Footer actions */}
         <div style={{ padding: '12px 12px 0', borderTop: '1px solid var(--border)' }}>
           <button
             onClick={toggleTheme}
@@ -244,46 +294,39 @@ export default function Layout() {
       </aside>
 
       <main style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', background: 'transparent', borderTop: '2px solid var(--workspace-border)' }}>
-        <div style={{
-          padding: '6px 12px',
-          margin: '8px 14px 0',
-          borderRadius: 'var(--radius-sm)',
-          background: 'var(--workspace-bg)',
-          border: '1px solid var(--workspace-border)',
-          color: 'var(--workspace-text)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          fontSize: 12,
-          fontWeight: 600,
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          flexShrink: 0,
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            {scopedCohorts.length === 0 ? (
-              <Badge color="gray">No cohorts selected</Badge>
-            ) : scopedCohorts.length === 1 ? (
-              <Badge color="blue">{cohortLabel(scopedCohorts[0])}</Badge>
-            ) : (
-              <Badge color="blue">{scopedCohorts.length} cohorts</Badge>
-            )}
-            <Badge color={selectedSeason === 'summer' ? 'amber' : 'blue'}>
-              {seasonLabel(selectedSeason)}
-            </Badge>
-            Workspace
-          </div>
-          {workspaceActions ? (
+        {hasActiveCohorts && (
+          <div style={{
+            padding: '6px 12px',
+            margin: '8px 14px 0',
+            borderRadius: 'var(--radius-sm)',
+            background: 'var(--workspace-bg)',
+            border: '1px solid var(--workspace-border)',
+            color: 'var(--workspace-text)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            fontSize: 12,
+            fontWeight: 600,
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            flexShrink: 0,
+          }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              {workspaceActions}
+              <Badge color={selectedSeason === 'summer' ? 'amber' : 'blue'}>{selectedSeason === 'summer' ? 'Summer' : 'Final'}</Badge>
+              <Badge color="gray">Year {selectedYearCode || 'All'} · Campus {selectedCampuses.length ? selectedCampuses.join(', ') : 'All'} · Course {selectedProgramme || 'All'}</Badge>
             </div>
-          ) : null}
-        </div>
+            {workspaceActions ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                {workspaceActions}
+              </div>
+            ) : null}
+          </div>
+        )}
+
         <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
           <Outlet context={{ setWorkspaceActions }} />
         </div>
       </main>
-
     </div>
   )
 }

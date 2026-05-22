@@ -1,9 +1,10 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { collection, onSnapshot, query, orderBy } from 'firebase/firestore'
 import { db, auth } from './firebase'
-import { cohortLabel, cohortCampus, cohortProgramme, CAMPUSES, PROGRAMMES } from './batch'
+import { cohortLabel, cohortCampus, cohortProgramme, cohortYear, CAMPUSES, PROGRAMMES } from './batch'
 
 const SEASON_KEY    = 'placement.selectedSeason'
+const YEAR_KEY      = 'placement.selectedYearCode'
 const PROGRAMME_KEY = 'placement.selectedProgramme'  // '' = All
 const CAMPUSES_KEY  = 'placement.selectedCampuses'   // JSON array, [] = All
 
@@ -15,6 +16,9 @@ export function BatchProvider({ children }) {
 
   const [selectedSeason, setSelectedSeasonRaw] = useState(
     () => localStorage.getItem(SEASON_KEY) || 'summer'
+  )
+  const [selectedYearCode, setSelectedYearCodeRaw] = useState(
+    () => localStorage.getItem(YEAR_KEY) || ''
   )
   const [selectedProgramme, setSelectedProgrammeRaw] = useState(
     () => localStorage.getItem(PROGRAMME_KEY) || ''
@@ -44,6 +48,11 @@ export function BatchProvider({ children }) {
     localStorage.setItem(SEASON_KEY, s)
   }
 
+  const setSelectedYearCode = (yearCode) => {
+    setSelectedYearCodeRaw(yearCode)
+    localStorage.setItem(YEAR_KEY, yearCode)
+  }
+
   const setSelectedProgramme = (p) => {
     setSelectedProgrammeRaw(p)
     localStorage.setItem(PROGRAMME_KEY, p)
@@ -54,8 +63,24 @@ export function BatchProvider({ children }) {
     localStorage.setItem(CAMPUSES_KEY, JSON.stringify(arr))
   }
 
-  const activeBatches  = useMemo(() => batches.filter(b => b.status === 'active'),   [batches])
-  const archivedBatches = useMemo(() => batches.filter(b => b.status === 'archived'), [batches])
+  const currentSeasonBatches = useMemo(() => {
+    return batches.filter(b => b.season === selectedSeason)
+  }, [batches, selectedSeason])
+
+  const activeBatches  = useMemo(() => currentSeasonBatches.filter(b => b.status === 'active'),   [currentSeasonBatches])
+  const archivedBatches = useMemo(() => currentSeasonBatches.filter(b => b.status === 'archived'), [currentSeasonBatches])
+
+  const availableYears = useMemo(() => {
+    const seen = new Set()
+    return activeBatches
+      .map(b => b.year ? `D${String(b.year).slice(-2)}` : (cohortYear(b.id) ? `D${String(cohortYear(b.id)).slice(-2)}` : ''))
+      .filter(Boolean)
+      .filter(yearCode => {
+        if (seen.has(yearCode)) return false
+        seen.add(yearCode)
+        return true
+      })
+  }, [activeBatches])
 
   // Campuses that actually have ≥1 active cohort in the DB
   const availableCampuses = useMemo(() => {
@@ -73,23 +98,26 @@ export function BatchProvider({ children }) {
   const scopedCohorts = useMemo(() => {
     return activeBatches
       .filter(b => {
+        const yearCode   = b.year ? `D${String(b.year).slice(-2)}` : (cohortYear(b.id) ? `D${String(cohortYear(b.id)).slice(-2)}` : '')
         const campus    = b.campus    || cohortCampus(b.id)
         const programme = b.programme || cohortProgramme(b.id)
+        const yearOk    = !selectedYearCode || yearCode === selectedYearCode
         const campusOk  = selectedCampuses.length === 0 || selectedCampuses.includes(campus)
         const progOk    = !selectedProgramme || programme === selectedProgramme
-        return campusOk && progOk
+        return yearOk && campusOk && progOk
       })
       .map(b => b.id)
-  }, [activeBatches, selectedCampuses, selectedProgramme])
+  }, [activeBatches, selectedYearCode, selectedCampuses, selectedProgramme])
 
   // Single-cohort alias: first scoped cohort (for pages that need exactly one — schema, remapper, import)
   const selectedCohort = scopedCohorts[0] ?? null
 
   const value = useMemo(() => ({
     batches, activeBatches, archivedBatches, batchesLoading,
-    availableCampuses, availableProgrammes,
+    availableCampuses, availableProgrammes, availableYears,
 
     // Multi-cohort filter state
+    selectedYearCode, setSelectedYearCode,
     selectedProgramme, setSelectedProgramme,
     selectedCampuses,  setSelectedCampuses,
     scopedCohorts,
@@ -100,9 +128,6 @@ export function BatchProvider({ children }) {
     // Single-cohort alias (first of scopedCohorts) — for schema, import, remapper
     selectedCohort,
 
-    // Legacy compat aliases
-    selectedBatch:    selectedCohort,
-    setSelectedBatch: () => {},
     options: activeBatches.map(b => ({
       value: b.id,
       label: b.label || cohortLabel(b.id),
@@ -111,7 +136,8 @@ export function BatchProvider({ children }) {
     })),
   }), [
     batches, activeBatches, archivedBatches, batchesLoading,
-    availableCampuses, availableProgrammes,
+    availableCampuses, availableProgrammes, availableYears,
+    selectedYearCode,
     selectedProgramme, selectedCampuses, scopedCohorts,
     selectedSeason, selectedCohort,
   ])

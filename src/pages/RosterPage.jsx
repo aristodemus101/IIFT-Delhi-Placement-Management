@@ -33,9 +33,9 @@ const newPlacementForm = () => ({
   via: '',
 })
 
-// Helper to derive cohort from a student doc (with fallback for old _batch field)
+// Helper to derive cohort from a student doc
 function studentCohort(s) {
-  return s.cohort || s._batch?.split('_')[0] || 'unknown'
+  return s.cohort || 'unknown'
 }
 
 // Helper to check if a student is active (not placed) in a given season
@@ -46,7 +46,7 @@ function isActiveInSeason(s, season) {
 
 export default function RosterPage() {
   const { students, loading } = useStudents()
-  const { scopedCohorts, selectedCohort, selectedSeason, batchesLoading, activeBatches } = useBatch()
+  const { scopedCohorts, selectedCohort, selectedSeason, selectedYearCode, selectedCampuses, selectedProgramme, batchesLoading, activeBatches } = useBatch()
   const { schemaHeaders } = useColumnSchema(selectedCohort || 'final')
   const { propose } = usePendingChanges()
   const { isAdmin, user } = useAuth()
@@ -55,7 +55,6 @@ export default function RosterPage() {
 
   const [sortCol, setSortCol] = useState('name')
   const [sortDir, setSortDir] = useState(1)
-  const [courseFilter, setCourseFilter] = useState('all')
   const [filters, setFilters] = useState(DEFAULT_FILTERS)
   const [placeModal, setPlaceModal] = useState(null)
   const [placementForm, setPlacementForm] = useState(newPlacementForm)
@@ -94,6 +93,7 @@ export default function RosterPage() {
   const active = scopedStudents.filter(s => isActiveInSeason(s, selectedSeason))
   const { searchTerm, setSearchTerm, match: searchMatch } = useSearch(active)
   const hasStudents = scopedStudents.length > 0
+  const hasActiveCohorts = activeBatches.length > 0
   const schemaCols = useMemo(() => (schemaHeaders || []).filter(Boolean), [schemaHeaders])
   const usingSchema = schemaCols.length > 0
 
@@ -231,7 +231,6 @@ export default function RosterPage() {
   const filtered = useMemo(() => {
     return active.filter((s, i) => {
       if (searchMatch && !searchMatch.has(i)) return false
-      if (courseFilter !== 'all' && (s['COURSE'] || s['Course'] || '').toUpperCase() !== courseFilter) return false
       if (filters.catMin && parseFloat(getVal(s, 'cat')) < parseFloat(filters.catMin)) return false
       if (filters.wxMin && parseFloat(getVal(s, 'wx')) < parseFloat(filters.wxMin)) return false
       if (filters.category && getVal(s, 'category') !== filters.category) return false
@@ -239,7 +238,7 @@ export default function RosterPage() {
       if (filters.pwdOnly && (getVal(s, 'pwd') || '').toLowerCase() !== 'yes') return false
       return true
     })
-  }, [active, searchMatch, courseFilter, filters.catMin, filters.wxMin, filters.category, filters.gender, filters.pwdOnly])
+  }, [active, searchMatch, filters.catMin, filters.wxMin, filters.category, filters.gender, filters.pwdOnly])
 
   const getCellValue = (student, headerOrKey) => {
     if (student?.[headerOrKey] !== undefined && student?.[headerOrKey] !== null) return student[headerOrKey]
@@ -279,7 +278,7 @@ export default function RosterPage() {
   }, [sortedFiltered, visibleDefs])
 
   const setF = (k, v) => setFilters(f => ({ ...f, [k]: v }))
-  const clearFilters = () => { setFilters(DEFAULT_FILTERS); setSearchTerm(''); setCourseFilter('all') }
+  const clearFilters = () => { setFilters(DEFAULT_FILTERS); setSearchTerm('') }
   const handleSort = col => {
     if (sortCol === col) setSortDir(d => -d)
     else { setSortCol(col); setSortDir(1) }
@@ -355,7 +354,7 @@ export default function RosterPage() {
   const handleImportFileChosen = async e => {
     const file = e.target.files[0]; if (!file) return
     try {
-      const parsed = await parseDataFile(file)
+      const parsed = await parseDataFile(file, { cohort: (importCohort || selectedCohort || '').trim() })
       setImportFile(file)
       setImportParsed(parsed)
       setImportStep(2)
@@ -368,6 +367,10 @@ export default function RosterPage() {
   const handleProposeImport = async () => {
     if (!importParsed) return
     const cohortId = (importCohort || selectedCohort || '').trim()
+    if (!cohortId) {
+      setImportMsg('Select a cohort before importing.')
+      return
+    }
     setImporting(true); setImportMsg(''); setImportModalOpen(false)
     try {
       const { rows, headers } = importParsed
@@ -377,6 +380,7 @@ export default function RosterPage() {
         headers,
         rowCount: rows.length,
         cohort: cohortId,
+        season: selectedSeason,
         replaceExisting: replaceOnImport,
         updateSchema: true,
       })
@@ -502,7 +506,7 @@ export default function RosterPage() {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <PageHeader
         title="Roster"
-        subtitle={`${scopedCohorts.length === 1 ? cohortLabel(scopedCohorts[0]) : `${scopedCohorts.length} cohorts`} · ${seasonLabel(selectedSeason)} · ${sortedFiltered.length} of ${active.length} available · ${visibleDefs.length} visible columns`}
+        subtitle={hasActiveCohorts ? `Cycle ${selectedSeason === 'summer' ? 'Summer' : 'Final'} · Year ${selectedYearCode || 'All years'} · Campus ${selectedCampuses.length ? selectedCampuses.join(', ') : 'All campuses'} · Course ${selectedProgramme || 'All'}` : 'No active cohorts yet. Create the first cohort.'}
       />
 
       {isAdmin && <input ref={fileRef} type="file" accept=".csv,.tsv,.txt,.xls,.xlsx" style={{ display: 'none' }} onChange={handleImportFileChosen} />}
@@ -538,65 +542,65 @@ export default function RosterPage() {
         </div>
       )}
 
-      {/* Filters */}
-      <div style={{ padding: '14px 28px', borderBottom: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-        {/* Course toggle */}
-        <div style={{ display: 'flex', background: 'var(--surface2)', borderRadius: 20, padding: 3, gap: 2, border: '1px solid var(--border)', flexShrink: 0 }}>
-          {['all', 'IB', 'BA'].map(c => (
-            <button key={c} onClick={() => setCourseFilter(c)} style={{
-              padding: '4px 14px', borderRadius: 16, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: 'none',
-              background: courseFilter === c ? 'var(--surface)' : 'transparent',
-              color: courseFilter === c ? 'var(--text)' : 'var(--text-3)',
-              boxShadow: courseFilter === c ? 'var(--shadow-sm)' : 'none',
-              transition: 'all 0.12s',
-            }}>{c === 'all' ? 'All' : c}</button>
-          ))}
-        </div>
-        <div style={{ position: 'relative' }}>
-          <Search size={13} style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-3)' }} />
-          <Input placeholder="Search all columns…" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} style={{ paddingLeft: 28, width: 200 }} />
-        </div>
-        <Input placeholder="CAT %ile ≥" type="number" value={filters.catMin} onChange={e => setF('catMin', e.target.value)} style={{ width: 110 }} />
-        <Input placeholder="Work ex ≥ (mo)" type="number" value={filters.wxMin} onChange={e => setF('wxMin', e.target.value)} style={{ width: 130 }} />
-        <Select value={filters.category} onChange={e => setF('category', e.target.value)}>
-          <option value="">All categories</option>
-          {categoryOptions.map(c => <option key={c} value={c}>{c}</option>)}
-        </Select>
-        <Select value={filters.gender} onChange={e => setF('gender', e.target.value)}>
-          <option value="">All genders</option>
-          {genderOptions.map(g => <option key={g} value={g}>{g}</option>)}
-        </Select>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer', color: 'var(--text-2)' }}>
-          <input type="checkbox" checked={filters.pwdOnly} onChange={e => setF('pwdOnly', e.target.checked)} />
-          PWD only
-        </label>
-        <Select value={sortCol} onChange={e => setSortCol(e.target.value)} title="Sort by column">
-          {sortOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-        </Select>
-        <Select value={sortDir === 1 ? 'asc' : 'desc'} onChange={e => setSortDir(e.target.value === 'asc' ? 1 : -1)} title="Sort direction">
-          <option value="asc">A-Z / Low-High</option>
-          <option value="desc">Z-A / High-Low</option>
-        </Select>
-        <Btn size="sm" variant="ghost" onClick={clearFilters}>Clear</Btn>
-      </div>
+      {hasActiveCohorts ? (
+        <>
+          {/* Filters */}
+          <div style={{ padding: '14px 28px', borderBottom: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+            <div style={{ position: 'relative' }}>
+              <Search size={13} style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-3)' }} />
+              <Input placeholder="Search all columns…" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} style={{ paddingLeft: 28, width: 200 }} />
+            </div>
+            <Input placeholder="CAT %ile ≥" type="number" value={filters.catMin} onChange={e => setF('catMin', e.target.value)} style={{ width: 110 }} />
+            <Input placeholder="Work ex ≥ (mo)" type="number" value={filters.wxMin} onChange={e => setF('wxMin', e.target.value)} style={{ width: 130 }} />
+            <Select value={filters.category} onChange={e => setF('category', e.target.value)}>
+              <option value="">All categories</option>
+              {categoryOptions.map(c => <option key={c} value={c}>{c}</option>)}
+            </Select>
+            <Select value={filters.gender} onChange={e => setF('gender', e.target.value)}>
+              <option value="">All genders</option>
+              {genderOptions.map(g => <option key={g} value={g}>{g}</option>)}
+            </Select>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer', color: 'var(--text-2)' }}>
+              <input type="checkbox" checked={filters.pwdOnly} onChange={e => setF('pwdOnly', e.target.checked)} />
+              PWD only
+            </label>
+            <Select value={sortCol} onChange={e => setSortCol(e.target.value)} title="Sort by column">
+              {sortOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+            </Select>
+            <Select value={sortDir === 1 ? 'asc' : 'desc'} onChange={e => setSortDir(e.target.value === 'asc' ? 1 : -1)} title="Sort direction">
+              <option value="asc">A-Z / Low-High</option>
+              <option value="desc">Z-A / High-Low</option>
+            </Select>
+            <Btn size="sm" variant="ghost" onClick={clearFilters}>Clear</Btn>
+          </div>
 
-      <div style={{ flex: 1, overflow: 'auto' }}>
-        <Table
-          headers={dynamicHeaders}
-          rows={rows}
-          emptyMessage={active.length ? 'No candidates match filters' : 'No candidates yet — import a file (CSV/TSV/TXT/XLS/XLSX) to get started'}
-          onRowContextMenu={isAdmin ? (e, idx) => {
-            const target = sortedFiltered[idx]
-            if (!target) return
-            e.preventDefault()
-            setRowMenu({
-              student: target,
-              x: Math.min(e.clientX, window.innerWidth - 220),
-              y: Math.min(e.clientY, window.innerHeight - 100),
-            })
-          } : undefined}
-        />
-      </div>
+          <div style={{ flex: 1, overflow: 'auto' }}>
+            <Table
+              headers={dynamicHeaders}
+              rows={rows}
+              emptyMessage={active.length ? 'No matches' : 'No roster yet. Import a file.'}
+              onRowContextMenu={isAdmin ? (e, idx) => {
+                const target = sortedFiltered[idx]
+                if (!target) return
+                e.preventDefault()
+                setRowMenu({
+                  student: target,
+                  x: Math.min(e.clientX, window.innerWidth - 220),
+                  y: Math.min(e.clientY, window.innerHeight - 100),
+                })
+              } : undefined}
+            />
+          </div>
+        </>
+      ) : (
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <div style={{ maxWidth: 420, width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 24, textAlign: 'center', color: 'var(--text-2)' }}>
+            <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 6 }}>No active cohorts yet.</div>
+            <div style={{ fontSize: 13, color: 'var(--text-3)', lineHeight: 1.6, marginBottom: 14 }}>Create a cohort, then import the file for that season.</div>
+            {isAdmin && <Btn variant="primary" onClick={() => setImportModalOpen(true)}>Import file</Btn>}
+          </div>
+        </div>
+      )}
 
       {isAdmin && rowMenu && (
         <div
@@ -913,7 +917,7 @@ export default function RosterPage() {
 
 function ImportCohortNote({ cohortId, students }) {
   const count = students.filter(s => {
-    const c = s.cohort || s._batch?.split('_')[0] || 'unknown'
+    const c = s.cohort || 'unknown'
     return c === cohortId
   }).length
   return (

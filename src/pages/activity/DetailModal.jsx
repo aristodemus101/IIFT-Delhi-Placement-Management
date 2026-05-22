@@ -361,8 +361,8 @@ function StageFlowModal({ opp, flow, user, students, sheetsConnected, createTrac
             (st['Personal Email ID'] && st['Personal Email ID'] === s.email)
           )
           if (!dbStudent) continue
-          // Derive cohort from student doc — fall back to _batch prefix for old docs
-          const cohortId = dbStudent.cohort || dbStudent._batch?.split('_')[0] || null
+          // Derive cohort from student doc
+          const cohortId = dbStudent.cohort || null
           await propose({
             type: 'place_from_activity',
             studentId: dbStudent._id,

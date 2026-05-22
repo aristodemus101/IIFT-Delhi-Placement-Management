@@ -19,16 +19,16 @@ import {
 } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 
-// Helper to derive cohort from a student doc (with fallback for old _batch field)
+// Helper to derive cohort from a student doc
 function studentCohort(s) {
-  return s.cohort || s._batch?.split('_')[0] || 'unknown'
+  return s.cohort || 'unknown'
 }
 
 export default function AdminPage() {
   const { roles, loading, setRole, adminCount, adminUsers } = useRoles()
   const { user, isMasterAdmin, isAdmin } = useAuth()
   const { students } = useStudents()
-  const { selectedCohort, batches, activeBatches, archivedBatches } = useBatch()
+  const { selectedCohort, batches, activeBatches, archivedBatches, selectedSeason } = useBatch()
   const { schemaHeaders, setSchemaHeaders } = useColumnSchema(selectedCohort || 'default')
   const { connected, sheetUrl, lastSync, syncing, authorize, syncNow } = useSheetsSync()
   const [busy, setBusy] = useState(null)
@@ -151,6 +151,7 @@ export default function AdminPage() {
         year: year || new Date().getFullYear(),
         campus,
         programme,
+        season: selectedSeason,
         status: 'active',
         createdAt: serverTimestamp(),
         createdBy: { uid: user.uid, name: user.displayName },

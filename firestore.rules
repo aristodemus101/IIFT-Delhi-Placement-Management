@@ -19,13 +19,19 @@ service cloud.firestore {
              request.resource.data.__expiresAt is timestamp;
     }
 
+    function hasValidCohort() {
+      return request.resource.data.cohort is string
+        && request.resource.data.cohort.size() > 0
+        && exists(/databases/$(database)/documents/batches/$(request.resource.data.cohort));
+    }
+
     // ── Students ────────────────────────────────────────────────────────────
     // Viewers: read only. Admins: read + write.
     // Direct writes by admins are allowed; the approval workflow is enforced
     // at the app layer and backed by the immutable auditLog.
     match /students/{id} {
       allow read:  if hasRole();
-      allow write: if isAdmin();
+      allow write: if isAdmin() && hasValidCohort();
     }
 
     // ── Pending Changes ─────────────────────────────────────────────────────

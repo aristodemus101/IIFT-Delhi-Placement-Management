@@ -48,7 +48,7 @@ export default function RemapperPage() {
 
   const scopedIds = new Set(scopedCohorts)
   const scopedStudents = students.filter(s => {
-    const c = s.cohort || s._batch?.split('_')[0] || 'unknown'
+    const c = s.cohort || 'unknown'
     return scopedIds.size === 0 ? false : scopedIds.has(c)
   })
   const activeStudents = scopedStudents.filter(s => !s._placed_final && !s._placed_summer && !s._placed)

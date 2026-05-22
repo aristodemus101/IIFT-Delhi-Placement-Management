@@ -8,9 +8,9 @@ import { getVal } from '../lib/columns'
 import { PageHeader, StatCard, Spinner, Badge, Btn } from '../components/UI'
 import { Users, CheckSquare, BarChart2, ChevronDown, ChevronRight } from 'lucide-react'
 
-// Helper to derive cohort from a student doc (with fallback for old _batch field)
+// Helper to derive cohort from a student doc
 function studentCohort(s) {
-  return s.cohort || s._batch?.split('_')[0] || 'unknown'
+  return s.cohort || 'unknown'
 }
 
 export default function DashboardPage() {
@@ -230,7 +230,7 @@ export default function DashboardPage() {
     <div style={{ flex: 1 }}>
       <PageHeader
         title="Dashboard"
-        subtitle={`${scopedCohorts.length === 1 ? cohortLabel(scopedCohorts[0]) : `${scopedCohorts.length} cohorts`} overview — ${new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}`}
+        subtitle={`${scopedCohorts.length === 1 ? cohortLabel(scopedCohorts[0]) : `${scopedCohorts.length} cohorts`} · ${new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}`}
       />
       <div style={{ padding: '14px 24px 18px' }}>
 

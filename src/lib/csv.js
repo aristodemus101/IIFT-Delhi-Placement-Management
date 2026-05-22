@@ -3,32 +3,35 @@ import Papa from 'papaparse'
 import * as XLSX from 'xlsx'
 import { OUR_COLS } from './columns'
 
-export function parseCSVFile(file) {
+export function parseCSVFile(file, meta = {}) {
   return new Promise((resolve, reject) => {
     Papa.parse(file, {
       header: true,
       skipEmptyLines: true,
-      complete: r => resolve(r.data),
+      complete: r => {
+        const rows = Array.isArray(r.data) ? r.data.map(row => attachMeta(row, meta)) : []
+        resolve(rows)
+      },
       error: reject
     })
   })
 }
 
-export async function parseDataFile(file) {
+export async function parseDataFile(file, meta = {}) {
   const ext = (file.name.split('.').pop() || '').toLowerCase()
 
   if (ext === 'csv' || ext === 'tsv' || ext === 'txt') {
-    return parseDelimitedFile(file, ext)
+    return parseDelimitedFile(file, ext, meta)
   }
 
   if (ext === 'xlsx' || ext === 'xls') {
-    return parseExcelFile(file)
+    return parseExcelFile(file, meta)
   }
 
   throw new Error('Unsupported file format. Use CSV, TSV, TXT, XLS, or XLSX.')
 }
 
-async function parseDelimitedFile(file, ext) {
+async function parseDelimitedFile(file, ext, meta = {}) {
   const text = await file.text()
   const delimiter = detectDelimiter(text, ext)
 
@@ -44,7 +47,7 @@ async function parseDelimitedFile(file, ext) {
   }
 
   const matrix = (parsed.data || []).map(r => Array.isArray(r) ? r : [r])
-  return buildTableFromMatrix(matrix)
+  return buildTableFromMatrix(matrix, meta)
 }
 
 function detectDelimiter(text, ext) {
@@ -77,7 +80,7 @@ function detectDelimiter(text, ext) {
   return candidates[0].score > 0 ? candidates[0].delim : ','
 }
 
-async function parseExcelFile(file) {
+async function parseExcelFile(file, meta = {}) {
   const buffer = await file.arrayBuffer()
   const workbook = XLSX.read(buffer, { type: 'array' })
   const firstSheet = workbook.SheetNames[0]
@@ -85,10 +88,10 @@ async function parseExcelFile(file) {
 
   const ws = workbook.Sheets[firstSheet]
   const matrix = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
-  return buildTableFromMatrix(matrix)
+  return buildTableFromMatrix(matrix, meta)
 }
 
-function buildTableFromMatrix(matrix) {
+function buildTableFromMatrix(matrix, meta = {}) {
   const rowsArr = Array.isArray(matrix) ? matrix : []
   if (!rowsArr.length) return { rows: [], headers: [] }
 
@@ -114,7 +117,7 @@ function buildTableFromMatrix(matrix) {
       labeled.forEach((c, i) => {
         obj[headers[i]] = cleanCell(r[c.idx])
       })
-      return obj
+      return attachMeta(obj, meta)
     })
 
   return { rows, headers }
@@ -165,6 +168,24 @@ function normalizeHeaders(headers) {
     }
     seen.add(candidate)
     out.push(candidate)
+  })
+  return out
+}
+
+function attachMeta(row, meta = {}) {
+  if (!meta || typeof meta !== 'object') return row
+  const out = { ...row }
+  Object.keys(meta).forEach(k => {
+    try {
+      const val = meta[k]
+      if (val === undefined || val === null) return
+      const cur = out[k]
+      if (cur === undefined || cur === null || String(cur).trim() === '') {
+        out[k] = val
+      }
+    } catch (e) {
+      // ignore malformed meta values
+    }
   })
   return out
 }

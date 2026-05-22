@@ -103,7 +103,7 @@ export async function parseShortlist(rawText, students) {
 
   const prompt = `
 You are matching a shortlist text to a student database for IIFT Delhi placement committee.
-Student names in announcements follow the pattern "FirstName LastName_RollNo_Batch_Year" e.g. "Vaibhav Verma_46A_BA_27".
+Student names in announcements follow the pattern "FirstName LastName - RollNo - Programme - Year" e.g. "Vaibhav Verma - 46A - BA - 27".
 
 Student database (roll, name, email):
 ${JSON.stringify(lookup.slice(0, 300))}

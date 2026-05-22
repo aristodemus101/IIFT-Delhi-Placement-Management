@@ -71,7 +71,7 @@ function useAllOpportunities() {
 }
 
 function studentCohort(s) {
-  return s.cohort || s._batch?.split('_')[0] || 'unknown'
+  return s.cohort || 'unknown'
 }
 
 export default function AnalyticsPage() {

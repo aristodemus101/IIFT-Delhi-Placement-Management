@@ -19,7 +19,7 @@ const TYPE_META = {
 }
 
 function changeDescription(c) {
-  const cohortId = c.cohort || c.batch
+  const cohortId = c.cohort
   const cohortPart = cohortId ? ` [${cohortId}]` : ''
   const seasonPart = c.season ? ` (${seasonLabel(c.season)})` : ''
   switch (c.type) {
@@ -63,7 +63,7 @@ export default function ApprovalsPage() {
 
   const cohortScoped = cohortScope === 'all'
     ? changes
-    : changes.filter(c => (c.cohort || c.batch) === cohortScope)
+    : changes.filter(c => c.cohort === cohortScope)
 
   const filtered = tab === 'all'
     ? cohortScoped
@@ -150,7 +150,7 @@ export default function ApprovalsPage() {
                 ((c.type === 'place' || c.type === 'unplace' || c.type === 'delete') && !c.studentId)
               )
 
-              const cohortId = c.cohort || c.batch
+              const cohortId = c.cohort
 
               return (
                 <div key={c._id} style={{
