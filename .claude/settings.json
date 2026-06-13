@@ -16,7 +16,20 @@
       "Bash(gh auth *)",
       "Bash(git push *)",
       "Bash(npm run *)",
-      "Bash(git commit -m 'Fix admin count limit to 4 \\(1 master + 3 regular\\) and update wording *)"
+      "Bash(git commit -m 'Fix admin count limit to 4 \\(1 master + 3 regular\\) and update wording *)",
+      "Skill(graphify)",
+      "Skill(graphify:*)",
+      "Bash(command -v uv)",
+      "Bash(uv --version)",
+      "Bash(command -v python3)",
+      "Bash(python3 -c \"import graphify; print\\('graphify', graphify.__version__\\)\")",
+      "Read(//Library/Frameworks/Python.framework/Versions/3.13/bin/**)",
+      "Bash(python3 -c \"import graphify; print\\('graphify imported OK'\\)\")",
+      "Bash(python3 -m pip install --upgrade graphifyy -q)",
+      "Bash(python3 -c \"import sys; open\\('graphify-out/.graphify_python', 'w', encoding='utf-8'\\).write\\(sys.executable\\)\")",
+      "Bash(git commit -m 'Ignore graphify-out/ generated directory *)",
+      "Bash(D\" src/components/Layout.jsx src/lib/BatchContext.jsx | head -30)",
+      "Bash(grep -n \"yearCode\\\\|D\\\\${\\\\|availableYears\\\\|selectedYearCode\\\\|`D\" src/components/Layout.jsx src/lib/BatchContext.jsx | head -30)"
     ]
   }
 }
