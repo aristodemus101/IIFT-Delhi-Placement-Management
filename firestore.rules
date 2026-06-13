@@ -84,8 +84,9 @@ service cloud.firestore {
     // ── Batches ─────────────────────────────────────────────────────────────
     // Cohort docs. TPOs and faculty coordinators need these for the cohort picker.
     match /batches/{batchId} {
-      allow read:  if hasAnyRole();
-      allow write: if isAdmin();
+      allow read:          if hasAnyRole();
+      allow create, update: if isAdmin();
+      allow delete:         if isMasterAdmin();
     }
 
     // ── Config ──────────────────────────────────────────────────────────────
