@@ -24,12 +24,13 @@ const stagingConfig = {
   appId: "1:285193500177:web:d260979defffde9369e3b0",
 };
 
-// Select environment based on NODE_ENV
-const firebaseConfig = process.env.NODE_ENV === 'production' ? productionConfig : stagingConfig;
+// Select environment — use IS_PRODUCTION (set by vite.config.js per mode) rather
+// than NODE_ENV, because Vite sets NODE_ENV='production' for ALL builds including staging.
+const firebaseConfig = process.env.IS_PRODUCTION ? productionConfig : stagingConfig;
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 export const db = getFirestore(app);
 export const storage = getStorage(app);
-export const ENVIRONMENT = process.env.NODE_ENV === 'production' ? 'production' : 'staging';
+export const ENVIRONMENT = process.env.IS_PRODUCTION ? 'production' : 'staging';
