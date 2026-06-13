@@ -16,6 +16,7 @@ import ApprovalsPage from './pages/ApprovalsPage'
 import AdminPage from './pages/AdminPage'
 import ActivityPage from './pages/ActivityPage'
 import AnalyticsPage from './pages/AnalyticsPage'
+import TpoPage from './pages/TpoPage'
 
 function AuthGate({ children }) {
   const { user } = useAuth()
@@ -49,6 +50,7 @@ function AppRoutes() {
         <Route path="remapper"      element={<RemapperPage />} />
         <Route path="activity"      element={<ActivityPage />} />
         <Route path="analytics"     element={<PageGate page="analytics"><AnalyticsPage /></PageGate>} />
+        <Route path="tpo"           element={<PageGate page="tpo"><TpoPage /></PageGate>} />
         <Route path="approvals"     element={<PageGate page="approvals"><ApprovalsPage /></PageGate>} />
         <Route path="admin"         element={<PageGate page="admin"><AdminPage /></PageGate>} />
       </Route>

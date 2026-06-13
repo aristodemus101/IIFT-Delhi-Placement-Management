@@ -10,6 +10,16 @@ export const ADMIN_EMAILS = [
   'divyaansh_d27@iift.edu',
 ]
 
+// TPOs: can log in and enter their own company outreach data.
+// Add real TPO emails here, or assign the tpo role manually via the Admin page.
+export const TPO_EMAILS = [
+  // 'tpo1@iift.edu',
+]
+
+// Faculty coordinators: read-only access to TPO performance + Analytics.
+// Assigned by admin via the Admin page (no pre-seeded list needed).
+export const FACULTY_COORDINATOR_EMAILS = []
+
 // Pre-seeded viewers: auto-assigned on first login.
 export const VIEWER_EMAILS = [
   'adityasingh_d27@iift.edu',

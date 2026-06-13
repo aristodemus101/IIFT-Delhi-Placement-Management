@@ -6,16 +6,16 @@ import { useSheetsSync } from '../lib/SheetsSyncContext'
 import { useBatch } from '../lib/BatchContext'
 import { usePendingChanges } from '../lib/PendingChangesContext'
 import { cohortLabel, cohortYear, parseCohortId } from '../lib/batch'
-import { OUR_COLS } from '../lib/columns'
 import { PageHeader, Btn, Badge, Spinner, Modal, Input } from '../components/UI'
 import CohortPicker from '../components/CohortPicker'
 import { ROLES, ROLE_LABELS, CONFIGURABLE_FIELDS } from '../lib/permissions'
 import {
   ShieldCheck, User, AlertTriangle, Sheet, RefreshCw, ExternalLink, CheckCircle,
-  Database, Columns3, Plus, Archive, Crown
+  Database, Columns3, Plus, Archive, RotateCcw, Crown, Trash2, Briefcase, GraduationCap
 } from 'lucide-react'
 import {
-  collection, doc, setDoc, updateDoc, addDoc, getDoc, serverTimestamp, writeBatch as writeBatchFn
+  collection, doc, setDoc, updateDoc, addDoc, getDoc, getDocs, query, where,
+  serverTimestamp, writeBatch as writeBatchFn, deleteDoc,
 } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 
@@ -28,7 +28,7 @@ export default function AdminPage() {
   const { roles, loading, setRole, adminCount, adminUsers } = useRoles()
   const { user, isMasterAdmin, isAdmin } = useAuth()
   const { students } = useStudents()
-  const { selectedCohort, batches, activeBatches, archivedBatches, selectedSeason } = useBatch()
+  const { selectedCohort, batches, activeBatches, archivedBatches, getCohortCycle, setCohortCycle } = useBatch()
   const { schemaHeaders, setSchemaHeaders } = useColumnSchema(selectedCohort || 'default')
   const { connected, sheetUrl, lastSync, syncing, authorize, syncNow } = useSheetsSync()
   const [busy, setBusy] = useState(null)
@@ -42,6 +42,7 @@ export default function AdminPage() {
   // Cohort management state
   const [createCohortOpen, setCreateCohortOpen] = useState(false)
   const [newCohortId, setNewCohortId] = useState('')
+  const [newCohortCycle, setNewCohortCycle] = useState('summer')
   const [cohortBusy, setCohortBusy] = useState(false)
   const [cohortMsg, setCohortMsg] = useState('')
 
@@ -118,7 +119,7 @@ export default function AdminPage() {
   }
 
   const openSchemaEditor = () => {
-    const base = (schemaHeaders && schemaHeaders.length ? schemaHeaders : OUR_COLS.map(c => c.label)).join('\n')
+    const base = (schemaHeaders && schemaHeaders.length ? schemaHeaders : []).join('\n')
     setSchemaDraft(base)
     setSchemaOpen(true)
   }
@@ -151,7 +152,7 @@ export default function AdminPage() {
         year: year || new Date().getFullYear(),
         campus,
         programme,
-        season: selectedSeason,
+        activeCycle: newCohortCycle,
         status: 'active',
         createdAt: serverTimestamp(),
         createdBy: { uid: user.uid, name: user.displayName },
@@ -159,6 +160,7 @@ export default function AdminPage() {
       setCohortMsg(`Cohort "${cohortLabel(newCohortId)}" created.`)
       setCreateCohortOpen(false)
       setNewCohortId('')
+      setNewCohortCycle('summer')
       setTimeout(() => setCohortMsg(''), 4000)
     } catch (e) {
       setCohortMsg('Error: ' + e.message)
@@ -166,13 +168,45 @@ export default function AdminPage() {
     setCohortBusy(false)
   }
 
-  const handleArchiveCohort = async (cohortId) => {
-    if (!window.confirm(`Archive cohort "${cohortLabel(cohortId)}"? It will be hidden from the cohort switcher.`)) return
+  const handleToggleArchiveCohort = async (cohortId, currentlyActive) => {
+    const label = cohortLabel(cohortId)
+    if (currentlyActive) {
+      if (!window.confirm(`Archive cohort "${label}"? It will be hidden from the cohort switcher but data is kept.`)) return
+    }
     setCohortBusy(true)
     try {
-      await updateDoc(doc(db, 'batches', cohortId), { status: 'archived', archivedAt: serverTimestamp() })
-      setCohortMsg(`Cohort "${cohortLabel(cohortId)}" archived.`)
+      await updateDoc(doc(db, 'batches', cohortId), {
+        status: currentlyActive ? 'archived' : 'active',
+        ...(currentlyActive ? { archivedAt: serverTimestamp() } : { restoredAt: serverTimestamp() }),
+      })
+      setCohortMsg(`Cohort "${label}" ${currentlyActive ? 'archived' : 'restored'}.`)
       setTimeout(() => setCohortMsg(''), 4000)
+    } catch (e) {
+      setCohortMsg('Error: ' + e.message)
+    }
+    setCohortBusy(false)
+  }
+
+  const handleDeleteCohort = async (cohortId) => {
+    const label = cohortLabel(cohortId)
+    if (!window.confirm(`DELETE cohort "${label}"?\n\nThis will permanently delete the cohort and ALL student records in it. This cannot be undone.`)) return
+    setCohortBusy(true); setCohortMsg('')
+    try {
+      // Delete all student docs in this cohort in batches of 500
+      const snap = await getDocs(query(collection(db, 'students'), where('cohort', '==', cohortId)))
+      const chunks = []
+      let current = writeBatchFn(db)
+      let count = 0
+      snap.docs.forEach(d => {
+        current.delete(d.ref)
+        count++
+        if (count % 500 === 0) { chunks.push(current); current = writeBatchFn(db) }
+      })
+      if (count % 500 !== 0) chunks.push(current)
+      await Promise.all(chunks.map(b => b.commit()))
+      await deleteDoc(doc(db, 'batches', cohortId))
+      setCohortMsg(`Cohort "${label}" and ${snap.size} student${snap.size !== 1 ? 's' : ''} deleted.`)
+      setTimeout(() => setCohortMsg(''), 5000)
     } catch (e) {
       setCohortMsg('Error: ' + e.message)
     }
@@ -281,9 +315,17 @@ export default function AdminPage() {
                 </div>
 
                 <div>
-                  <Badge color={m.role === 'admin' ? 'blue' : m.role === 'committee' ? 'amber' : 'gray'}>
-                    {m.role === 'admin' ? <><ShieldCheck size={10} /> Admin</>
-                     : m.role === 'committee' ? <><User size={10} /> Committee</>
+                  <Badge color={
+                    m.role === 'admin'               ? 'blue'
+                    : m.role === 'committee'         ? 'amber'
+                    : m.role === 'tpo'               ? 'green'
+                    : m.role === 'faculty_coordinator' ? 'blue'
+                    : 'gray'
+                  }>
+                    {m.role === 'admin'               ? <><ShieldCheck size={10} /> Admin</>
+                     : m.role === 'committee'         ? <><User size={10} /> Committee</>
+                     : m.role === 'tpo'               ? <><Briefcase size={10} /> TPO</>
+                     : m.role === 'faculty_coordinator' ? <><GraduationCap size={10} /> Faculty Coord</>
                      : <><User size={10} /> Viewer</>}
                   </Badge>
                 </div>
@@ -406,11 +448,12 @@ export default function AdminPage() {
             <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
               <div style={{
                 padding: '10px 16px', background: 'var(--surface2)', borderBottom: '1px solid var(--border)',
-                display: 'grid', gridTemplateColumns: '1fr 100px 80px 80px',
+                display: 'grid', gridTemplateColumns: '1fr 140px 80px 60px 100px',
                 fontSize: 11, fontWeight: 600, color: 'var(--text-3)',
                 textTransform: 'uppercase', letterSpacing: '0.04em',
               }}>
                 <span>Cohort</span>
+                <span>Active Cycle</span>
                 <span>Status</span>
                 <span>Students</span>
                 <span></span>
@@ -419,10 +462,11 @@ export default function AdminPage() {
               {[...activeBatches, ...archivedBatches].map((b, i) => {
                 const count = studentCountForCohort(b.id)
                 const isActive = b.status === 'active'
+                const cycle = getCohortCycle(b.id)
                 const allBatches = [...activeBatches, ...archivedBatches]
                 return (
                   <div key={b.id} style={{
-                    display: 'grid', gridTemplateColumns: '1fr 100px 80px 80px',
+                    display: 'grid', gridTemplateColumns: '1fr 140px 80px 60px 100px',
                     padding: '12px 16px', alignItems: 'center',
                     borderBottom: i < allBatches.length - 1 ? '1px solid var(--border)' : 'none',
                     opacity: isActive ? 1 : 0.6,
@@ -432,15 +476,39 @@ export default function AdminPage() {
                       <div style={{ fontSize: 11, color: 'var(--text-3)' }}>{b.id} · Year {b.year || cohortYear(b.id)}</div>
                     </div>
                     <div>
+                      {isAdmin && isActive ? (
+                        <div style={{ display: 'flex', gap: 4 }}>
+                          {[{ v: 'summer', label: 'SIP' }, { v: 'final', label: 'Final' }].map(opt => (
+                            <button key={opt.v} onClick={() => setCohortCycle(b.id, opt.v)} style={{
+                              padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                              border: `1px solid ${cycle === opt.v ? (opt.v === 'summer' ? 'var(--amber)' : 'var(--accent)') : 'var(--border)'}`,
+                              background: cycle === opt.v ? (opt.v === 'summer' ? 'var(--amber-bg)' : 'var(--accent-bg)') : 'var(--surface)',
+                              color: cycle === opt.v ? (opt.v === 'summer' ? 'var(--amber-text)' : 'var(--accent-dark)') : 'var(--text-2)',
+                              fontFamily: 'var(--font-sans)',
+                            }}>{opt.label}</button>
+                          ))}
+                        </div>
+                      ) : (
+                        <Badge color={cycle === 'summer' ? 'amber' : 'blue'}>
+                          {cycle === 'summer' ? 'SIP' : 'Final'}
+                        </Badge>
+                      )}
+                    </div>
+                    <div>
                       <Badge color={isActive ? 'blue' : 'gray'}>
                         {isActive ? 'Active' : 'Archived'}
                       </Badge>
                     </div>
                     <div style={{ fontSize: 13, fontVariantNumeric: 'tabular-nums' }}>{count}</div>
                     <div style={{ display: 'flex', gap: 6 }}>
-                      {isAdmin && isActive && (
-                        <Btn size="sm" variant="ghost" onClick={() => handleArchiveCohort(b.id)} disabled={cohortBusy}>
-                          <Archive size={12} />
+                      {isAdmin && (
+                        <Btn size="sm" variant="ghost" onClick={() => handleToggleArchiveCohort(b.id, isActive)} disabled={cohortBusy} title={isActive ? 'Archive cohort' : 'Restore cohort'}>
+                          {isActive ? <Archive size={12} /> : <RotateCcw size={12} />}
+                        </Btn>
+                      )}
+                      {isMasterAdmin && (
+                        <Btn size="sm" variant="danger" onClick={() => handleDeleteCohort(b.id)} disabled={cohortBusy} title="Permanently delete cohort and all students">
+                          <Trash2 size={12} />
                         </Btn>
                       )}
                     </div>
@@ -459,22 +527,11 @@ export default function AdminPage() {
           <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '16px 18px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, marginBottom: 10 }}>
               <Columns3 size={14} />
-              Active columns: <strong>{(schemaHeaders && schemaHeaders.length) || OUR_COLS.length}</strong>
+              Active columns: <strong>{schemaHeaders?.length || 0}</strong>
             </div>
             {schemaMsg && <div style={{ fontSize: 13, color: 'var(--green-text)', marginBottom: 8 }}>{schemaMsg}</div>}
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <Btn size="sm" onClick={openSchemaEditor}>Edit Column Structure</Btn>
-              <Btn
-                size="sm"
-                variant="ghost"
-                onClick={async () => {
-                  await setSchemaHeaders(OUR_COLS.map(c => c.label), user)
-                  setSchemaMsg('Reset to canonical column structure.')
-                  setTimeout(() => setSchemaMsg(''), 4000)
-                }}
-              >
-                Reset to Canonical
-              </Btn>
             </div>
           </div>
         </div>
@@ -626,19 +683,34 @@ export default function AdminPage() {
       </Modal>
 
       {/* Create Cohort Modal */}
-      <Modal open={createCohortOpen} onClose={() => { setCreateCohortOpen(false); setNewCohortId('') }} title="Create New Cohort" width={480}>
+      <Modal open={createCohortOpen} onClose={() => { setCreateCohortOpen(false); setNewCohortId(''); setNewCohortCycle('summer') }} title="Create New Cohort" width={480}>
         <div style={{ display: 'grid', gap: 16 }}>
           <p style={{ fontSize: 13, color: 'var(--text-2)', margin: 0, lineHeight: 1.6 }}>
-            Select the graduating year, campus, and programme. Campuses that don't offer a programme are shown as disabled.
+            Select the graduating year, campus, and programme. Then set which placement cycle this cohort is currently in.
           </p>
           <CohortPicker value={newCohortId} onChange={setNewCohortId} />
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 8 }}>Current placement cycle</div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {[{ value: 'summer', label: 'Summer Internship (SIP)' }, { value: 'final', label: 'Final Placement' }].map(opt => (
+                <button key={opt.value} onClick={() => setNewCohortCycle(opt.value)} style={{
+                  flex: 1, padding: '8px 0', borderRadius: 'var(--radius-sm)', cursor: 'pointer',
+                  fontWeight: 700, fontSize: 13, fontFamily: 'var(--font-sans)',
+                  border: `1px solid ${newCohortCycle === opt.value ? (opt.value === 'summer' ? 'var(--amber)' : 'var(--accent)') : 'var(--border)'}`,
+                  background: newCohortCycle === opt.value ? (opt.value === 'summer' ? 'var(--amber-bg)' : 'var(--accent-bg)') : 'var(--surface)',
+                  color: newCohortCycle === opt.value ? (opt.value === 'summer' ? 'var(--amber-text)' : 'var(--accent-dark)') : 'var(--text-2)',
+                }}>{opt.label}</button>
+              ))}
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 6 }}>You can change this later in the cohort list.</div>
+          </div>
           {cohortMsg && (
             <div style={{ fontSize: 13, color: cohortMsg.startsWith('Error') ? 'var(--red-text)' : 'var(--green-text)' }}>
               {cohortMsg}
             </div>
           )}
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-            <Btn onClick={() => { setCreateCohortOpen(false); setNewCohortId('') }}>Cancel</Btn>
+            <Btn onClick={() => { setCreateCohortOpen(false); setNewCohortId(''); setNewCohortCycle('summer') }}>Cancel</Btn>
             <Btn variant="primary" onClick={handleCreateCohort} disabled={cohortBusy || !newCohortId}>
               <Plus size={13} /> Create Cohort
             </Btn>

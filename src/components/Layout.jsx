@@ -6,11 +6,10 @@ import { usePendingChanges } from '../lib/PendingChangesContext'
 import { useTheme } from '../lib/ThemeContext'
 import { useBatch } from '../lib/BatchContext'
 import { useStudents } from '../lib/useStudents'
-import { cohortLabel } from '../lib/batch'
 import { Badge } from './UI'
 import {
   LayoutDashboard, Users, CheckSquare, ArrowLeftRight, Activity,
-  LogOut, GraduationCap, ShieldCheck, ClipboardCheck, User, Sun, Moon, BarChart2
+  LogOut, GraduationCap, ShieldCheck, ClipboardCheck, User, Sun, Moon, BarChart2, Briefcase
 } from 'lucide-react'
 
 export default function Layout() {
@@ -19,13 +18,13 @@ export default function Layout() {
   const { pendingCount } = usePendingChanges()
   const { theme, toggleTheme } = useTheme()
   const {
-    selectedSeason, setSelectedSeason,
     selectedYearCode, setSelectedYearCode,
     selectedProgramme, setSelectedProgramme,
     selectedCampuses, setSelectedCampuses,
     scopedCohorts,
     activeBatches, batchesLoading,
     availableCampuses, availableProgrammes, availableYears,
+    getCohortCycle,
   } = useBatch()
   const { students } = useStudents()
   const navigate = useNavigate()
@@ -50,6 +49,14 @@ export default function Layout() {
     return { total, summerPlaced, finalPlaced }
   }, [students, scopedCohorts])
 
+  // Cycle badge per scoped cohort for sidebar display
+  const cohortCycleChips = useMemo(() => {
+    return scopedCohorts.map(id => ({
+      id,
+      cycle: getCohortCycle(id),
+    }))
+  }, [scopedCohorts, getCohortCycle])
+
   const toggleCampus = (campus) => {
     if (selectedCampuses.includes(campus)) {
       setSelectedCampuses(selectedCampuses.filter(c => c !== campus))
@@ -73,6 +80,7 @@ export default function Layout() {
     { to: '/placed',     icon: CheckSquare,     label: 'Placed',     exact: false, page: 'placed' },
     { to: '/activity',   icon: Activity,        label: 'Activity',   exact: false, page: 'activity' },
     { to: '/analytics',  icon: BarChart2,       label: 'Analytics',  exact: false, page: 'analytics' },
+    { to: '/tpo',        icon: Briefcase,       label: 'TPO Outreach', exact: false, page: 'tpo' },
     { to: '/remapper',   icon: ArrowLeftRight,  label: 'Remapper',   exact: false, page: 'remapper' },
     { to: '/approvals',  icon: ClipboardCheck,  label: 'Approvals',  exact: false, page: 'approvals', badge: pendingCount },
     { to: '/admin',      icon: ShieldCheck,     label: 'Team Access', exact: false, page: 'admin' },
@@ -104,25 +112,6 @@ export default function Layout() {
 
         <nav style={{ flex: 1, padding: '8px 12px', overflowY: 'auto' }}>
           <div style={{ marginBottom: 12, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: 8 }}>
-            <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-3)', fontWeight: 600, marginBottom: 5 }}>Cycle</div>
-            <div style={{ display: 'flex', gap: 4, marginBottom: hasActiveCohorts ? 10 : 0 }}>
-              {['summer', 'final'].map(s => (
-                <button key={s} onClick={() => setSelectedSeason(s)} style={{
-                  flex: 1,
-                  padding: '5px 0',
-                  borderRadius: 8,
-                  cursor: 'pointer',
-                  fontWeight: 700,
-                  fontSize: 11,
-                  border: `1px solid ${selectedSeason === s ? (s === 'summer' ? 'var(--amber)' : 'var(--accent)') : 'var(--border)'}`,
-                  background: selectedSeason === s ? (s === 'summer' ? 'var(--amber-bg)' : 'var(--accent-bg)') : 'var(--surface)',
-                  color: selectedSeason === s ? (s === 'summer' ? 'var(--amber-text)' : 'var(--accent-dark)') : 'var(--text-2)',
-                }}>
-                  {s === 'summer' ? 'Summer' : 'Final'}
-                </button>
-              ))}
-            </div>
-
             {hasActiveCohorts ? (
               <>
                 {availableYears.length > 0 && (
@@ -198,12 +187,27 @@ export default function Layout() {
                 {batchesLoading ? (
                   <div style={{ fontSize: 11, color: 'var(--text-3)' }}>Loading…</div>
                 ) : (
-                  <div style={{ fontSize: 11, color: 'var(--text-3)', lineHeight: 1.6 }}>
-                    <span style={{ fontWeight: 600, color: 'var(--text-2)' }}>{scopedStats.total}</span> students ·{' '}
-                    {selectedSeason === 'summer'
-                      ? <><span style={{ color: 'var(--green-text)', fontWeight: 600 }}>{scopedStats.summerPlaced}</span> placed</>
-                      : <><span style={{ color: 'var(--accent-dark)', fontWeight: 600 }}>{scopedStats.finalPlaced}</span> placed</>
-                    }
+                  <div style={{ fontSize: 11, color: 'var(--text-3)', lineHeight: 1.8 }}>
+                    <span style={{ fontWeight: 600, color: 'var(--text-2)' }}>{scopedStats.total}</span> students
+                    <span style={{ display: 'flex', gap: 8, marginTop: 3, flexWrap: 'wrap' }}>
+                      <span><span style={{ color: 'var(--amber-text)', fontWeight: 600 }}>{scopedStats.summerPlaced}</span> SIP placed</span>
+                      <span><span style={{ color: 'var(--accent-dark)', fontWeight: 600 }}>{scopedStats.finalPlaced}</span> Final placed</span>
+                    </span>
+                    {cohortCycleChips.length > 0 && (
+                      <span style={{ display: 'flex', gap: 4, marginTop: 6, flexWrap: 'wrap' }}>
+                        {cohortCycleChips.map(({ id, cycle }) => (
+                          <span key={id} style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 3,
+                            padding: '1px 7px', borderRadius: 20, fontSize: 10, fontWeight: 700,
+                            background: cycle === 'summer' ? 'var(--amber-bg)' : 'var(--accent-bg)',
+                            color: cycle === 'summer' ? 'var(--amber-text)' : 'var(--accent-dark)',
+                            border: `1px solid ${cycle === 'summer' ? 'var(--amber)' : 'color-mix(in srgb,var(--accent) 40%,transparent)'}`,
+                          }}>
+                            {(() => { const p = id.split('-'); return p.length >= 3 ? `${p[0]} ${p[p.length-1]}` : p[0] })()} · {cycle === 'summer' ? 'SIP' : 'Final'}
+                          </span>
+                        ))}
+                      </span>
+                    )}
                   </div>
                 )}
               </>
@@ -312,7 +316,6 @@ export default function Layout() {
             flexShrink: 0,
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <Badge color={selectedSeason === 'summer' ? 'amber' : 'blue'}>{selectedSeason === 'summer' ? 'Summer' : 'Final'}</Badge>
               <Badge color="gray">Year {selectedYearCode || 'All'} · Campus {selectedCampuses.length ? selectedCampuses.join(', ') : 'All'} · Course {selectedProgramme || 'All'}</Badge>
             </div>
             {workspaceActions ? (

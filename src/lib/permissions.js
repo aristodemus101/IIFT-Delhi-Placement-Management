@@ -8,26 +8,29 @@
 export const PAGE_ACCESS = {
   dashboard:  ['admin', 'committee', 'viewer'],
   roster:     ['admin', 'committee', 'viewer'],
-  placed:     ['admin', 'committee'],           // viewers blocked
+  placed:     ['admin', 'committee'],
   activity:   ['admin', 'committee', 'viewer'],
-  analytics:  ['admin', 'committee'],           // viewers blocked
+  analytics:  ['admin', 'committee', 'faculty_coordinator'],
   remapper:   ['admin', 'committee', 'viewer'],
   approvals:  ['admin'],
   admin:      ['admin'],
+  tpo:        ['admin', 'tpo', 'faculty_coordinator'],
 }
 
 // ── Action permissions ────────────────────────────────────────────────────────
 export const ACTION_ACCESS = {
-  proposePlace:   ['admin'],
-  proposeUnplace: ['admin'],
-  proposeDelete:  ['admin'],
-  proposeImport:  ['admin'],
-  proposeClearAll:['admin'],
-  approveChange:  ['admin'],
-  manageRoles:    ['admin'],
-  manageCohorts:  ['admin'],
-  exportData:     ['admin', 'committee'],
-  viewFullRoster: ['admin', 'committee', 'viewer'],
+  proposePlace:       ['admin'],
+  proposeUnplace:     ['admin'],
+  proposeDelete:      ['admin'],
+  proposeImport:      ['admin'],
+  proposeClearAll:    ['admin'],
+  approveChange:      ['admin'],
+  manageRoles:        ['admin'],
+  manageCohorts:      ['admin'],
+  exportData:         ['admin', 'committee'],
+  viewFullRoster:     ['admin', 'committee', 'viewer'],
+  writeTpoOutreach:   ['admin', 'tpo'],
+  viewAllTpoData:     ['admin', 'faculty_coordinator'],
 }
 
 // ── Field-level defaults ──────────────────────────────────────────────────────
@@ -50,12 +53,14 @@ export const CONFIGURABLE_FIELDS = [
 
 // ── Role labels ───────────────────────────────────────────────────────────────
 export const ROLE_LABELS = {
-  admin:     'Admin',
-  committee: 'Committee Member',
-  viewer:    'Viewer',
+  admin:               'Admin',
+  committee:           'Committee Member',
+  viewer:              'Viewer',
+  tpo:                 'TPO',
+  faculty_coordinator: 'Faculty Coordinator',
 }
 
-export const ROLES = ['admin', 'committee', 'viewer']
+export const ROLES = ['admin', 'committee', 'viewer', 'tpo', 'faculty_coordinator']
 
 // ── Helper ────────────────────────────────────────────────────────────────────
 export function canAccess(page, role) {

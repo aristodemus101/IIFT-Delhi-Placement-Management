@@ -8,10 +8,16 @@ service cloud.firestore {
     }
 
     function isAuthed()      { return request.auth != null; }
-    function isAdmin()       { return isAuthed() && roleData().role == 'admin'; }
-    function isMasterAdmin() { return isAuthed() && roleData().isMasterAdmin == true; }
-    function isCommittee()   { return isAuthed() && roleData().role == 'committee'; }
-    function hasRole()       { return isAuthed() && roleData().role in ['admin', 'committee', 'viewer']; }
+    function isAdmin()              { return isAuthed() && roleData().role == 'admin'; }
+    function isMasterAdmin()        { return isAuthed() && roleData().isMasterAdmin == true; }
+    function isCommittee()          { return isAuthed() && roleData().role == 'committee'; }
+    function isTpo()                { return isAuthed() && roleData().role == 'tpo'; }
+    function isFacultyCoordinator() { return isAuthed() && roleData().role == 'faculty_coordinator'; }
+    // hasRole: existing placement committee roles only (students/pipeline data)
+    function hasRole()              { return isAuthed() && roleData().role in ['admin', 'committee', 'viewer']; }
+    // hasAnyRole: any recognised role (for non-sensitive shared config)
+    function hasAnyRole()           { return isAuthed() && roleData().role in ['admin', 'committee', 'viewer', 'tpo', 'faculty_coordinator']; }
+    function canViewTpoData()       { return isAdmin() || isFacultyCoordinator(); }
     
     // TTL Validation: if __expiresAt field is present, it must be a timestamp
     function hasValidTTL() {
@@ -83,17 +89,16 @@ service cloud.firestore {
     }
 
     // ── Batches ─────────────────────────────────────────────────────────────
-    // Cohort docs (e.g. D27-Delhi-IB). Readable by all role holders.
+    // Cohort docs. TPOs and faculty coordinators need these for the cohort picker.
     match /batches/{batchId} {
-      allow read:  if hasRole();
+      allow read:  if hasAnyRole();
       allow write: if isAdmin();
     }
 
     // ── Config ──────────────────────────────────────────────────────────────
-    // Shared app config (sheet URL, rolePermissions). Readable by all role holders;
-    // only admins can write.
+    // Shared app config. TPOs need rolePermissions to resolve field visibility.
     match /config/{docId} {
-      allow read:  if hasRole();
+      allow read:  if hasAnyRole();
       allow write: if isAdmin();
     }
 
@@ -130,6 +135,30 @@ service cloud.firestore {
     // collectionGroup query support for the heatmap (reads all applicants subcollections at once)
     match /{path=**}/applicants/{applicantId} {
       allow read: if isAuthed();
+    }
+
+    // ── TPO Profiles & Outreach ──────────────────────────────────────────────
+    // tpoProfiles/{tpoUid}: profile doc created by the TPO on first load.
+    // tpoProfiles/{tpoUid}/outreach/{id}: outreach entries only the owning TPO
+    //   (or admins) can write; admins and faculty_coordinators can read all.
+    match /tpoProfiles/{tpoUid} {
+      allow read:  if canViewTpoData() || (isTpo() && request.auth.uid == tpoUid);
+      allow create: if isTpo() && request.auth.uid == tpoUid;
+      allow update: if isAdmin() || (isTpo() && request.auth.uid == tpoUid);
+      allow delete: if isAdmin();
+
+      match /outreach/{outreachId} {
+        allow read:   if canViewTpoData() || (isTpo() && request.auth.uid == tpoUid);
+        allow create: if (isAdmin() || (isTpo() && request.auth.uid == tpoUid))
+                        && request.resource.data.createdBy == request.auth.uid;
+        allow update: if (isAdmin() || (isTpo() && request.auth.uid == tpoUid));
+        allow delete: if isAdmin() || (isTpo() && request.auth.uid == tpoUid);
+      }
+    }
+
+    // collectionGroup query so admins/faculty_coordinators can read all outreach at once
+    match /{path=**}/outreach/{outreachId} {
+      allow read: if canViewTpoData();
     }
 
     // Deny everything else

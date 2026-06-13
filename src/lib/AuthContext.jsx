@@ -2,7 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react'
 import { onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth'
 import { doc, getDoc, setDoc, onSnapshot, serverTimestamp } from 'firebase/firestore'
 import { auth, googleProvider, db } from './firebase'
-import { ADMIN_EMAILS, MASTER_ADMIN_EMAIL } from './roleConfig'
+import { ADMIN_EMAILS, MASTER_ADMIN_EMAIL, TPO_EMAILS, FACULTY_COORDINATOR_EMAILS } from './roleConfig'
 
 const AuthContext = createContext(null)
 
@@ -32,7 +32,10 @@ export function AuthProvider({ children }) {
 
           // First login: seed the role doc
           if (!roleSnap.exists()) {
-            const assignedRole = ADMIN_EMAILS.includes(u.email) ? 'admin' : 'viewer'
+            let assignedRole = 'viewer'
+            if (ADMIN_EMAILS.includes(u.email)) assignedRole = 'admin'
+            else if (TPO_EMAILS.includes(u.email)) assignedRole = 'tpo'
+            else if (FACULTY_COORDINATOR_EMAILS.includes(u.email)) assignedRole = 'faculty_coordinator'
             await setDoc(roleRef, {
               role: assignedRole,
               isMasterAdmin: u.email === MASTER_ADMIN_EMAIL,
@@ -83,9 +86,11 @@ export function AuthProvider({ children }) {
   return (
     <AuthContext.Provider value={{
       user, role, isMasterAdmin, login, logout,
-      isAdmin:     role === 'admin',
-      isCommittee: role === 'committee',
-      isViewer:    role === 'viewer',
+      isAdmin:              role === 'admin',
+      isCommittee:          role === 'committee',
+      isViewer:             role === 'viewer',
+      isTpo:                role === 'tpo',
+      isFacultyCoordinator: role === 'faculty_coordinator',
     }}>
       {children}
     </AuthContext.Provider>

@@ -3,10 +3,12 @@ import { collectionGroup, onSnapshot, query, collection, orderBy } from 'firebas
 import { db, auth } from '../lib/firebase'
 import { useStudents } from '../lib/useStudents'
 import { useBatch } from '../lib/BatchContext'
-import { cohortLabel, seasonLabel } from '../lib/batch'
+import { cohortLabel } from '../lib/batch'
 import { getVal } from '../lib/columns'
 import { PageHeader, Spinner, Badge, Input } from '../components/UI'
+import { useAuth } from '../lib/AuthContext'
 import { Search } from 'lucide-react'
+import TpoAnalytics from './analytics/TpoAnalytics'
 
 // Stage rank — higher = further in the process
 const STAGE_RANK = { applied: 1, shortlisted: 2, interviewing: 3, selected: 4, rejected: -1 }
@@ -75,11 +77,14 @@ function studentCohort(s) {
 }
 
 export default function AnalyticsPage() {
+  const { isFacultyCoordinator } = useAuth()
   const { students, loading: studentsLoading } = useStudents()
-  const { scopedCohorts, selectedSeason } = useBatch()
+  const { scopedCohorts } = useBatch()
   const { applicants, loading: appsLoading } = useAllApplicants()
   const { opps, loading: oppsLoading } = useAllOpportunities()
 
+  // Faculty coordinators only see TPO data — skip the heatmap tab entirely
+  const [activeTab, setActiveTab] = useState(isFacultyCoordinator ? 'tpo' : 'heatmap')
   const [studentSearch, setStudentSearch] = useState('')
   const [companySearch, setCompanySearch] = useState('')
   const [stageFilter, setStageFilter] = useState('') // '' = all
@@ -163,7 +168,8 @@ export default function AnalyticsPage() {
     })
   }, [activeOppIds, companySearch, oppMap])
 
-  if (loading) return <Spinner />
+  // Faculty coordinators skip the heatmap — don't block on its data loading
+  if (loading && !isFacultyCoordinator) return <Spinner />
 
   const cohortLabel_ = scopedCohorts.length === 1 ? cohortLabel(scopedCohorts[0]) : `${scopedCohorts.length} cohorts`
 
@@ -171,9 +177,34 @@ export default function AnalyticsPage() {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <PageHeader
         title="Analytics"
-        subtitle={`${cohortLabel_} · ${seasonLabel(selectedSeason)} · Student × Company pipeline heatmap`}
+        subtitle={activeTab === 'heatmap' ? `${cohortLabel_} · Student × Company pipeline heatmap` : 'TPO Performance'}
       />
 
+      {/* Tab bar — faculty_coordinator only sees the TPO tab */}
+      <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--border)', background: 'var(--surface)', paddingLeft: 24 }}>
+        {[
+          !isFacultyCoordinator && { key: 'heatmap', label: 'Pipeline Heatmap' },
+          { key: 'tpo', label: 'TPO Performance' },
+        ].filter(Boolean).map(tab => (
+          <button
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            style={{
+              padding: '10px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+              border: 'none', background: 'transparent',
+              borderBottom: activeTab === tab.key ? '2px solid var(--accent, #6366f1)' : '2px solid transparent',
+              color: activeTab === tab.key ? 'var(--accent, #6366f1)' : 'var(--text-2)',
+              marginBottom: -1,
+            }}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === 'tpo' && <TpoAnalytics />}
+
+      {activeTab === 'heatmap' && <>
       {/* Legend + filters */}
       <div style={{ padding: '12px 24px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', background: 'var(--surface)' }}>
         {/* Stage legend / filter */}
@@ -323,6 +354,7 @@ export default function AnalyticsPage() {
           </table>
         </div>
       )}
+      </>}
     </div>
   )
 }
