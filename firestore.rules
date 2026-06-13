@@ -10,7 +10,6 @@ service cloud.firestore {
     function isAuthed()      { return request.auth != null; }
     function isAdmin()              { return isAuthed() && roleData().role == 'admin'; }
     function isMasterAdmin()        { return isAuthed() && roleData().isMasterAdmin == true; }
-    function isCommittee()          { return isAuthed() && roleData().role == 'committee'; }
     function isTpo()                { return isAuthed() && roleData().role == 'tpo'; }
     function isFacultyCoordinator() { return isAuthed() && roleData().role == 'faculty_coordinator'; }
     // hasRole: existing placement committee roles only (students/pipeline data)
@@ -19,12 +18,6 @@ service cloud.firestore {
     function hasAnyRole()           { return isAuthed() && roleData().role in ['admin', 'committee', 'viewer', 'tpo', 'faculty_coordinator']; }
     function canViewTpoData()       { return isAdmin() || isFacultyCoordinator(); }
     
-    // TTL Validation: if __expiresAt field is present, it must be a timestamp
-    function hasValidTTL() {
-      return !('__expiresAt' in request.resource.data) || 
-             request.resource.data.__expiresAt is timestamp;
-    }
-
     function hasValidCohort() {
       return request.resource.data.cohort is string
         && request.resource.data.cohort.size() > 0
