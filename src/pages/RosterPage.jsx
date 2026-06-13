@@ -248,7 +248,7 @@ export default function RosterPage() {
   const handleImportFileChosen = async e => {
     const file = e.target.files[0]; if (!file) return
     try {
-      const parsed = await parseDataFile(file, { cohort: (importCohort || selectedCohort || '').trim() })
+      const parsed = await parseDataFile(file, {})
       setImportFile(file); setImportParsed(parsed); setImportStep(2)
     } catch (err) { setImportMsg('Could not read file: ' + err.message) }
     e.target.value = ''
@@ -528,7 +528,7 @@ export default function RosterPage() {
 
       <ImportModal
         open={importModalOpen}
-        onClose={() => { setImportModalOpen(false); setImportFile(null); setImportParsed(null); setImportStep(1); setImportCycle('summer'); setLastImportSummary(null); if (fileRef.current) fileRef.current.value = '' }}
+        onClose={() => { setImportModalOpen(false); setImportFile(null); setImportParsed(null); setImportStep(1); setImportCohort(''); setImportCycle('summer'); setLastImportSummary(null); if (fileRef.current) fileRef.current.value = '' }}
         step={importStep}
         importCohort={importCohort} setImportCohort={setImportCohort}
         importCycle={importCycle} setImportCycle={setImportCycle}
@@ -539,7 +539,7 @@ export default function RosterPage() {
         onChooseFile={() => fileRef.current.click()}
         onProposeImport={handleProposeImport}
         lastImportSummary={lastImportSummary}
-        onReset={step => { setImportStep(step); setImportFile(null); setImportParsed(null); setReplaceOnImport(false); setLastImportSummary(null); if (fileRef.current) fileRef.current.value = '' }}
+        onReset={step => { setImportStep(step); setImportFile(null); setImportParsed(null); setImportCohort(''); setReplaceOnImport(false); setLastImportSummary(null); if (fileRef.current) fileRef.current.value = '' }}
       />
     </div>
   )
