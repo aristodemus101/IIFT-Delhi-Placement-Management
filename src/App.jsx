@@ -1,11 +1,12 @@
 import React from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './lib/AuthContext'
 import { PendingChangesProvider } from './lib/PendingChangesContext'
 import { SheetsSyncProvider } from './lib/SheetsSyncContext'
 import { ThemeProvider } from './lib/ThemeContext'
 import { BatchProvider } from './lib/BatchContext'
 import { usePermissions } from './lib/usePermissions'
+import { Spinner } from './components/UI'
 import Layout from './components/Layout'
 import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
@@ -18,31 +19,45 @@ import ActivityPage from './pages/ActivityPage'
 import AnalyticsPage from './pages/AnalyticsPage'
 import TpoPage from './pages/TpoPage'
 
-function AuthGate({ children }) {
-  const { user } = useAuth()
-  if (user === undefined) return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: 'var(--text-2)', fontFamily: 'var(--font-sans)' }}>
-      Loading…
+// Full-screen centered spinner used during auth resolution
+function FullSpinner() {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
+      <Spinner />
     </div>
   )
-  if (!user) return <Navigate to="/login" replace />
+}
+
+function AuthGate({ children }) {
+  const { user } = useAuth()
+  const location = useLocation()
+  if (user === undefined) return <FullSpinner />
+  if (!user) return <Navigate to="/login" state={{ from: location }} replace />
   return children
+}
+
+function LoginRoute() {
+  const { user } = useAuth()
+  const location = useLocation()
+  // Still resolving auth — show spinner so login page doesn't flash before redirect
+  if (user === undefined) return <FullSpinner />
+  // Already logged in — go back to where they came from, or home
+  if (user) return <Navigate to={location.state?.from?.pathname || '/'} replace />
+  return <LoginPage />
 }
 
 function PageGate({ page, children }) {
   const { role } = useAuth()
   const { canAccessPage } = usePermissions()
-  // Wait for role to resolve before redirecting (avoids flash redirect while loading)
-  if (!role) return null
+  if (!role) return <FullSpinner />
   if (!canAccessPage(page)) return <Navigate to="/" replace />
   return children
 }
 
 function AppRoutes() {
-  const { user } = useAuth()
   return (
     <Routes>
-      <Route path="/login" element={user ? <Navigate to="/" replace /> : <LoginPage />} />
+      <Route path="/login" element={<LoginRoute />} />
       <Route path="/" element={<AuthGate><BatchProvider><SheetsSyncProvider><PendingChangesProvider><Layout /></PendingChangesProvider></SheetsSyncProvider></BatchProvider></AuthGate>}>
         <Route index                element={<DashboardPage />} />
         <Route path="roster"        element={<RosterPage />} />

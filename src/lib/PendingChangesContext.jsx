@@ -57,6 +57,23 @@ export function PendingChangesProvider({ children }) {
       await uploadBytes(storageRef, changeData.file)
       console.log('[import] storage upload done, writing pendingChanges...')
 
+      // Create the batch doc now so the cohort appears in the sidebar immediately,
+      // even before the import is approved. merge:true is safe — won't overwrite
+      // an existing cohort's activeCycle or other fields.
+      const cohortId = changeData.cohort
+      const { yearCode, campus, programme } = parseCohortId(cohortId)
+      await setDoc(doc(db, 'batches', cohortId), {
+        id: cohortId,
+        label: cohortLabel(cohortId),
+        year: cohortYear(cohortId) || new Date().getFullYear(),
+        campus: campus || '',
+        programme: programme || '',
+        activeCycle: changeData.activeCycle || 'final',
+        status: 'active',
+        createdAt: serverTimestamp(),
+        createdBy: { uid: user.uid, name: user.displayName },
+      }, { merge: true })
+
       await addDoc(collection(db, 'pendingChanges'), {
         type: 'import',
         rowCount: changeData.rowCount || 0,
@@ -223,19 +240,6 @@ export function PendingChangesProvider({ children }) {
     if (!cohortId) throw new Error('Import cohort is missing')
     const schemaRef = doc(db, 'config', schemaDocIdForBatch(cohortId))
     const season = change.season || 'final'
-
-    const { yearCode, campus, programme } = parseCohortId(cohortId)
-    await setDoc(doc(db, 'batches', cohortId), {
-      id: cohortId,
-      label: cohortLabel(cohortId),
-      year: cohortYear(cohortId) || new Date().getFullYear(),
-      campus: campus || '',
-      programme: programme || '',
-      activeCycle: change.activeCycle || 'final',
-      status: 'active',
-      createdAt: serverTimestamp(),
-      createdBy: { uid: user.uid, name: user.displayName },
-    }, { merge: true })
 
     // Download file from Storage and parse it
     if (!change.storagePath) throw new Error('Import file reference missing')
