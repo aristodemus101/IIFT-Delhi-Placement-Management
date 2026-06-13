@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { collection, onSnapshot, query, orderBy, doc, updateDoc, serverTimestamp } from 'firebase/firestore'
 import { db, auth } from './firebase'
-import { cohortLabel, cohortCampus, cohortProgramme, cohortYear, CAMPUSES, PROGRAMMES } from './batch'
+import { cohortLabel, CAMPUSES, PROGRAMMES } from './batch'
 
 const YEAR_KEY      = 'placement.selectedYearCode'
 const PROGRAMME_KEY = 'placement.selectedProgramme'
@@ -71,22 +71,18 @@ export function BatchProvider({ children }) {
   const availableYears = useMemo(() => {
     const seen = new Set()
     return activeBatches
-      .map(b => b.year ? String(b.year).slice(-2) : (cohortYear(b.id) ? String(cohortYear(b.id)).slice(-2) : ''))
+      .map(b => b.year ? String(b.year).slice(-2) : '')
       .filter(Boolean)
-      .filter(yearCode => {
-        if (seen.has(yearCode)) return false
-        seen.add(yearCode)
-        return true
-      })
+      .filter(yearCode => { if (seen.has(yearCode)) return false; seen.add(yearCode); return true })
   }, [activeBatches])
 
   const availableCampuses = useMemo(() => {
-    const set = new Set(activeBatches.map(b => b.campus || cohortCampus(b.id)).filter(Boolean))
+    const set = new Set(activeBatches.map(b => b.campus).filter(Boolean))
     return CAMPUSES.filter(c => set.has(c))
   }, [activeBatches])
 
   const availableProgrammes = useMemo(() => {
-    const set = new Set(activeBatches.map(b => b.programme || cohortProgramme(b.id)).filter(Boolean))
+    const set = new Set(activeBatches.map(b => b.programme).filter(Boolean))
     return PROGRAMMES.filter(p => set.has(p))
   }, [activeBatches])
 
@@ -94,12 +90,10 @@ export function BatchProvider({ children }) {
   const scopedCohorts = useMemo(() => {
     return activeBatches
       .filter(b => {
-        const yearCode   = b.year ? String(b.year).slice(-2) : (cohortYear(b.id) ? String(cohortYear(b.id)).slice(-2) : '')
-        const campus     = b.campus    || cohortCampus(b.id)
-        const programme  = b.programme || cohortProgramme(b.id)
-        const yearOk     = !selectedYearCode || yearCode === selectedYearCode
-        const campusOk   = selectedCampuses.length === 0 || selectedCampuses.includes(campus)
-        const progOk     = !selectedProgramme || programme === selectedProgramme
+        const yearCode  = b.year ? String(b.year).slice(-2) : ''
+        const yearOk    = !selectedYearCode || yearCode === selectedYearCode
+        const campusOk  = selectedCampuses.length === 0 || selectedCampuses.includes(b.campus)
+        const progOk    = !selectedProgramme || b.programme === selectedProgramme
         return yearOk && campusOk && progOk
       })
       .map(b => b.id)

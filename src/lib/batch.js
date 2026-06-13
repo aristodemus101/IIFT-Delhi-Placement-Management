@@ -102,10 +102,4 @@ export function schemaDocIdForBatch(batchId) {
   return `columnSchema_${batchId}`
 }
 
-// legacy normalizer — only used during migration/fallback
-export function normalizeBatch(value) {
-  if (!value) return 'final'
-  if (String(value).includes('_')) return value // already new format
-  return value // return as-is for old 'summer'/'final' strings
-}
 

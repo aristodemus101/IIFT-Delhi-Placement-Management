@@ -4,7 +4,7 @@ import {
   doc, query, orderBy, serverTimestamp, setDoc, getDoc
 } from 'firebase/firestore'
 import { db, auth } from './firebase'
-import { normalizeBatch, schemaDocIdForBatch } from './batch'
+import { schemaDocIdForBatch } from './batch'
 
 // Read-only hook for student data.
 // All write operations (place, delete, import, etc.) go through PendingChangesContext.
@@ -61,8 +61,7 @@ export function useTemplates() {
 export function useColumnSchema(batch = 'final') {
   const [schemaHeaders, setSchemaHeadersState] = useState([])
   const [loading, setLoading] = useState(true)
-  const normalizedBatch = normalizeBatch(batch)
-  const schemaDocId = schemaDocIdForBatch(normalizedBatch)
+  const schemaDocId = schemaDocIdForBatch(batch)
 
   useEffect(() => {
     const unsub = onSnapshot(
