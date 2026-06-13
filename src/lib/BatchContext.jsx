@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react'
-import { collection, onSnapshot, query, orderBy, doc, updateDoc, serverTimestamp } from 'firebase/firestore'
+import { collection, onSnapshot, doc, updateDoc, serverTimestamp } from 'firebase/firestore'
 import { db, auth } from './firebase'
 import { cohortLabel, CAMPUSES, PROGRAMMES } from './batch'
 
@@ -38,9 +38,12 @@ export function BatchProvider({ children }) {
     const unsubAuth = auth.onAuthStateChanged(u => {
       if (unsubSnap) { unsubSnap(); unsubSnap = null }
       if (!u) { setBatches([]); setBatchesLoading(false); return }
-      const q = query(collection(db, 'batches'), orderBy('year', 'desc'))
-      unsubSnap = onSnapshot(q, snap => {
-        setBatches(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+      // No orderBy — avoids requiring a Firestore index on a tiny collection.
+      // Sort client-side after fetch.
+      unsubSnap = onSnapshot(collection(db, 'batches'), snap => {
+        const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+        docs.sort((a, b) => (b.year || 0) - (a.year || 0))
+        setBatches(docs)
         setBatchesLoading(false)
       }, () => setBatchesLoading(false))
     })

@@ -1,29 +1,52 @@
 import React from 'react'
 import { getVal } from '../../lib/columns'
-import { Btn, Input, Modal } from '../../components/UI'
+import { Btn, Input, Select, Modal } from '../../components/UI'
 import { CheckCircle } from 'lucide-react'
 
-export default function PlaceModal({ student, season, setSeason, form, setForm, onClose, onSubmit, busy }) {
+const VIA_OPTIONS = [
+  'Finals Cycle',
+  'Summer Internship Cycle',
+  'PPO',
+  'Case Competition',
+  'Lateral / Direct',
+  'Other',
+]
+
+export default function PlaceModal({ student, season, setSeason, cohortCycle, form, setForm, onClose, onSubmit, busy }) {
   if (!student) return null
+
+  // If the cohort has a defined active cycle, lock to it — no toggle needed
+  const cycleLocked = !!cohortCycle
 
   return (
     <Modal open={!!student} onClose={onClose} title="Propose Placement">
       <div>
         <div style={{ marginBottom: 14 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>
-            Placement cycle for <strong style={{ color: 'var(--text)', textTransform: 'none', letterSpacing: 0 }}>{getVal(student, 'name')}</strong>
-          </div>
-          <div style={{ display: 'flex', gap: 6 }}>
-            {[{ value: 'summer', label: 'Summer Internship' }, { value: 'final', label: 'Final Placement' }].map(opt => (
-              <button key={opt.value} onClick={() => setSeason(opt.value)} style={{
-                flex: 1, padding: '8px 0', borderRadius: 'var(--radius-sm)', cursor: 'pointer',
-                fontWeight: 700, fontSize: 13, fontFamily: 'var(--font-sans)',
-                border: `1px solid ${season === opt.value ? (opt.value === 'summer' ? 'var(--amber)' : 'var(--accent)') : 'var(--border)'}`,
-                background: season === opt.value ? (opt.value === 'summer' ? 'var(--amber-bg)' : 'var(--accent-bg)') : 'var(--surface)',
-                color: season === opt.value ? (opt.value === 'summer' ? 'var(--amber-text)' : 'var(--accent-dark)') : 'var(--text-2)',
-              }}>{opt.label}</button>
-            ))}
-          </div>
+          {cycleLocked ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 'var(--radius-sm)', border: `1px solid ${season === 'summer' ? 'var(--amber)' : 'var(--accent)'}`, background: season === 'summer' ? 'var(--amber-bg)' : 'var(--accent-bg)' }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: season === 'summer' ? 'var(--amber-text)' : 'var(--accent-dark)' }}>
+                {season === 'summer' ? 'Summer Internship' : 'Final Placement'}
+              </span>
+              <span style={{ fontSize: 12, color: 'var(--text-3)', marginLeft: 4 }}>· cycle set on cohort</span>
+            </div>
+          ) : (
+            <>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>
+                Placement cycle for <strong style={{ color: 'var(--text)', textTransform: 'none', letterSpacing: 0 }}>{getVal(student, 'name')}</strong>
+              </div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {[{ value: 'summer', label: 'Summer Internship' }, { value: 'final', label: 'Final Placement' }].map(opt => (
+                  <button key={opt.value} onClick={() => setSeason(opt.value)} style={{
+                    flex: 1, padding: '8px 0', borderRadius: 'var(--radius-sm)', cursor: 'pointer',
+                    fontWeight: 700, fontSize: 13, fontFamily: 'var(--font-sans)',
+                    border: `1px solid ${season === opt.value ? (opt.value === 'summer' ? 'var(--amber)' : 'var(--accent)') : 'var(--border)'}`,
+                    background: season === opt.value ? (opt.value === 'summer' ? 'var(--amber-bg)' : 'var(--accent-bg)') : 'var(--surface)',
+                    color: season === opt.value ? (opt.value === 'summer' ? 'var(--amber-text)' : 'var(--accent-dark)') : 'var(--text-2)',
+                  }}>{opt.label}</button>
+                ))}
+              </div>
+            </>
+          )}
           <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 8 }}>
             A second admin must approve before this is applied.
           </div>
@@ -37,7 +60,10 @@ export default function PlaceModal({ student, season, setSeason, form, setForm, 
             </div>
             <div>
               <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Placed via</label>
-              <Input value={form.via} onChange={e => setForm(f => ({ ...f, via: e.target.value }))} placeholder="Case Comp / PPO / Finals Cycle / Lateral" style={{ width: '100%' }} />
+              <Select value={form.via} onChange={e => setForm(f => ({ ...f, via: e.target.value }))} style={{ width: '100%' }}>
+                <option value="">Select…</option>
+                {VIA_OPTIONS.map(v => <option key={v} value={v}>{v}</option>)}
+              </Select>
             </div>
           </div>
 

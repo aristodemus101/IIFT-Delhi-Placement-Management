@@ -455,6 +455,7 @@ export default function RosterPage() {
       <PlaceModal
         student={placeModal}
         season={placeSeason} setSeason={setPlaceSeason}
+        cohortCycle={selectedCohortCycle}
         form={placementForm} setForm={setPlacementForm}
         onClose={() => setPlaceModal(null)}
         onSubmit={proposePlace}
