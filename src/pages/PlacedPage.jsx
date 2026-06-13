@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect, useRef } from 'react'
 import { useStudents } from '../lib/useStudents'
 import { usePendingChanges } from '../lib/PendingChangesContext'
 import { useAuth } from '../lib/AuthContext'
@@ -19,7 +19,21 @@ export default function PlacedPage() {
   const { students, loading } = useStudents()
   const { propose } = usePendingChanges()
   const { isAdmin } = useAuth()
-  const { scopedCohorts, selectedCohort, selectedSeason, setSelectedSeason, batchesLoading } = useBatch()
+  const { scopedCohorts, selectedCohort, selectedCohortCycle, setLastSeason, batchesLoading } = useBatch()
+  const [selectedSeason, setSelectedSeasonLocal] = useState(selectedCohortCycle)
+
+  const prevCycleRef = useRef(selectedCohortCycle)
+  useEffect(() => {
+    if (prevCycleRef.current !== selectedCohortCycle) {
+      setSelectedSeasonLocal(selectedCohortCycle)
+      prevCycleRef.current = selectedCohortCycle
+    }
+  }, [selectedCohortCycle])
+
+  const setSelectedSeason = (s) => {
+    setSelectedSeasonLocal(s)
+    setLastSeason(s)
+  }
   const { fieldVisible, canDo } = usePermissions()
   const [search, setSearch] = useState('')
   const [viewModal, setViewModal] = useState(null)

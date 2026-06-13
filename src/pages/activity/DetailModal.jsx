@@ -30,7 +30,7 @@ const TRACKER_ACTIONS = new Set([
   'create_final_tracker', 'create_attendance_tracker',
 ])
 
-export default function DetailModal({ opp, isAdmin, user, students, sheetsConnected, createTracker, addStageTab, propose, onClose }) {
+export default function DetailModal({ opp, isAdmin, user, students, sheetsConnected, createTracker, addStageTab, propose, getCohortCycle, onClose }) {
   const stages = useStages(opp.id)
   const applicants = useApplicants(opp.id)
   const [tab, setTab] = useState('info')
@@ -68,6 +68,7 @@ export default function DetailModal({ opp, isAdmin, user, students, sheetsConnec
           opp={opp} flow={stageFlow} user={user} students={students}
           sheetsConnected={sheetsConnected} createTracker={createTracker}
           addStageTab={addStageTab} propose={propose}
+          getCohortCycle={getCohortCycle}
           onClose={() => setStageFlow(null)}
         />
       )}
@@ -262,7 +263,7 @@ function EditModal({ opp, onClose }) {
   )
 }
 
-function StageFlowModal({ opp, flow, user, students, sheetsConnected, createTracker, addStageTab, propose, onClose }) {
+function StageFlowModal({ opp, flow, user, students, sheetsConnected, createTracker, addStageTab, propose, getCohortCycle, onClose }) {
   const meta          = flow.meta || ACTION_META[flow.type] || {}
   const actionKey     = flow.type
   const stageLabel    = meta.label || actionKey
@@ -288,8 +289,12 @@ function StageFlowModal({ opp, flow, user, students, sheetsConnected, createTrac
 
   const resolveStudents = () => {
     if (studentMode === 'all') return students
-    // For activity (always final), YTP = not placed in final season
-    if (studentMode === 'ytp') return students.filter(s => !s._placed_final && !s._placed)
+    if (studentMode === 'ytp') {
+      // Filter YTP based on opp applicability
+      const ap = opp.applicability || 'final'
+      if (ap === 'summer') return students.filter(s => !s._placed_summer)
+      return students.filter(s => !s._placed_final)
+    }
     return matched
   }
 
@@ -361,8 +366,9 @@ function StageFlowModal({ opp, flow, user, students, sheetsConnected, createTrac
             (st['Personal Email ID'] && st['Personal Email ID'] === s.email)
           )
           if (!dbStudent) continue
-          // Derive cohort from student doc
+          // Derive cohort and its active cycle from student doc
           const cohortId = dbStudent.cohort || null
+          const season = getCohortCycle ? getCohortCycle(cohortId) : 'final'
           await propose({
             type: 'place_from_activity',
             studentId: dbStudent._id,
@@ -370,7 +376,7 @@ function StageFlowModal({ opp, flow, user, students, sheetsConnected, createTrac
             studentRoll: s.roll || dbStudent['Roll No.'] || '',
             company: opp.organization || '',
             cohort: cohortId,
-            season: 'final', // activity placements are always final placements
+            season,
             opportunityId: opp.id,
             opportunityTitle: opp.title || '',
             opportunityType: opp.type || '',
@@ -461,7 +467,8 @@ function ReviewStep({
   trackerConfig, sheetsConnected, trackerCreating, onCreateTracker,
   busy, err, onBack, onNext, trackerOnly = false,
 }) {
-  const ytpCount = students.filter(s => !s._placed_final && !s._placed).length
+  const ap = opp?.applicability || 'final'
+  const ytpCount = students.filter(s => ap === 'summer' ? !s._placed_summer : !s._placed_final).length
   const studentModeLabel = {
     matched: `Shortlisted only (${matched.length})`,
     ytp:     `All yet-to-be-placed (${ytpCount})`,

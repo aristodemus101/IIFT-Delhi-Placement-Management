@@ -96,8 +96,7 @@ export default function CohortPicker({ value = '', onChange, disabled = false, s
 
       {showPreview && resolvedId && (
         <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-2)', padding: '6px 10px', background: 'var(--surface2)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
-          Cohort ID: <strong style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>{resolvedId}</strong>
-          <span style={{ color: 'var(--text-3)', marginLeft: 8 }}>"{cohortLabel(resolvedId)}"</span>
+          <span style={{ color: 'var(--text-3)', marginLeft: 8 }}>{cohortLabel(resolvedId)}</span>
         </div>
       )}
     </div>

@@ -22,7 +22,7 @@ export function programmesForCampus(campus) {
   return PROGRAMMES.filter(p => (CAMPUS_PROGRAMMES[p] || []).includes(campus))
 }
 
-// Canonical cohort ID: 'D27-Delhi-IB'
+// Canonical cohort ID: '27-Delhi-IB'
 export function makeCohortId(yearCode, campus, programme) {
   if (!yearCode) return ''
   const parts = [yearCode]
@@ -31,8 +31,8 @@ export function makeCohortId(yearCode, campus, programme) {
   return parts.join('-')
 }
 
-// Parse 'D27-Delhi-IB' → { yearCode: 'D27', campus: 'Delhi', programme: 'IB' }
-// Parse 'D27-GiftCity-IB' → { yearCode: 'D27', campus: 'Gift City', programme: 'IB' }
+// Parse '27-Delhi-IB' → { yearCode: '27', campus: 'Delhi', programme: 'IB' }
+// Parse '27-GiftCity-IB' → { yearCode: '27', campus: 'Gift City', programme: 'IB' }
 export function parseCohortId(id) {
   if (!id) return { yearCode: '', campus: '', programme: '' }
   const parts = String(id).split('-')
@@ -51,21 +51,18 @@ export function parseCohortId(id) {
 // Returns year options centred on current graduating year ± 2
 export function cohortYearOptions() {
   const currentYear = new Date().getFullYear()
-  // Graduating year typically = current calendar year + 1 for first-year students
-  // We offer a ±2 window around the current year
   const base = currentYear - 2000  // e.g. 2027 → 27
   const options = []
   for (let d = base - 2; d <= base + 2; d++) {
-    options.push({ value: `D${d}`, label: `D${d} (${2000 + d})` })
+    options.push({ value: `${d}`, label: `${d} (${2000 + d})` })
   }
   return options
 }
 
-// ── New cohort + season helpers ─────────────────────────────────────────────
+// ── Cohort + season helpers ──────────────────────────────────────────────────
 
 export function cohortLabel(id) {
   if (!id) return 'No cohort'
-  // 'D27-Delhi-IB' → 'D27 Delhi IB', 'D27-GiftCity-IB' → 'D27 Gift City IB'
   const { yearCode, campus, programme } = parseCohortId(id)
   const parts = [yearCode, campus, programme].filter(Boolean)
   return parts.join(' ')
@@ -101,33 +98,6 @@ export function seasonShort(season) {
   return season || ''
 }
 
-// ── Legacy / compatibility helpers ──────────────────────────────────────────
-
-export function makeBatchId(year, type) {
-  return `${year}_${type}` // e.g. '2025_summer'
-}
-
-export function parseBatchId(id) {
-  const [year, type] = (id || '').split('_')
-  return { year: parseInt(year) || 0, type: type || 'final' }
-}
-
-export function batchLabel(id) {
-  if (!id) return 'No cohort'
-  // New cohort IDs have no underscore (e.g. 'D27', 'D28')
-  if (!String(id).includes('_')) return cohortLabel(id)
-  // Legacy batch IDs: '2025_summer' → 'Summer 2025'
-  const { year, type } = parseBatchId(id)
-  return `${type === 'summer' ? 'Summer' : 'Final'} ${year}`
-}
-
-export function batchShortLabel(id) {
-  if (!id) return ''
-  if (!String(id).includes('_')) return id
-  const { year, type } = parseBatchId(id)
-  return `${type === 'summer' ? 'Summer' : 'Final'} '${String(year).slice(-2)}`
-}
-
 export function schemaDocIdForBatch(batchId) {
   return `columnSchema_${batchId}`
 }
@@ -139,13 +109,3 @@ export function normalizeBatch(value) {
   return value // return as-is for old 'summer'/'final' strings
 }
 
-// Legacy constants kept for any remaining references during migration
-export const BATCH_VALUES = {
-  SUMMER: 'summer',
-  FINAL: 'final',
-}
-
-export const BATCH_OPTIONS = [
-  { value: BATCH_VALUES.SUMMER, label: 'Summer Batch', short: 'Summer', accent: 'var(--amber-text)' },
-  { value: BATCH_VALUES.FINAL, label: 'Final Batch', short: 'Final', accent: 'var(--accent)' },
-]

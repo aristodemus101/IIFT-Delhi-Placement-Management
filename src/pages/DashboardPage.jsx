@@ -1,5 +1,4 @@
-// src/pages/DashboardPage.jsx
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStudents } from '../lib/useStudents'
 import { useBatch } from '../lib/BatchContext'
@@ -15,7 +14,21 @@ function studentCohort(s) {
 
 export default function DashboardPage() {
   const { students, loading } = useStudents()
-  const { scopedCohorts, selectedCohort, selectedSeason, setSelectedSeason, batchesLoading } = useBatch()
+  const { scopedCohorts, selectedCohortCycle, setLastSeason, batchesLoading } = useBatch()
+  const [selectedSeason, setSelectedSeasonLocal] = useState(selectedCohortCycle)
+
+  const prevCycleRef = useRef(selectedCohortCycle)
+  useEffect(() => {
+    if (prevCycleRef.current !== selectedCohortCycle) {
+      setSelectedSeasonLocal(selectedCohortCycle)
+      prevCycleRef.current = selectedCohortCycle
+    }
+  }, [selectedCohortCycle])
+
+  const setSelectedSeason = (s) => {
+    setSelectedSeasonLocal(s)
+    setLastSeason(s)
+  }
   const navigate = useNavigate()
 
   const [collapsed, setCollapsed] = useState({

@@ -74,14 +74,7 @@ export function useColumnSchema(batch = 'final') {
           return
         }
 
-        // Backward compatibility: fall back to legacy shared schema if present.
-        const legacy = await getDoc(doc(db, 'config', 'columnSchema'))
-
-        if (legacy?.exists()) {
-          setSchemaHeadersState(Array.isArray(legacy.data().headers) ? legacy.data().headers : [])
-        } else {
-          setSchemaHeadersState([])
-        }
+        setSchemaHeadersState([])
         setLoading(false)
       },
       err => {

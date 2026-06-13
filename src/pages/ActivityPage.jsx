@@ -3,6 +3,7 @@ import { useAuth } from '../lib/AuthContext'
 import { useStudents } from '../lib/useStudents'
 import { useSheetsSync } from '../lib/SheetsSyncContext'
 import { usePendingChanges } from '../lib/PendingChangesContext'
+import { useBatch } from '../lib/BatchContext'
 import { useOpportunities, deleteOpportunity } from '../lib/useOpportunities'
 import { PageHeader, Btn, Select, Spinner } from '../components/UI'
 import { Plus } from 'lucide-react'
@@ -17,22 +18,23 @@ export default function ActivityPage() {
   const { opportunities, loading } = useOpportunities()
   const { connected: sheetsConnected, createTracker, addStageTab } = useSheetsSync()
   const { propose } = usePendingChanges()
+  const { getCohortCycle } = useBatch()
 
-  const [typeFilter, setTypeFilter]     = useState('all')
-  const [batchFilter, setBatchFilter]   = useState('all')
-  const [statusFilter, setStatusFilter] = useState('all')
+  const [typeFilter, setTypeFilter]           = useState('all')
+  const [applicabilityFilter, setApplicabilityFilter] = useState('all')
+  const [statusFilter, setStatusFilter]       = useState('all')
   const [detailOpp, setDetailOpp]       = useState(null)
   const [postOpen, setPostOpen]         = useState(false)
 
   const filtered = useMemo(() => opportunities.filter(o => {
     if (typeFilter !== 'all' && o.type !== typeFilter) return false
-    if (batchFilter !== 'all') {
+    if (applicabilityFilter !== 'all') {
       const ap = o.applicability || 'both'
-      if (ap !== 'both' && ap !== batchFilter) return false
+      if (ap !== applicabilityFilter) return false
     }
     if (statusFilter !== 'all' && o.status !== statusFilter) return false
     return true
-  }), [opportunities, typeFilter, batchFilter, statusFilter])
+  }), [opportunities, typeFilter, applicabilityFilter, statusFilter])
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -51,10 +53,11 @@ export default function ActivityPage() {
           <option value="all">All types</option>
           {TYPES.map(t => <option key={t} value={t}>{t}</option>)}
         </Select>
-        <Select value={batchFilter} onChange={e => setBatchFilter(e.target.value)} style={{ height: 32, fontSize: 12 }}>
-          <option value="all">All batches</option>
-          <option value="final">Final</option>
-          <option value="summer">Summer</option>
+        <Select value={applicabilityFilter} onChange={e => setApplicabilityFilter(e.target.value)} style={{ height: 32, fontSize: 12 }}>
+          <option value="all">All cycles</option>
+          <option value="summer">Summer only</option>
+          <option value="final">Final only</option>
+          <option value="both">Both cycles</option>
         </Select>
         <Select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ height: 32, fontSize: 12 }}>
           <option value="all">All statuses</option>
@@ -104,6 +107,7 @@ export default function ActivityPage() {
           createTracker={createTracker}
           addStageTab={addStageTab}
           propose={propose}
+          getCohortCycle={getCohortCycle}
           onClose={() => setDetailOpp(null)}
         />
       )}

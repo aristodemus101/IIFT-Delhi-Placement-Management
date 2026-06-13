@@ -3,10 +3,12 @@ import {
   collection, onSnapshot, addDoc, updateDoc, doc,
   writeBatch, serverTimestamp, query, orderBy, getDoc, setDoc, getDocs
 } from 'firebase/firestore'
-import { db } from './firebase'
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage'
+import { db, storage } from './firebase'
+import { parseDataFile } from './csv'
 import { useAuth } from './AuthContext'
 import { useSheetsSync } from './SheetsSyncContext'
-import { cohortLabel, seasonLabel, schemaDocIdForBatch } from './batch'
+import { cohortLabel, seasonLabel, schemaDocIdForBatch, parseCohortId, cohortYear } from './batch'
 
 const PendingChangesContext = createContext(null)
 
@@ -43,44 +45,36 @@ export function PendingChangesProvider({ children }) {
       if (!changeData.studentId) throw new Error('Student no longer exists')
     }
 
-    if (changeData.type === 'import' && Array.isArray(changeData.rows)) {
-      if (!changeData.rows.length) throw new Error('Import file has no rows')
+    if (changeData.type === 'import') {
+      if (!changeData.file) throw new Error('Import file is required')
       if (!changeData.cohort) throw new Error('Import cohort is required')
 
-      const normalizedRows = changeData.rows.map(row => ({
-        ...row,
-        cohort: changeData.cohort,
-      }))
-
       const importId = `${Date.now()}_${user.uid}`
-      const chunks = chunkRowsBySize(normalizedRows)
+      const storagePath = `imports/${importId}/${changeData.file.name}`
+      const storageRef = ref(storage, storagePath)
 
-      for (let i = 0; i < chunks.length; i += 1) {
-        await setDoc(doc(db, 'config', `importPayload_${importId}_${i}`), {
-          importId,
-          idx: i,
-          rows: chunks[i],
-          createdAt: serverTimestamp(),
-          proposedBy: user.uid,
-          type: 'importPayload',
-        })
-      }
+      console.log('[import] uploading to storage:', storagePath)
+      await uploadBytes(storageRef, changeData.file)
+      console.log('[import] storage upload done, writing pendingChanges...')
 
       await addDoc(collection(db, 'pendingChanges'), {
         type: 'import',
-        rowCount: normalizedRows.length,
+        rowCount: changeData.rowCount || 0,
+        fileName: changeData.file.name,
         cohort: changeData.cohort,
-        headers: Array.isArray(changeData.headers) ? changeData.headers : [],
+        activeCycle: changeData.activeCycle || 'final',
+        headers: Array.isArray(changeData.headers) ? changeData.headers.slice(0, 50) : [],
         updateSchema: !!changeData.updateSchema,
         replaceExisting: !!changeData.replaceExisting,
+        storagePath,
         importId,
-        chunkCount: chunks.length,
         proposedBy: user.uid,
         proposedByName: user.displayName,
         proposedAt: serverTimestamp(),
         status: 'pending',
         applied: false,
       })
+      console.log('[import] pendingChanges written, done.')
       return
     }
 
@@ -102,8 +96,8 @@ export function PendingChangesProvider({ children }) {
     if (change.status !== 'pending') throw new Error('Only pending changes can be reviewed')
     if (change?.proposedBy === user.uid) throw new Error('Cannot review your own proposal')
 
-    if (change?.type === 'import' && change.importId && change.chunkCount) {
-      await cleanupImportPayload(change.importId, change.chunkCount)
+    if (change?.type === 'import' && change.storagePath) {
+      await cleanupImportPayload(change.storagePath)
     }
 
     await updateDoc(doc(db, 'pendingChanges', changeId), {
@@ -211,8 +205,8 @@ export function PendingChangesProvider({ children }) {
     if (change.status !== 'pending') throw new Error('Only pending changes can be withdrawn')
     if (change.proposedBy !== user.uid) throw new Error('You can only withdraw your own proposals')
 
-    if (change.type === 'import' && change.importId && change.chunkCount) {
-      await cleanupImportPayload(change.importId, change.chunkCount)
+    if (change.type === 'import' && change.storagePath) {
+      await cleanupImportPayload(change.storagePath)
     }
 
     await updateDoc(doc(db, 'pendingChanges', changeId), {
@@ -230,31 +224,30 @@ export function PendingChangesProvider({ children }) {
     const schemaRef = doc(db, 'config', schemaDocIdForBatch(cohortId))
     const season = change.season || 'final'
 
+    const { yearCode, campus, programme } = parseCohortId(cohortId)
     await setDoc(doc(db, 'batches', cohortId), {
       id: cohortId,
       label: cohortLabel(cohortId),
-      year: (cohortId.match(/\d+/) ? (2000 + parseInt(cohortId.match(/\d+/)[0])) : new Date().getFullYear()),
-      season,
+      year: cohortYear(cohortId) || new Date().getFullYear(),
+      campus: campus || '',
+      programme: programme || '',
+      activeCycle: change.activeCycle || 'final',
       status: 'active',
       createdAt: serverTimestamp(),
       createdBy: { uid: user.uid, name: user.displayName },
     }, { merge: true })
 
-    let rows = []
+    // Download file from Storage and parse it
+    if (!change.storagePath) throw new Error('Import file reference missing')
+    const downloadUrl = await getDownloadURL(ref(storage, change.storagePath))
+    const response = await fetch(downloadUrl)
+    const blob = await response.blob()
+    const file = new File([blob], change.fileName || 'import.xlsx', { type: blob.type })
+    const parsed = await parseDataFile(file, { cohort: cohortId })
+    const rows = parsed.rows
+    const headers = parsed.headers
 
-    if (change.importId && change.chunkCount) {
-      for (let i = 0; i < change.chunkCount; i += 1) {
-        const snap = await getDoc(doc(db, 'config', `importPayload_${change.importId}_${i}`))
-        if (snap.exists()) {
-          const data = snap.data()
-          if (Array.isArray(data.rows)) rows = rows.concat(data.rows)
-        }
-      }
-    } else {
-      rows = Array.isArray(change.rows) ? change.rows : []
-    }
-
-    if (!rows.length) throw new Error('Import payload is empty or missing')
+    if (!rows.length) throw new Error('Import file is empty or could not be parsed')
 
     if (change.replaceExisting && cohortId) {
       const allStudents = await getDocs(collection(db, 'students'))
@@ -286,11 +279,11 @@ export function PendingChangesProvider({ children }) {
       await batch.commit()
     }
 
-    if (Array.isArray(change.headers) && change.headers.length) {
+    if (Array.isArray(headers) && headers.length) {
       const schemaSnap = await getDoc(schemaRef)
       if (!schemaSnap.exists() || change.updateSchema === true) {
         await setDoc(schemaRef, {
-          headers: change.headers,
+          headers,
           updatedAt: serverTimestamp(),
           updatedBy: user.uid,
           updatedByName: user.displayName,
@@ -319,19 +312,14 @@ export function PendingChangesProvider({ children }) {
       appliedAt: serverTimestamp(),
     })
 
-    if (change.importId && change.chunkCount) {
-      await cleanupImportPayload(change.importId, change.chunkCount)
+    if (change.storagePath) {
+      try { await deleteObject(ref(storage, change.storagePath)) } catch (_) {}
     }
   }
 
-  const cleanupImportPayload = async (importId, chunkCount) => {
-    for (let i = 0; i < chunkCount; i += 350) {
-      const batch = writeBatch(db)
-      for (let j = i; j < Math.min(i + 350, chunkCount); j += 1) {
-        batch.delete(doc(db, 'config', `importPayload_${importId}_${j}`))
-      }
-      await batch.commit()
-    }
+  const cleanupImportPayload = async (storagePath) => {
+    if (!storagePath) return
+    try { await deleteObject(ref(storage, storagePath)) } catch (_) {}
   }
 
   return (
@@ -389,23 +377,3 @@ function normalizePlacementDetails(change) {
   }
 }
 
-function chunkRowsBySize(rows, maxBytes = 700000) {
-  const chunks = []
-  let current = []
-  let size = 0
-
-  rows.forEach(row => {
-    const rowSize = JSON.stringify(row).length + 2
-    if (current.length > 0 && size + rowSize > maxBytes) {
-      chunks.push(current)
-      current = [row]
-      size = rowSize
-    } else {
-      current.push(row)
-      size += rowSize
-    }
-  })
-
-  if (current.length) chunks.push(current)
-  return chunks
-}
