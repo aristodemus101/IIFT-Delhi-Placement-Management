@@ -1,0 +1,37 @@
+name: PR Preview
+
+on:
+  pull_request:
+    branches:
+      - main
+      - staging
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+        env:
+          VITE_GEMINI_KEY: ${{ secrets.VITE_GEMINI_KEY }}
+
+      - name: Deploy Preview to Firebase (Staging)
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_STAGING }}
+          projectId: placement-mgmt-staging
+          # No channelId = creates a temporary preview channel, auto-expires in 7 days
