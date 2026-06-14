@@ -19,6 +19,7 @@ const EMPTY_FORM = {
   ctc:               '',
   fixedComponent:    '',
   variableComponent: '',
+  studentsPlaced:    '',
   status:            'reached_out',
   cohort:            '',
   notes:             '',
@@ -45,6 +46,7 @@ function OutreachForm({ initial, batches, onSave, onCancel, busy }) {
       ctc:               form.ctc !== '' ? ctc : null,
       fixedComponent:    form.fixedComponent !== '' ? fixed : null,
       variableComponent: form.variableComponent !== '' ? parseFloat(form.variableComponent) : null,
+      studentsPlaced:    form.studentsPlaced !== '' ? parseInt(form.studentsPlaced, 10) : null,
       status:            form.status,
       cohort:            form.cohort,
       notes:             form.notes.trim(),
@@ -73,6 +75,10 @@ function OutreachForm({ initial, batches, onSave, onCancel, busy }) {
         <label style={labelStyle}>
           Variable Component (LPA)
           <Input type="number" min="0" step="0.1" value={form.variableComponent} onChange={e => set('variableComponent', e.target.value)} placeholder="auto-computed or override" />
+        </label>
+        <label style={labelStyle}>
+          Students Placed
+          <Input type="number" min="0" step="1" value={form.studentsPlaced} onChange={e => set('studentsPlaced', e.target.value)} placeholder="e.g. 3" />
         </label>
         <label style={labelStyle}>
           Status
@@ -159,7 +165,7 @@ function MyOutreachView() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr>
-                {['Company', 'Role', 'CTC (LPA)', 'Fixed (LPA)', 'Status', 'Cohort', ''].map(h => (
+                {['Company', 'Role', 'CTC (LPA)', 'Fixed (LPA)', 'Students Placed', 'Status', 'Cohort', ''].map(h => (
                   <th key={h} style={thStyle}>{h}</th>
                 ))}
               </tr>
@@ -171,6 +177,7 @@ function MyOutreachView() {
                   <td style={tdStyle}>{e.roleTitle || '—'}</td>
                   <td style={tdStyle}>{e.ctc != null ? e.ctc : '—'}</td>
                   <td style={tdStyle}>{e.fixedComponent != null ? e.fixedComponent : '—'}</td>
+                  <td style={{ ...tdStyle, textAlign: 'center' }}>{e.studentsPlaced != null ? e.studentsPlaced : '—'}</td>
                   <td style={tdStyle}>
                     <Badge color={STATUS_COLOR[e.status] || 'gray'}>
                       {OUTREACH_STATUSES.find(s => s.value === e.status)?.label || e.status}
@@ -248,7 +255,7 @@ function AllOutreachView() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr>
-                {['TPO', 'Company', 'Role', 'CTC (LPA)', 'Fixed (LPA)', 'Status', 'Cohort'].map(h => (
+                {['TPO', 'Company', 'Role', 'CTC (LPA)', 'Fixed (LPA)', 'Students Placed', 'Status', 'Cohort'].map(h => (
                   <th key={h} style={thStyle}>{h}</th>
                 ))}
               </tr>
@@ -263,6 +270,7 @@ function AllOutreachView() {
                     <td style={tdStyle}>{e.roleTitle || '—'}</td>
                     <td style={tdStyle}>{e.ctc != null ? e.ctc : '—'}</td>
                     <td style={tdStyle}>{e.fixedComponent != null ? e.fixedComponent : '—'}</td>
+                    <td style={{ ...tdStyle, textAlign: 'center' }}>{e.studentsPlaced != null ? e.studentsPlaced : '—'}</td>
                     <td style={tdStyle}>
                       <Badge color={STATUS_COLOR[e.status] || 'gray'}>
                         {OUTREACH_STATUSES.find(s => s.value === e.status)?.label || e.status}
