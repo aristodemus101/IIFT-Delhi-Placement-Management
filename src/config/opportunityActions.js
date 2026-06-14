@@ -38,25 +38,6 @@
 
 export const OPPORTUNITY_ACTIONS = {
 
-  'SIP Hiring': {
-    label: 'Hiring',
-    actions: [
-      'generate_announcement',
-      'create_eoi_tracker',
-      'release_shortlist',
-      'create_shortlist_tracker',
-      'generate_shortlist_msg',
-      'post_interview',
-      'create_interview_tracker',
-      'generate_interview_msg',
-      'post_final_selection',
-      'create_final_tracker',
-      'generate_final_msg',
-      'generate_reminder',
-      'mark_closed',
-    ],
-  },
-
   'Hiring': {
     label: 'Hiring',
     actions: [
