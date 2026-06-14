@@ -1,211 +1,244 @@
-# PlacementOS — Deployment Guide
+# PlacementOS — IIFT Delhi Placement Management
 
-A placement batch management system built with React + Firebase.
+A batch placement management system built with React + Firebase for the IIFT Delhi placement team.
 
 ---
 
-## What's in the app
+## Live URLs
 
-| Feature | Description |
+| Environment | URL | When to use |
+|---|---|---|
+| **Production** | https://iiftd-pc.web.app | The real app. Used by the placement team. |
+| **Staging** | https://placement-mgmt-staging.web.app | For testing changes before they go live. |
+
+---
+
+## How deployments work
+
+This project uses **GitHub Actions** for automated deployments. You never need to run build or deploy commands manually.
+
+```
+[Make changes on your machine]
+         ↓
+git push origin staging
+         ↓
+GitHub automatically builds and deploys → staging.web.app
+         ↓
+Test your changes on staging
+         ↓
+Open a Pull Request: staging → main on GitHub
+         ↓
+GitHub posts a temporary preview URL on the PR (lasts 7 days)
+         ↓
+Merge the PR
+         ↓
+GitHub automatically builds and deploys → iiftd-pc.web.app
+AND creates a versioned release (v1.0.1, v1.0.2, ...) with a changelog
+```
+
+**The golden rule: never push directly to `main`. Always go through `staging` first.**
+
+---
+
+## Setting up locally
+
+### Prerequisites
+- Node.js 20+
+- A Google account that is on the authorized team list
+
+### Steps
+
+```bash
+# 1. Clone the repo
+git clone https://github.com/aristodemus101/IIFT-Delhi-Placement-Management.git
+cd IIFT-Delhi-Placement-Management
+
+# 2. Install dependencies
+npm install
+
+# 3. Create your local environment file
+cp .env.local.example .env.local
+# Then open .env.local and fill in the Gemini API key
+
+# 4. Start the dev server (runs against staging Firebase)
+npm run dev
+```
+
+The dev server runs at `http://localhost:5173` and automatically connects to the **staging** Firebase project.
+
+---
+
+## Environment variables
+
+Create a `.env.local` file in the project root (this file is gitignored — never commit it):
+
+```
+VITE_GEMINI_KEY=your_gemini_api_key_here
+```
+
+Get the Gemini API key from the team lead. The Firebase config is hardcoded in `src/lib/firebase.js` — no env vars needed for Firebase.
+
+### How staging vs production is selected
+
+The app picks the Firebase project automatically based on the URL:
+- `localhost` or `placement-mgmt-staging` in the URL → uses staging Firebase
+- Any other domain (e.g. `iiftd-pc.web.app`) → uses production Firebase
+
+You don't need to set anything manually.
+
+---
+
+## Firebase projects
+
+| Project | ID | Used for |
+|---|---|---|
+| Production | `placement-management-6133f` | Live data |
+| Staging | `placement-mgmt-staging` | Testing |
+
+Both projects have separate Firestore databases, Storage buckets, and Auth users. Changes in staging never affect production.
+
+---
+
+## GitHub Actions secrets (for new repo admins)
+
+The CI/CD pipeline requires three secrets set in **GitHub → Settings → Secrets and variables → Actions**:
+
+| Secret | What it is |
 |---|---|
-| **Dashboard** | Live stats — total, active, placed, avg CAT %ile, gender/category breakdown |
-| **Roster** | Filter by CAT %ile, work ex, category, gender, PWD. Sort any column. Import CSV. One-click "Mark Placed" |
-| **Placed** | Separate record of placed students with company + date. Unplace if needed |
-| **Column Remapper** | Paste company headers → auto-map to your fields → export CSV in their format. Save templates per company |
+| `FIREBASE_SERVICE_ACCOUNT_PRODUCTION` | Service account JSON from the production Firebase project |
+| `FIREBASE_SERVICE_ACCOUNT_STAGING` | Service account JSON from the staging Firebase project |
+| `VITE_GEMINI_KEY` | The Gemini API key |
+
+To get a service account JSON:
+1. Firebase Console → select the project → gear icon → **Project Settings**
+2. **Service accounts** tab → **Generate new private key**
+3. Copy the entire contents of the downloaded JSON file into the secret
 
 ---
 
-## Step 1 — Create Firebase Project
+## Rolling back a bad deploy
 
-1. Go to [console.firebase.google.com](https://console.firebase.google.com)
-2. Click **Add project** → name it (e.g. `placement-iift-2027`) → Continue
-3. Disable Google Analytics (not needed) → **Create project**
+### Option 1 — Firebase instant rollback (fastest, no code change)
+1. Go to [Firebase Console → Hosting](https://console.firebase.google.com/project/placement-management-6133f/hosting/sites)
+2. Click **Release history**
+3. Find the last good version → click the three dots → **Rollback**
 
----
+Live within seconds.
 
-## Step 2 — Enable Firestore
-
-1. In the left sidebar → **Firestore Database** → **Create database**
-2. Choose **Start in production mode** → Next
-3. Select region: **asia-south1 (Mumbai)** → **Enable**
-
----
-
-## Step 3 — Enable Google Auth
-
-1. Left sidebar → **Authentication** → **Get started**
-2. Sign-in method tab → **Google** → Enable → add your institute email as support email → **Save**
-
-### Restrict to your team only (recommended)
-
-After enabling Google Auth, go to **Authentication → Settings → Authorized domains** and add your domain.
-
-To restrict to specific emails, update `firestore.rules`:
-
-```
-allow read, write: if request.auth != null
-  && request.auth.token.email in [
-    'yourname@iift.edu',
-    'colleague@iift.edu'
-  ];
-```
-
----
-
-## Step 4 — Get your Firebase config
-
-1. Project Overview → click the **</>** (Web) icon → Register app
-2. Name: `placement-web` → **Register app**
-3. Copy the `firebaseConfig` object shown
-
-Open `src/lib/firebase.js` and replace the placeholder values:
-
-```js
-const firebaseConfig = {
-  apiKey: "AIza...",
-  authDomain: "your-project.firebaseapp.com",
-  projectId: "your-project-id",
-  storageBucket: "your-project.appspot.com",
-  messagingSenderId: "123456789",
-  appId: "1:123456789:web:abc123"
-}
-```
-
----
-
-## Step 5 — Add your domain to Authorized Domains
-
-1. Firebase Console → **Authentication** → **Settings** → **Authorized domains**
-2. Your Firebase Hosting domain (`your-project.web.app`) is added automatically after deploy
-3. If using a custom domain, add it here too
-
----
-
-## Step 6 — Install Firebase CLI & Deploy
-
+### Option 2 — Git revert (leaves a clean history)
 ```bash
-# Install Firebase CLI globally
-npm install -g firebase-tools
+# Find the bad commit hash
+git log --oneline
 
-# Login
-firebase login
+# Revert it
+git revert <commit-hash>
 
-# In the project folder
-cd placement-mgmt
-
-# Initialize (select Hosting + Firestore)
-firebase init
-
-# When prompted:
-# - Use existing project → select the one you created
-# - Public directory → dist
-# - Single-page app → Yes
-# - Auto-builds → No
-# - Overwrite dist/index.html → No
-
-# Build the app
-npm run build
-
-# Deploy
-firebase deploy
-```
-
-Your app will be live at `https://your-project-id.web.app`
-
----
-
-## Step 7 — Deploy Firestore rules
-
-```bash
-firebase deploy --only firestore:rules
+# Push to main — CI will redeploy automatically
+git push origin main
 ```
 
 ---
 
-## Importing your batch data
+## Roles and access
 
-1. Open your Google Sheet
-2. **File → Download → Comma Separated Values (.csv)**
-3. Open the app → **Roster** → **Import CSV**
+Roles are managed in the **Admin** page inside the app. There are four roles:
 
-The app reads all 130 columns automatically. Nothing is lost — it stores the full raw row.
+| Role | What they can do |
+|---|---|
+| **Master Admin** | Everything. Can manage roles, approve changes, delete cohorts. Only one person. |
+| **Admin** | Can propose and approve changes (import students, place, delete). |
+| **Committee** | Can propose changes but cannot approve their own — needs a second admin. |
+| **Viewer** | Read-only access. |
 
----
-
-## Day-to-day workflow
-
-### When a company sends their column format:
-1. Go to **Column Remapper**
-2. Paste their header row
-3. Click **Auto-map** — it fuzzy-matches ~80% automatically
-4. Fix the remaining manually
-5. **Save as Template** with the company name
-6. **Export Active** → send to company
-
-### When a student gets placed:
-1. Go to **Roster** → find the student → click **✓ Place**
-2. Enter the company name → **Confirm**
-3. Student moves to **Placed** tab automatically
-
-### For the placed sheet:
-- Go to **Placed** → **Export Placed Sheet**
-- Opens as a CSV with company + date columns appended
+The master admin email is set in `src/lib/roleConfig.js`. Admins and pre-seeded viewers are also listed there.
 
 ---
 
-## Re-deploying after changes
-
-```bash
-npm run build
-firebase deploy --only hosting
-```
-
----
-
-## Folder structure
+## Project structure
 
 ```
 placement-mgmt/
+├── .github/workflows/
+│   ├── deploy-production.yml   ← Runs on push to main
+│   ├── deploy-staging.yml      ← Runs on push to staging branch
+│   └── preview.yml             ← Runs on pull requests
+├── functions/
+│   └── index.js                ← Firebase Cloud Functions (Push to Sheets, etc.)
 ├── src/
 │   ├── lib/
-│   │   ├── firebase.js        ← PUT YOUR CONFIG HERE
-│   │   ├── columns.js         ← All 130 column definitions + synonym map
-│   │   ├── useStudents.js     ← Firestore hooks
-│   │   ├── csv.js             ← Import/export logic
-│   │   └── AuthContext.jsx    ← Google auth
+│   │   ├── firebase.js         ← Firebase config + project selection logic
+│   │   ├── roleConfig.js       ← Admin/viewer email lists
+│   │   ├── AuthContext.jsx     ← Auth state + role loading
+│   │   ├── BatchContext.jsx    ← Active cohort state
+│   │   ├── PendingChangesContext.jsx  ← Proposal/approval workflow
+│   │   ├── gemini.js           ← AI parsing for opportunities
+│   │   └── useOpportunities.js ← Opportunity CRUD
 │   ├── components/
-│   │   ├── Layout.jsx         ← Sidebar + nav
-│   │   └── UI.jsx             ← Shared components
+│   │   ├── Layout.jsx          ← Sidebar + nav shell
+│   │   └── UI.jsx              ← Shared UI components
 │   ├── pages/
-│   │   ├── LoginPage.jsx
-│   │   ├── DashboardPage.jsx
-│   │   ├── RosterPage.jsx
-│   │   └── RemapperPage.jsx
-│   │   └── PlacedPage.jsx
+│   │   ├── AdminPage.jsx       ← Role management, cohort management
+│   │   ├── DashboardPage.jsx   ← Stats overview
+│   │   ├── RosterPage.jsx      ← Student list + filters
+│   │   ├── ActivityPage.jsx    ← Opportunities tracker
+│   │   ├── PlacedPage.jsx      ← Placed students
+│   │   ├── AnalyticsPage.jsx   ← Placement analytics
+│   │   └── ApprovalsPage.jsx   ← Pending change approvals
 │   └── main.jsx
-├── firebase.json              ← Hosting config
-├── firestore.rules            ← Security rules
-└── firestore.indexes.json     ← DB indexes
+├── firestore.rules             ← Firestore security rules
+├── storage.rules               ← Storage security rules
+├── firebase.json               ← Hosting + functions config
+└── .firebaserc                 ← Project aliases (staging/production)
 ```
 
 ---
 
-## Adding new columns later
+## Deploying Firebase rules or functions
 
-All column definitions live in `src/lib/columns.js`.
+Rules and functions are **not** deployed automatically by CI (only hosting is). To deploy them manually:
 
-To add a new field:
-1. Add an entry to `OUR_COLS` array with a key, label, and path function
-2. Add synonyms to `SYNONYMS` so auto-mapping picks it up
-3. Run `npm run build && firebase deploy --only hosting`
+```bash
+# Deploy Firestore + Storage rules
+firebase deploy --only firestore:rules,storage -P production
+
+# Deploy Cloud Functions
+firebase deploy --only functions -P production
+
+# Deploy everything
+firebase deploy -P production
+```
+
+Always deploy rules to staging first and test before doing production.
 
 ---
 
-## Costs
+## Common tasks
 
-Firebase free tier (Spark plan) covers:
-- **Firestore**: 1GB storage, 50k reads/day, 20k writes/day — more than enough for 400 students
-- **Hosting**: 10GB/month bandwidth
-- **Auth**: Unlimited users
+### Add a new admin
+1. Ask them to sign in to the app once (so their account is created)
+2. Go to **Admin page** → find their name → change role to **Admin**
 
-You will not need to pay anything for this scale.
+### Add a new cohort
+1. Go to **Admin page** → **Cohorts** section → **New Cohort**
+2. Import students via the **Import** button on the Roster page
+
+### Update the Gemini API key
+1. Update `.env.local` locally (for dev)
+2. Update the `VITE_GEMINI_KEY` secret in GitHub (for CI builds)
+3. Push any commit to trigger a rebuild — the new key will be baked in
+
+---
+
+## Tech stack
+
+| Layer | Technology |
+|---|---|
+| Frontend | React 18 + Vite |
+| Routing | React Router v6 |
+| Database | Firebase Firestore |
+| Auth | Firebase Authentication (Google) |
+| Storage | Firebase Storage |
+| Hosting | Firebase Hosting |
+| Functions | Firebase Cloud Functions (Node.js) |
+| AI | Google Gemini API |
+| CI/CD | GitHub Actions |

@@ -29,7 +29,29 @@
       "Bash(python3 -c \"import sys; open\\('graphify-out/.graphify_python', 'w', encoding='utf-8'\\).write\\(sys.executable\\)\")",
       "Bash(git commit -m 'Ignore graphify-out/ generated directory *)",
       "Bash(D\" src/components/Layout.jsx src/lib/BatchContext.jsx | head -30)",
-      "Bash(grep -n \"yearCode\\\\|D\\\\${\\\\|availableYears\\\\|selectedYearCode\\\\|`D\" src/components/Layout.jsx src/lib/BatchContext.jsx | head -30)"
+      "Bash(grep -n \"yearCode\\\\|D\\\\${\\\\|availableYears\\\\|selectedYearCode\\\\|`D\" src/components/Layout.jsx src/lib/BatchContext.jsx | head -30)",
+      "Bash(sed -n '/^export default function PlaceModal/,/^\\) {/p' src/pages/roster/PlaceModal.jsx)",
+      "Bash(sed -n '/^export default function ColumnsModal/,/^\\) {/p' src/pages/roster/ColumnsModal.jsx)",
+      "Bash(gsutil cors *)",
+      "Bash(npx firebase-tools *)",
+      "Bash(npx --yes google-cloud-sdk-cli)",
+      "Bash(npx firebase *)",
+      "Bash(pip3 install *)",
+      "Bash(pip install *)",
+      "Bash(find ~/.config -name \"*.json\" 2>/dev/null | grep -i \"firebase\\\\|google\" | head -10)",
+      "Read(//Users/aristodemus/.config/**)",
+      "Bash(python3 -c ' *)",
+      "Bash(python3 -c \"import json; d=json.load\\(open\\('/Users/aristodemus/.config/configstore/firebase-tools.json'\\)\\); print\\(d['tokens']['refresh_token']\\)\")",
+      "Bash(gsutil -o Credentials:gs_oauth2_refresh_token=__CMDSUB_OUTPUT__ cors set /Users/aristodemus/Downloads/placement-mgmt/cors.json gs://placement-mgmt-staging.firebasestorage.app)",
+      "Bash(curl -s -X PATCH https://storage.googleapis.com/storage/v1/b/placement-mgmt-staging.firebasestorage.app?fields=cors -H 'Authorization: Bearer __TRACKED_VAR__' -H 'Content-Type: application/json' -d '{\"cors\":[{\"origin\":[\"*\"],\"method\":[\"GET\"],\"maxAgeSeconds\":3600}]}')",
+      "Bash(python3 -c \"import json; d=json.load\\(open\\('/Users/aristodemus/.config/configstore/firebase-tools.json'\\)\\); print\\(d['tokens']['access_token']\\)\")",
+      "Bash(curl -s https://storage.googleapis.com/storage/v1/b/placement-mgmt-staging.firebasestorage.app?fields=cors -H 'Authorization: Bearer __CMDSUB_OUTPUT__')",
+      "Bash(curl -s 'https://firestore.googleapis.com/v1/projects/placement-mgmt-staging/databases/\\(default\\)/documents/batches' -H 'Authorization: Bearer __CMDSUB_OUTPUT__')",
+      "Bash(curl -s https://storage.googleapis.com/storage/v1/b/placement-mgmt-staging.firebasestorage.app/o?prefix=imports/ -H 'Authorization: Bearer __CMDSUB_OUTPUT__')",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); [print\\(k,':',v\\) for k,v in d.get\\('scripts',{}\\).items\\(\\)]\")",
+      "Bash(curl -s https://iam.googleapis.com/v1/projects/placement-mgmt-staging/serviceAccounts -H 'Authorization: Bearer __CMDSUB_OUTPUT__')",
+      "Bash(curl -s https://logging.googleapis.com/v2/entries:list -H 'Authorization: Bearer __CMDSUB_OUTPUT__' -H 'Content-Type: application/json' -d '{ *)",
+      "Bash(curl -s https://run.googleapis.com/v1/projects/placement-mgmt-staging/locations/asia-south1/services/pushfilteredtosheet:getIamPolicy -H 'Authorization: Bearer __CMDSUB_OUTPUT__')"
     ]
   }
 }
