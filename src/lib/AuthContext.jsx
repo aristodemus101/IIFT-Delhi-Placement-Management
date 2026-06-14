@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import { onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth'
-import { doc, getDoc, setDoc, onSnapshot, serverTimestamp } from 'firebase/firestore'
+import { doc, getDoc, setDoc, updateDoc, onSnapshot, serverTimestamp } from 'firebase/firestore'
 import { auth, googleProvider, db } from './firebase'
-import { ADMIN_EMAILS, MASTER_ADMIN_EMAIL, TPO_EMAILS, FACULTY_COORDINATOR_EMAILS } from './roleConfig'
+import { ADMIN_EMAILS, MASTER_ADMIN_EMAILS, TPO_EMAILS, FACULTY_COORDINATOR_EMAILS } from './roleConfig'
 
 const AuthContext = createContext(null)
 
@@ -38,7 +38,7 @@ export function AuthProvider({ children }) {
             else if (FACULTY_COORDINATOR_EMAILS.includes(u.email)) assignedRole = 'faculty_coordinator'
             await setDoc(roleRef, {
               role: assignedRole,
-              isMasterAdmin: u.email === MASTER_ADMIN_EMAIL,
+              isMasterAdmin: MASTER_ADMIN_EMAILS.includes(u.email),
               email: u.email,
               displayName: u.displayName,
               photoURL: u.photoURL,
@@ -75,6 +75,10 @@ export function AuthProvider({ children }) {
   const login = () => signInWithPopup(auth, googleProvider)
   const logout = () => signOut(auth)
 
+  const toggleMasterAdmin = async (uid, value) => {
+    await updateDoc(doc(db, 'roles', uid), { isMasterAdmin: value })
+  }
+
   if (authError) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', flexDirection: 'column', gap: 12, fontFamily: 'sans-serif', padding: 24, textAlign: 'center' }}>
       <strong style={{ color: '#c0392b' }}>Firebase Auth Error</strong>
@@ -85,7 +89,7 @@ export function AuthProvider({ children }) {
 
   return (
     <AuthContext.Provider value={{
-      user, role, isMasterAdmin, login, logout,
+      user, role, isMasterAdmin, login, logout, toggleMasterAdmin,
       isAdmin:              role === 'admin',
       isCommittee:          role === 'committee',
       isViewer:             role === 'viewer',

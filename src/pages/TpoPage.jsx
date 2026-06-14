@@ -21,19 +21,34 @@ const EMPTY_FORM = {
   variableComponent: '',
   studentsPlaced:    '',
   status:            'reached_out',
-  cohort:            '',
+  cohorts:           [],
   notes:             '',
 }
 
+// Normalise legacy single-cohort entries to cohorts array
+function normaliseCohorts(e) {
+  if (e.cohorts && e.cohorts.length > 0) return e.cohorts
+  if (e.cohort) return [e.cohort]
+  return []
+}
+
 function OutreachForm({ initial, batches, onSave, onCancel, busy }) {
-  const [form, setForm] = useState({ ...EMPTY_FORM, ...initial })
+  const initCohorts = initial ? normaliseCohorts(initial) : []
+  const [form, setForm] = useState({ ...EMPTY_FORM, ...initial, cohorts: initCohorts })
   const [err, setErr] = useState('')
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
+  const toggleCohort = (batchId) => {
+    setForm(f => {
+      const cur = f.cohorts || []
+      return { ...f, cohorts: cur.includes(batchId) ? cur.filter(c => c !== batchId) : [...cur, batchId] }
+    })
+  }
+
   const handleSave = () => {
     if (!form.companyName.trim()) { setErr('Company name is required.'); return }
-    if (!form.cohort) { setErr('Cohort is required.'); return }
+    if (!form.cohorts || form.cohorts.length === 0) { setErr('At least one cohort is required.'); return }
     const ctc = parseFloat(form.ctc)
     const fixed = parseFloat(form.fixedComponent)
     if (form.ctc !== '' && isNaN(ctc)) { setErr('CTC must be a number.'); return }
@@ -48,7 +63,7 @@ function OutreachForm({ initial, batches, onSave, onCancel, busy }) {
       variableComponent: form.variableComponent !== '' ? parseFloat(form.variableComponent) : null,
       studentsPlaced:    form.studentsPlaced !== '' ? parseInt(form.studentsPlaced, 10) : null,
       status:            form.status,
-      cohort:            form.cohort,
+      cohorts:           form.cohorts,
       notes:             form.notes.trim(),
     })
   }
@@ -86,13 +101,24 @@ function OutreachForm({ initial, batches, onSave, onCancel, busy }) {
             {OUTREACH_STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
           </Select>
         </label>
-        <label style={labelStyle}>
-          Cohort *
-          <Select value={form.cohort} onChange={e => set('cohort', e.target.value)}>
-            <option value="">— select cohort —</option>
-            {batches.map(b => <option key={b.id} value={b.id}>{cohortLabel(b.id)}</option>)}
-          </Select>
-        </label>
+        <div style={labelStyle}>
+          Cohort(s) *
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 16px', padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--surface2)' }}>
+            {batches.length === 0 ? (
+              <span style={{ fontSize: 12, color: 'var(--text-3)' }}>No active cohorts</span>
+            ) : batches.map(b => (
+              <label key={b.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 400, cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={(form.cohorts || []).includes(b.id)}
+                  onChange={() => toggleCohort(b.id)}
+                  style={{ width: 14, height: 14, accentColor: 'var(--accent)', cursor: 'pointer' }}
+                />
+                {cohortLabel(b.id)}
+              </label>
+            ))}
+          </div>
+        </div>
       </div>
       <label style={labelStyle}>
         Notes
@@ -183,7 +209,7 @@ function MyOutreachView() {
                       {OUTREACH_STATUSES.find(s => s.value === e.status)?.label || e.status}
                     </Badge>
                   </td>
-                  <td style={tdStyle}>{cohortLabel(e.cohort)}</td>
+                  <td style={tdStyle}>{normaliseCohorts(e).map(c => cohortLabel(c)).join(', ') || '—'}</td>
                   <td style={{ ...tdStyle, whiteSpace: 'nowrap' }}>
                     <Btn variant="ghost" size="sm" onClick={() => setEditing(e)} style={{ padding: '2px 6px' }}><Pencil size={13} /></Btn>
                     <Btn variant="ghost" size="sm" onClick={() => handleDelete(e.id)} style={{ padding: '2px 6px', marginLeft: 4, color: 'var(--red, #dc2626)' }}><Trash2 size={13} /></Btn>
@@ -216,6 +242,51 @@ function MyOutreachView() {
 
 // ── Admin / Faculty Coordinator read-only view ────────────────────────────────
 
+function TpoSummaryCards({ entries, profiles }) {
+  // Build per-TPO stats
+  const stats = {}
+  entries.forEach(e => {
+    const uid = e.tpoUid
+    if (!stats[uid]) stats[uid] = { companies: 0, offers: 0, studentsPlaced: 0, ctcSum: 0, ctcCount: 0 }
+    stats[uid].companies += 1
+    if (e.status === 'offer_made') {
+      stats[uid].offers += 1
+      if (e.ctc != null && !isNaN(e.ctc)) { stats[uid].ctcSum += e.ctc; stats[uid].ctcCount += 1 }
+    }
+    if (e.studentsPlaced != null && !isNaN(e.studentsPlaced)) stats[uid].studentsPlaced += e.studentsPlaced
+  })
+
+  const uids = Object.keys(stats)
+  if (uids.length === 0) return null
+
+  return (
+    <div style={{ padding: '14px 24px 0', display: 'flex', gap: 12, overflowX: 'auto' }}>
+      {uids.map(uid => {
+        const s = stats[uid]
+        const profile = profiles[uid] || {}
+        const avgCtc = s.ctcCount > 0 ? (s.ctcSum / s.ctcCount).toFixed(1) : null
+        return (
+          <div key={uid} style={{
+            minWidth: 160, flexShrink: 0,
+            background: 'var(--surface)', border: '1px solid var(--border)',
+            borderRadius: 'var(--radius)', padding: '12px 16px',
+          }}>
+            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8, color: 'var(--text)' }}>
+              {profile.displayName || uid}
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text-2)', lineHeight: 1.9 }}>
+              <div>{s.companies} {s.companies === 1 ? 'company' : 'companies'}</div>
+              <div>{s.offers} {s.offers === 1 ? 'offer' : 'offers'}</div>
+              <div>{s.studentsPlaced} students placed</div>
+              {avgCtc && <div>Avg CTC: {avgCtc} LPA</div>}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 function AllOutreachView() {
   const { entries, profiles, loading } = useAllTpoOutreach()
   const { activeBatches } = useBatch()
@@ -223,7 +294,7 @@ function AllOutreachView() {
   const [statusFilter, setStatusFilter] = useState('')
 
   const filtered = entries.filter(e => {
-    if (cohortFilter && e.cohort !== cohortFilter) return false
+    if (cohortFilter && !normaliseCohorts(e).includes(cohortFilter)) return false
     if (statusFilter && e.status !== statusFilter) return false
     return true
   })
@@ -234,7 +305,9 @@ function AllOutreachView() {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <PageHeader title="TPO Outreach" subtitle="All TPO outreach entries (read-only overview)" />
 
-      <div style={{ padding: '10px 24px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', background: 'var(--surface)' }}>
+      <TpoSummaryCards entries={entries} profiles={profiles} />
+
+      <div style={{ padding: '10px 24px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', background: 'var(--surface)', marginTop: 14 }}>
         <Select value={cohortFilter} onChange={e => setCohortFilter(e.target.value)} style={{ width: 180, height: 30, fontSize: 12 }}>
           <option value="">All cohorts</option>
           {activeBatches.map(b => <option key={b.id} value={b.id}>{cohortLabel(b.id)}</option>)}
@@ -276,7 +349,7 @@ function AllOutreachView() {
                         {OUTREACH_STATUSES.find(s => s.value === e.status)?.label || e.status}
                       </Badge>
                     </td>
-                    <td style={tdStyle}>{cohortLabel(e.cohort)}</td>
+                    <td style={tdStyle}>{normaliseCohorts(e).map(c => cohortLabel(c)).join(', ') || '—'}</td>
                   </tr>
                 )
               })}

@@ -14,7 +14,7 @@ import {
   Database, Columns3, Plus, Archive, RotateCcw, Crown, Trash2, Briefcase, GraduationCap
 } from 'lucide-react'
 import {
-  collection, doc, setDoc, updateDoc, addDoc, getDoc, getDocs, query, where,
+  collection, doc, setDoc, updateDoc, getDoc, getDocs, query, where,
   serverTimestamp, writeBatch as writeBatchFn, deleteDoc,
 } from 'firebase/firestore'
 import { db } from '../lib/firebase'
@@ -26,13 +26,15 @@ function studentCohort(s) {
 
 export default function AdminPage() {
   const { roles, loading, setRole, adminCount, adminUsers } = useRoles()
-  const { user, isMasterAdmin, isAdmin } = useAuth()
+  const { user, isMasterAdmin, isAdmin, toggleMasterAdmin } = useAuth()
   const { students } = useStudents()
   const { selectedCohort, batches, activeBatches, archivedBatches, getCohortCycle, setCohortCycle } = useBatch()
   const { schemaHeaders, setSchemaHeaders } = useColumnSchema(selectedCohort || 'default')
   const { connected, sheetUrl, lastSync, syncing, authorize, syncNow } = useSheetsSync()
   const { propose } = usePendingChanges()
   const [busy, setBusy] = useState(null)
+  const [pendingRoles, setPendingRoles] = useState({})
+  const [masterAdminBusy, setMasterAdminBusy] = useState(null)
   const [syncMsg, setSyncMsg] = useState('')
   const [authBusy, setAuthBusy] = useState(false)
   const [authErr, setAuthErr] = useState('')
@@ -77,12 +79,6 @@ export default function AdminPage() {
     setFieldPerms(prev => ({ ...prev, [fieldKey]: enforced }))
   }
 
-  // Master admin transfer state
-  const [transferOpen, setTransferOpen] = useState(false)
-  const [transferTarget, setTransferTarget] = useState('')
-  const [transferBusy, setTransferBusy] = useState(false)
-  const [transferMsg, setTransferMsg] = useState('')
-
   const sorted = [...roles].sort((a, b) => {
     if (a.role === b.role) return (a.displayName || '').localeCompare(b.displayName || '')
     return a.role === 'admin' ? -1 : 1
@@ -106,10 +102,6 @@ export default function AdminPage() {
 
   const changeRole = async (member, newRole) => {
     if (newRole === member.role) return
-    if (newRole === 'admin' && adminCount >= 4) {
-      alert('Maximum 4 admins allowed (1 master + 3 regular). Demote an existing admin first.')
-      return
-    }
     if (member.role === 'admin' && newRole !== 'admin' && adminCount <= 1) {
       alert('At least one admin must remain.')
       return
@@ -117,6 +109,13 @@ export default function AdminPage() {
     setBusy(member.uid)
     try { await setRole(member.uid, newRole) } catch (e) { alert(e.message) }
     setBusy(null)
+  }
+
+  const handleToggleMasterAdmin = async (member) => {
+    const newVal = !member.isMasterAdmin
+    setMasterAdminBusy(member.uid)
+    try { await toggleMasterAdmin(member.uid, newVal) } catch (e) { alert(e.message) }
+    setMasterAdminBusy(null)
   }
 
   const openSchemaEditor = () => {
@@ -231,34 +230,6 @@ export default function AdminPage() {
     setCohortBusy(false)
   }
 
-  const handleTransferMasterAdmin = async () => {
-    if (!transferTarget) return
-    const target = roles.find(r => r.uid === transferTarget)
-    if (!target) return
-    if (!window.confirm(`Transfer Master Admin to ${target.displayName || target.email}?\n\nYou will immediately lose master admin privileges. This cannot be undone without database access.`)) return
-
-    setTransferBusy(true); setTransferMsg('')
-    try {
-      const wb = writeBatchFn(db)
-      wb.update(doc(db, 'roles', user.uid), { isMasterAdmin: false })
-      wb.update(doc(db, 'roles', transferTarget), { isMasterAdmin: true, role: 'admin' })
-      await wb.commit()
-      await addDoc(collection(db, 'auditLog'), {
-        type: 'master_admin_transfer',
-        fromUid: user.uid,
-        fromName: user.displayName,
-        toUid: transferTarget,
-        toName: target.displayName || target.email,
-        transferredAt: serverTimestamp(),
-      })
-      setTransferMsg('Master admin transferred successfully.')
-      setTransferOpen(false)
-    } catch (e) {
-      setTransferMsg('Error: ' + e.message)
-    }
-    setTransferBusy(false)
-  }
-
   const studentCountForCohort = (cohortId) => students.filter(s => studentCohort(s) === cohortId).length
 
   if (loading) return <Spinner />
@@ -284,7 +255,7 @@ export default function AdminPage() {
             <strong>Admin</strong> users can propose changes (place, delete, import) and approve proposals
             made by <em>other</em> admins — no admin can approve their own change.&nbsp;
             <strong>Viewer</strong> users have read-only access: view and download only, no edits.&nbsp;
-            Maximum <strong>1 master + 3 regular admins</strong>.
+            <strong>Master Admin</strong> status can be toggled per admin using the crown icon.
           </div>
         </div>
 
@@ -294,7 +265,7 @@ export default function AdminPage() {
         }}>
           <div style={{
             padding: '10px 16px', background: 'var(--surface2)', borderBottom: '1px solid var(--border)',
-            display: 'grid', gridTemplateColumns: '1fr 180px 120px 100px',
+            display: 'grid', gridTemplateColumns: '1fr 180px 120px 160px',
             fontSize: 11, fontWeight: 600, color: 'var(--text-3)',
             textTransform: 'uppercase', letterSpacing: '0.04em',
           }}>
@@ -306,9 +277,11 @@ export default function AdminPage() {
 
           {sorted.map((m, i) => {
             const isSelf = m.uid === user?.uid
+            const pendingRole = pendingRoles[m.uid]
+            const hasPendingChange = pendingRole !== undefined && pendingRole !== m.role
             return (
               <div key={m.uid} style={{
-                display: 'grid', gridTemplateColumns: '1fr 180px 120px 100px',
+                display: 'grid', gridTemplateColumns: '1fr 180px 120px 160px',
                 padding: '12px 16px', alignItems: 'center',
                 borderBottom: i < sorted.length - 1 ? '1px solid var(--border)' : 'none',
                 background: isSelf ? 'var(--surface2)' : 'transparent',
@@ -322,7 +295,24 @@ export default function AdminPage() {
                     </div>
                   )}
                   <div>
-                    <div style={{ fontSize: 13, fontWeight: 500 }}>{m.displayName || '(no name)'}</div>
+                    <div style={{ fontSize: 13, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {m.displayName || '(no name)'}
+                      {isMasterAdmin && !isSelf && m.role === 'admin' && (
+                        <button
+                          onClick={() => handleToggleMasterAdmin(m)}
+                          disabled={masterAdminBusy === m.uid}
+                          title={m.isMasterAdmin ? 'Remove master admin' : 'Grant master admin'}
+                          style={{
+                            background: 'none', border: 'none', cursor: 'pointer', padding: '1px 3px',
+                            color: m.isMasterAdmin ? 'var(--amber-text)' : 'var(--text-3)',
+                            opacity: masterAdminBusy === m.uid ? 0.5 : 1,
+                            display: 'inline-flex', alignItems: 'center',
+                          }}
+                        >
+                          <Crown size={13} />
+                        </button>
+                      )}
+                    </div>
                     {isSelf && <div style={{ fontSize: 11, color: 'var(--text-3)' }}>You</div>}
                     {m.isMasterAdmin && <div style={{ fontSize: 11, color: 'var(--amber-text)' }}>Master Admin</div>}
                   </div>
@@ -348,22 +338,37 @@ export default function AdminPage() {
                   </Badge>
                 </div>
 
-                <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   {isSelf || !isMasterAdmin ? (
                     <span style={{ fontSize: 12, color: 'var(--text-3)' }}>—</span>
                   ) : (
-                    <select
-                      value={m.role || 'viewer'}
-                      disabled={busy === m.uid}
-                      onChange={e => changeRole(m, e.target.value)}
-                      style={{
-                        height: 28, padding: '0 8px', border: '1px solid var(--border)',
-                        borderRadius: 'var(--radius-sm)', background: 'var(--surface)',
-                        color: 'var(--text)', fontSize: 12, cursor: 'pointer',
-                      }}
-                    >
-                      {ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
-                    </select>
+                    <>
+                      <select
+                        value={pendingRoles[m.uid] ?? m.role ?? 'viewer'}
+                        disabled={busy === m.uid}
+                        onChange={e => setPendingRoles(p => ({ ...p, [m.uid]: e.target.value }))}
+                        style={{
+                          height: 28, padding: '0 8px', border: '1px solid var(--border)',
+                          borderRadius: 'var(--radius-sm)', background: 'var(--surface)',
+                          color: 'var(--text)', fontSize: 12, cursor: 'pointer',
+                        }}
+                      >
+                        {ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+                      </select>
+                      {hasPendingChange && (
+                        <Btn
+                          size="sm"
+                          variant="primary"
+                          disabled={busy === m.uid}
+                          onClick={async () => {
+                            await changeRole(m, pendingRoles[m.uid])
+                            setPendingRoles(p => { const n = { ...p }; delete n[m.uid]; return n })
+                          }}
+                        >
+                          {busy === m.uid ? 'Saving…' : 'Save'}
+                        </Btn>
+                      )}
+                    </>
                   )}
                 </div>
               </div>
@@ -379,7 +384,7 @@ export default function AdminPage() {
 
         <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 14, fontSize: 12, color: 'var(--text-3)' }}>
           <AlertTriangle size={12} />
-          Admin count: {adminCount}/4 (1 master + 3 regular) · Members appear here automatically after their first login.
+          Admin count: {adminCount} · Members appear here automatically after their first login. · Master admin can be toggled per admin using the <Crown size={11} style={{ display: 'inline', verticalAlign: 'middle' }} /> icon.
         </div>
 
         {/* ── Field Visibility ───────────────────────────────────────────── */}
@@ -652,26 +657,17 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* ── Master Admin Transfer ────────────────────────────────────── */}
+        {/* ── Master Admin note ────────────────────────────────────────── */}
         {isMasterAdmin && (
           <div style={{ marginTop: 32, marginBottom: 20 }}>
-            <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>Master Admin Transfer</h2>
-            <p style={{ fontSize: 13, color: 'var(--text-2)', marginBottom: 12 }}>
-              Transfer your master admin privileges to another admin. This is immediate and cannot be undone without database access.
-            </p>
-            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '16px 18px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, marginBottom: 10, color: 'var(--amber-text)' }}>
+            <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>Master Admin</h2>
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '16px 18px', fontSize: 13, color: 'var(--text-2)', lineHeight: 1.7 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, color: 'var(--amber-text)' }}>
                 <Crown size={14} />
-                Current master admin: <strong>{user?.displayName}</strong>
+                <strong>You are a Master Admin.</strong>
               </div>
-              {transferMsg && (
-                <div style={{ fontSize: 13, color: transferMsg.startsWith('Error') ? 'var(--red-text)' : 'var(--green-text)', marginBottom: 10 }}>
-                  {transferMsg}
-                </div>
-              )}
-              <Btn variant="ghost" onClick={() => { setTransferTarget(''); setTransferOpen(true) }}>
-                Transfer Master Admin…
-              </Btn>
+              Master admin status can be toggled per admin using the <Crown size={12} style={{ display: 'inline', verticalAlign: 'middle', color: 'var(--amber-text)' }} /> crown icon next to each admin's name in the table above.
+              Multiple master admins are supported. Master admins can manage all roles and toggle master admin status for other admins.
             </div>
           </div>
         )}
@@ -741,45 +737,6 @@ export default function AdminPage() {
         </div>
       </Modal>
 
-      {/* Master Admin Transfer Modal */}
-      <Modal open={transferOpen} onClose={() => setTransferOpen(false)} title="Transfer Master Admin" width={480}>
-        <div style={{ display: 'grid', gap: 16 }}>
-          <div style={{ display: 'flex', gap: 10, background: 'var(--amber-bg)', border: '1px solid var(--amber)', borderRadius: 'var(--radius-sm)', padding: '12px 14px', fontSize: 13, color: 'var(--amber-text)' }}>
-            <AlertTriangle size={16} style={{ flexShrink: 0, marginTop: 1 }} />
-            <div>
-              This is immediate and cannot be undone from the UI. Only transfer to someone you trust completely.
-            </div>
-          </div>
-          <div>
-            <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Transfer to admin</label>
-            <select
-              value={transferTarget}
-              onChange={e => setTransferTarget(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '8px 10px',
-                borderRadius: 'var(--radius-sm)',
-                border: '1px solid var(--border)',
-                background: 'var(--surface)',
-                color: 'var(--text)',
-                fontSize: 13,
-                fontFamily: 'var(--font-sans)',
-              }}
-            >
-              <option value="">Select an admin…</option>
-              {adminUsers.filter(a => a.uid !== user?.uid).map(a => (
-                <option key={a.uid} value={a.uid}>{a.displayName || a.email}</option>
-              ))}
-            </select>
-          </div>
-          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-            <Btn onClick={() => setTransferOpen(false)}>Cancel</Btn>
-            <Btn variant="danger" onClick={handleTransferMasterAdmin} disabled={!transferTarget || transferBusy}>
-              <Crown size={13} /> Transfer Master Admin
-            </Btn>
-          </div>
-        </div>
-      </Modal>
     </div>
   )
 }

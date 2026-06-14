@@ -46,12 +46,26 @@ function LoginRoute() {
   return <LoginPage />
 }
 
+function roleHome(role) {
+  if (role === 'tpo') return '/tpo'
+  if (role === 'faculty_coordinator') return '/analytics'
+  return '/'
+}
+
 function PageGate({ page, children }) {
   const { role } = useAuth()
   const { canAccessPage } = usePermissions()
   if (!role) return <FullSpinner />
-  if (!canAccessPage(page)) return <Navigate to="/" replace />
+  if (!canAccessPage(page)) return <Navigate to={roleHome(role)} replace />
   return children
+}
+
+function RoleHome() {
+  const { role } = useAuth()
+  if (!role) return <FullSpinner />
+  if (role === 'tpo') return <Navigate to="/tpo" replace />
+  if (role === 'faculty_coordinator') return <Navigate to="/analytics" replace />
+  return <DashboardPage />
 }
 
 function AppRoutes() {
@@ -59,7 +73,7 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={<LoginRoute />} />
       <Route path="/" element={<AuthGate><BatchProvider><SheetsSyncProvider><PendingChangesProvider><Layout /></PendingChangesProvider></SheetsSyncProvider></BatchProvider></AuthGate>}>
-        <Route index                element={<DashboardPage />} />
+        <Route index                element={<RoleHome />} />
         <Route path="roster"        element={<RosterPage />} />
         <Route path="placed"        element={<PageGate page="placed"><PlacedPage /></PageGate>} />
         <Route path="remapper"      element={<RemapperPage />} />
