@@ -33,7 +33,8 @@ export function AuthProvider({ children }) {
           // First login: seed the role doc
           if (!roleSnap.exists()) {
             let assignedRole = 'viewer'
-            if (ADMIN_EMAILS.includes(u.email)) assignedRole = 'admin'
+            if (MASTER_ADMIN_EMAILS.includes(u.email)) assignedRole = 'admin'
+            else if (ADMIN_EMAILS.includes(u.email)) assignedRole = 'admin'
             else if (TPO_EMAILS.includes(u.email)) assignedRole = 'tpo'
             else if (FACULTY_COORDINATOR_EMAILS.includes(u.email)) assignedRole = 'faculty_coordinator'
             await setDoc(roleRef, {

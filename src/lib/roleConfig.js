@@ -3,14 +3,12 @@
 export const MASTER_ADMIN_EMAILS = [
   'jay_d27@iift.edu',
   'divyaansh_d27@iift.edu',
+  'divyaanshmehta513@gmail.com'
 ]
 
 // Admins (including master): can propose + approve changes.
 export const ADMIN_EMAILS = [
-  'divyaanshmehta513@gmail.com',
-  'jay_d27@iift.edu',
   'basil_d27@iift.edu',
-  'divyaansh_d27@iift.edu',
 ]
 
 // TPOs: can log in and enter their own company outreach data.
