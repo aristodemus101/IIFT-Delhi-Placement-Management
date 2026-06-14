@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react'
 import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth'
-import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore'
-import { auth, db } from './firebase'
-import { getOrCreateSpreadsheet, appendChangeLog, syncFullSnapshot, pushPlayground, createOpportunityTracker, addTrackerTab } from './sheetsSync'
+import { doc, setDoc, onSnapshot } from 'firebase/firestore'
+import { auth, db, callPushFilteredToSheet } from './firebase'
+import { getOrCreateSpreadsheet, appendChangeLog, syncFullSnapshot, createOpportunityTracker, addTrackerTab } from './sheetsSync'
 
 const SheetsSyncContext = createContext(null)
 
@@ -69,24 +69,25 @@ export function SheetsSyncProvider({ children }) {
     }
   }, [token, sheetId])
 
-  const pushToPlayground = useCallback(async (students) => {
-    if (!token) throw new Error('Not connected to Google Sheets — reconnect in Team Access first.')
+  // pushToPlayground — now uses Cloud Function + service account (no OAuth needed)
+  // rows/headers are passed in from the caller (filtered roster view)
+  const pushToPlayground = useCallback(async ({ rows, headers, label }) => {
     setPlaygroundPushing(true)
     try {
-      const result = await pushPlayground(token, students)
-      // Save URL to Firestore so every user's "Open Playground" button updates live
+      const result = await callPushFilteredToSheet({ rows, headers, label })
+      const { tabName, sheetUrl, rowCount } = result.data
       await setDoc(doc(db, 'config', 'playground'), {
-        sheetUrl: result.sheetUrl,
-        sheetId: result.sheetId,
+        sheetUrl,
+        tabName,
         pushedAt: new Date().toISOString(),
-        count: result.count,
+        count: rowCount,
       })
-      setPlaygroundUrl(result.sheetUrl)
-      return result
+      setPlaygroundUrl(sheetUrl)
+      return { sheetUrl, tabName, count: rowCount }
     } finally {
       setPlaygroundPushing(false)
     }
-  }, [token])
+  }, [])
 
   // Creates a new Google Sheet for an opportunity with one tracker tab.
   // stageConfig: { sheetTitle: 'EOI', colHeader: 'Filled EOI' }
@@ -104,7 +105,7 @@ export function SheetsSyncProvider({ children }) {
 
   return (
     <SheetsSyncContext.Provider value={{
-      connected: !!token,
+      connected: !!token, // still used for change-log sheet connection
       sheetUrl: sheetId ? `https://docs.google.com/spreadsheets/d/${sheetId}` : null,
       lastSync,
       syncing,

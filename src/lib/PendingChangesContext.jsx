@@ -374,6 +374,7 @@ function normalizePlacementDetails(change) {
     company: String(raw.company || change?.company || '').trim(),
     role: String(raw.role || '').trim(),
     sector: String(raw.sector || '').trim(),
+    location: String(raw.location || '').trim(),
     package: String(raw.package || '').trim(),
     ctcNotes: String(raw.ctcNotes || '').trim(),
     via: String(raw.via || '').trim(),

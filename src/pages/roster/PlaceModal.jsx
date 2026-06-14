@@ -12,6 +12,22 @@ const VIA_OPTIONS = [
   'Other',
 ]
 
+const SECTOR_OPTIONS = [
+  'Automotive',
+  'Banking & Financial Services',
+  'Consulting & Professional Services',
+  'FMCG & Consumer Products',
+  'Industrial, Manufacturing & Conglomerates',
+  'Leadership Programmes & Others',
+  'Logistics, Trade & Supply Chain',
+  'Pharma, Healthcare & Life Sciences',
+  'Real Estate & Infrastructure',
+  'Retail, Lifestyle & E-Commerce',
+  'Technology & Telecom',
+]
+
+const LOCATION_OPTIONS = ['Domestic', 'International']
+
 export default function PlaceModal({ student, season, setSeason, cohortCycle, form, setForm, onClose, onSubmit, busy }) {
   if (!student) return null
 
@@ -79,13 +95,25 @@ export default function PlaceModal({ student, season, setSeason, cohortCycle, fo
             </div>
             <div>
               <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Company sector</label>
-              <Input value={form.sector} onChange={e => setForm(f => ({ ...f, sector: e.target.value }))} placeholder="Consulting / FMCG / BFSI" style={{ width: '100%' }} />
+              <Select value={form.sector} onChange={e => setForm(f => ({ ...f, sector: e.target.value }))} style={{ width: '100%' }}>
+                <option value="">Select sector…</option>
+                {SECTOR_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+              </Select>
             </div>
           </div>
 
-          <div>
-            <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Package</label>
-            <Input value={form.package} onChange={e => setForm(f => ({ ...f, package: e.target.value }))} placeholder="e.g. 32 LPA" style={{ width: '100%' }} />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div>
+              <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Package</label>
+              <Input value={form.package} onChange={e => setForm(f => ({ ...f, package: e.target.value }))} placeholder="e.g. 32 LPA" style={{ width: '100%' }} />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Location</label>
+              <Select value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} style={{ width: '100%' }}>
+                <option value="">Select…</option>
+                {LOCATION_OPTIONS.map(l => <option key={l} value={l}>{l}</option>)}
+              </Select>
+            </div>
           </div>
 
           <div>

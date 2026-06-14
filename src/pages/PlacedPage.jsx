@@ -8,11 +8,25 @@ import { getVal } from '../lib/columns'
 import { exportToCSV } from '../lib/csv'
 import { usePermissions } from '../lib/usePermissions'
 import { PageHeader, Btn, Badge, CategoryBadge, Input, Spinner, Table, Modal } from '../components/UI'
-import { Download, RotateCcw, Search, Eye, CheckCircle, Lock } from 'lucide-react'
+import { Download, RotateCcw, Search, Eye, CheckCircle, Lock, ExternalLink, BarChart2 } from 'lucide-react'
 
-// Helper to derive cohort from a student doc
+const PLACEMENT_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1uOzTID4iVhwjXuKynSICQmFDygYoQJC1N_q6QlumF68/edit'
+
 function studentCohort(s) {
   return s.cohort || 'unknown'
+}
+
+function StatCard({ label, value, sub, color }) {
+  return (
+    <div style={{
+      background: 'var(--surface)', border: '1px solid var(--border)',
+      borderRadius: 'var(--radius-sm)', padding: '12px 16px', minWidth: 130,
+    }}>
+      <div style={{ fontSize: 22, fontWeight: 700, color: color || 'var(--text)', lineHeight: 1.1 }}>{value}</div>
+      <div style={{ fontSize: 12, color: 'var(--text-2)', marginTop: 3 }}>{label}</div>
+      {sub && <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 2 }}>{sub}</div>}
+    </div>
+  )
 }
 
 export default function PlacedPage() {
@@ -39,7 +53,6 @@ export default function PlacedPage() {
   const [viewModal, setViewModal] = useState(null)
   const [successMsg, setSuccessMsg] = useState('')
 
-  // Filter by cohort, then by season's placed flag
   const placed = useMemo(() => {
     const ids = new Set(scopedCohorts)
     return students.filter(s => {
@@ -49,7 +62,11 @@ export default function PlacedPage() {
     })
   }, [students, scopedCohorts, selectedSeason])
 
-  // Get the right placement object for the selected season
+  const totalInCohort = useMemo(() => {
+    const ids = new Set(scopedCohorts)
+    return students.filter(s => ids.has(studentCohort(s))).length
+  }, [students, scopedCohorts])
+
   const getPlacement = (s) => {
     if (selectedSeason === 'summer') return s._placement_summer || {}
     return s._placement_final || {}
@@ -68,12 +85,57 @@ export default function PlacedPage() {
     )
   }, [placed, search, selectedSeason])
 
+  // Stats computed from all placed (not just filtered)
+  const stats = useMemo(() => {
+    const placements = placed.map(s => getPlacement(s))
+    const withPackage = placements.filter(p => p.package && /[\d.]/.test(p.package))
+    const parseCtc = (pkg) => {
+      const m = String(pkg).match(/[\d.]+/)
+      return m ? parseFloat(m[0]) : null
+    }
+    const ctcValues = withPackage.map(p => parseCtc(p.package)).filter(v => v !== null)
+    const avgCtc = ctcValues.length ? (ctcValues.reduce((a, b) => a + b, 0) / ctcValues.length).toFixed(1) : null
+    const maxCtc = ctcValues.length ? Math.max(...ctcValues).toFixed(1) : null
+
+    const sectorCounts = {}
+    placements.forEach(p => { if (p.sector) sectorCounts[p.sector] = (sectorCounts[p.sector] || 0) + 1 })
+    const topSector = Object.entries(sectorCounts).sort((a, b) => b[1] - a[1])[0]
+
+    const international = placements.filter(p => p.location === 'International').length
+    const placementPct = totalInCohort ? Math.round((placed.length / totalInCohort) * 100) : 0
+
+    return { avgCtc, maxCtc, topSector, international, placementPct }
+  }, [placed, selectedSeason, totalInCohort])
+
+  // Flat rows: all student fields + placement details merged together
+  const exportRows = useMemo(() => filtered.map(s => {
+    const pl = getPlacement(s)
+    // Collect all student fields (skip internal _ fields)
+    const studentFields = {}
+    Object.entries(s).forEach(([k, v]) => {
+      if (!k.startsWith('_') && k !== 'cohort') studentFields[k] = v
+    })
+    return {
+      ...studentFields,
+      cohort: studentCohort(s),
+      placement_season: seasonLabel(selectedSeason),
+      placement_company: pl.company || '',
+      placement_role: pl.role || '',
+      placement_sector: pl.sector || '',
+      placement_location: pl.location || '',
+      placement_via: pl.via || '',
+      placement_package: pl.package || '',
+      placement_ctc_notes: pl.ctcNotes || '',
+      placement_date: pl.date || '',
+    }
+  }), [filtered, selectedSeason])
+
   const flash = (msg) => { setSuccessMsg(msg); setTimeout(() => setSuccessMsg(''), 4000) }
 
   const proposeUnplace = async (s) => {
     await propose({
       type: 'unplace',
-      cohort: studentCohort(s),  // derived from the student's own doc
+      cohort: studentCohort(s),
       season: selectedSeason,
       studentId: s._id,
       studentName: getVal(s, 'name'),
@@ -83,6 +145,10 @@ export default function PlacedPage() {
     flash(`Unplace proposal for ${getVal(s, 'name')} submitted — awaiting approval.`)
   }
 
+  const canSeePlacement = fieldVisible(selectedSeason === 'summer' ? '_placement_summer' : '_placement_final')
+  const canSeeCtc = fieldVisible('ctc')
+  const canSeeStipend = fieldVisible('stipend')
+
   const headers = [
     { label: 'Roll No.' },
     { label: 'Name' },
@@ -91,20 +157,18 @@ export default function PlacedPage() {
     { label: 'Category' },
     { label: 'Work Ex' },
     { label: 'Company' },
+    { label: 'Role' },
+    { label: 'Sector' },
+    { label: 'Location' },
     ...(fieldVisible('ctc') || fieldVisible('stipend') ? [{ label: selectedSeason === 'summer' ? 'Stipend' : 'CTC' }] : []),
     { label: 'Placed On' },
     { label: 'Actions' },
   ]
 
-  const placementKey = selectedSeason === 'summer' ? '_placement_summer' : '_placement_final'
-  const canSeePlacement = fieldVisible(placementKey)
-  const canSeeCtc = fieldVisible('ctc')
-  const canSeeStipend = fieldVisible('stipend')
-
   const rows = filtered.map(s => {
+    const placement = getPlacement(s)
     const company = canSeePlacement ? getPlacedCompany(s) : '—'
     const placedAt = getPlacedAt(s)
-    const placement = getPlacement(s)
     return [
       <span style={{ fontSize: 12, color: 'var(--text-3)', fontFamily: 'var(--font-mono)' }}>{getVal(s, 'roll')}</span>,
       <span style={{ fontWeight: 500 }}>{getVal(s, 'name')}</span>,
@@ -117,11 +181,18 @@ export default function PlacedPage() {
           {company}
         </span>
       ) : <span style={{ color: 'var(--text-3)', fontSize: 12 }}>Hidden</span>,
+      <span style={{ fontSize: 12, color: 'var(--text-2)' }}>{placement.role || '—'}</span>,
+      <span style={{ fontSize: 12, color: 'var(--text-2)' }}>{placement.sector || '—'}</span>,
+      placement.location ? (
+        <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 6px', borderRadius: 20, background: placement.location === 'International' ? 'var(--accent-bg)' : 'var(--surface2)', color: placement.location === 'International' ? 'var(--accent-dark)' : 'var(--text-2)', border: `1px solid ${placement.location === 'International' ? '#BFDBFE' : 'var(--border)'}` }}>
+          {placement.location}
+        </span>
+      ) : <span style={{ color: 'var(--text-3)', fontSize: 12 }}>—</span>,
       canSeeCtc || canSeeStipend ? (
         <span style={{ fontSize: 12, color: 'var(--text-2)' }}>
           {selectedSeason === 'summer'
             ? (canSeeStipend ? placement.stipend || '—' : '—')
-            : (canSeeCtc ? placement.ctc || '—' : '—')
+            : (canSeeCtc ? placement.package || '—' : '—')
           }
         </span>
       ) : null,
@@ -147,11 +218,16 @@ export default function PlacedPage() {
         title="Placed Students"
         subtitle={`${scopedCohorts.length === 1 ? cohortLabel(scopedCohorts[0]) : `${scopedCohorts.length} cohorts`} · ${seasonLabel(selectedSeason)} · ${placed.length} student${placed.length !== 1 ? 's' : ''} placed`}
         actions={
-          <>
-            <Btn size="sm" onClick={() => exportToCSV(filtered, 'placed_students.csv')} disabled={!filtered.length} title={!filtered.length ? 'No placed records to export' : 'Export placed students'}>
-              <Download size={13} /> Export Placed Sheet
-            </Btn>
-          </>
+          isAdmin && (
+            <>
+              <Btn size="sm" variant="ghost" onClick={() => window.open(PLACEMENT_SHEET_URL, '_blank')} title="Open placement results sheet">
+                <ExternalLink size={13} /> Placement Sheet
+              </Btn>
+              <Btn size="sm" onClick={() => exportToCSV(exportRows, 'placed_students.csv')} disabled={!exportRows.length} title={!exportRows.length ? 'No placed records to export' : 'Export placed students with placement details'}>
+                <Download size={13} /> Export Placed Sheet
+              </Btn>
+            </>
+          )
         }
       />
 
@@ -172,6 +248,40 @@ export default function PlacedPage() {
           </button>
         ))}
       </div>
+
+      {/* Stats bar */}
+      {placed.length > 0 && (
+        <div style={{ padding: '14px 28px', borderBottom: '1px solid var(--border)', background: 'var(--surface2)', display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'stretch' }}>
+          <StatCard
+            label="Placed"
+            value={placed.length}
+            sub={totalInCohort ? `${stats.placementPct}% of cohort` : undefined}
+            color="var(--green-text)"
+          />
+          {stats.avgCtc && canSeeCtc && (
+            <StatCard
+              label={selectedSeason === 'summer' ? 'Avg Stipend' : 'Avg CTC'}
+              value={`${stats.avgCtc} LPA`}
+              sub={stats.maxCtc ? `Max ${stats.maxCtc} LPA` : undefined}
+            />
+          )}
+          {stats.topSector && (
+            <StatCard
+              label="Top Sector"
+              value={stats.topSector[0].split(' ')[0]}
+              sub={`${stats.topSector[1]} student${stats.topSector[1] !== 1 ? 's' : ''}`}
+            />
+          )}
+          {stats.international > 0 && (
+            <StatCard
+              label="International"
+              value={stats.international}
+              sub={`${Math.round((stats.international / placed.length) * 100)}% of placed`}
+              color="var(--accent-dark)"
+            />
+          )}
+        </div>
+      )}
 
       {!isAdmin && (
         <div style={{ margin: '12px 28px 0', padding: '9px 14px', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: 13, display: 'flex', gap: 8, alignItems: 'center', color: 'var(--text-2)' }}>
@@ -196,28 +306,45 @@ export default function PlacedPage() {
         <Table headers={headers} rows={rows} emptyMessage={placed.length ? 'No matches' : `No ${seasonLabel(selectedSeason).toLowerCase()} placements recorded yet`} />
       </div>
 
-      <Modal open={!!viewModal} onClose={() => setViewModal(null)} title={viewModal ? `${getVal(viewModal, 'name')} — ${getPlacedCompany(viewModal)}` : ''} width={480}>
+      <Modal open={!!viewModal} onClose={() => setViewModal(null)} title={viewModal ? `${getVal(viewModal, 'name')} — ${getPlacedCompany(viewModal)}` : ''} width={520}>
         {viewModal && (() => {
           const pl = getPlacement(viewModal)
           return (
-            <div style={{ display: 'grid', gap: 12 }}>
+            <div style={{ display: 'grid', gap: 0 }}>
+              {/* Student profile */}
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Student Profile</div>
               {[
                 ['Roll No.', getVal(viewModal, 'roll')],
+                ['Gender', getVal(viewModal, 'gender')],
                 ['CAT Percentile', getVal(viewModal, 'cat')],
                 ['Category', getVal(viewModal, 'category')],
                 ['Work Experience', `${getVal(viewModal, 'wx')} months`],
                 ['UG Degree', `${getVal(viewModal, 'ug')} — ${getVal(viewModal, 'ugpct')}%`],
                 ['Class X', `${getVal(viewModal, 'x10pct')}%`],
                 ['Class XII', `${getVal(viewModal, 'x12pct')}%`],
-                ['Season', seasonLabel(selectedSeason)],
-                ['Company', pl.company || '—'],
-                ['Role', pl.role || '—'],
-                ['Package', pl.package || '—'],
-                ['Placed On', pl.placedAtIso ? new Date(pl.placedAtIso).toLocaleDateString('en-IN') : '—'],
               ].map(([k, v]) => (
-                <div key={k} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>
+                <div key={k} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
                   <span style={{ color: 'var(--text-2)' }}>{k}</span>
                   <span style={{ fontWeight: 500 }}>{v || '—'}</span>
+                </div>
+              ))}
+
+              {/* Placement details */}
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 16, marginBottom: 8 }}>Placement Details</div>
+              {[
+                ['Season', seasonLabel(selectedSeason)],
+                ['Company', pl.company],
+                ['Role', pl.role],
+                ['Sector', pl.sector],
+                ['Location', pl.location],
+                ['Placed via', pl.via],
+                canSeeCtc || canSeeStipend ? [selectedSeason === 'summer' ? 'Stipend' : 'Package', selectedSeason === 'summer' ? pl.stipend : pl.package] : null,
+                (canSeeCtc || canSeeStipend) && pl.ctcNotes ? ['CTC Notes', pl.ctcNotes] : null,
+                ['Placed On', pl.placedAtIso ? new Date(pl.placedAtIso).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }) : null],
+              ].filter(Boolean).map(([k, v]) => (
+                <div key={k} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
+                  <span style={{ color: 'var(--text-2)' }}>{k}</span>
+                  <span style={{ fontWeight: 500, textAlign: 'right', maxWidth: 280 }}>{v || '—'}</span>
                 </div>
               ))}
             </div>

@@ -18,14 +18,14 @@ import {
   Spinner, Modal, Table
 } from '../components/UI'
 import {
-  Upload, Download, CheckCircle, Trash2, Eye, AlertTriangle, Search, Lock, ExternalLink, Sheet
+  Upload, Download, CheckCircle, Trash2, Eye, Search, Lock, ExternalLink, Sheet
 } from 'lucide-react'
 
 const NUMERIC = ['cat', 'wx', 'ugpct', 'x10pct', 'x12pct', 'age', 'cat_score']
 
 const newPlacementForm = () => ({
   date: new Date().toISOString().slice(0, 10),
-  company: '', role: '', sector: '', package: '', ctcNotes: '', via: '',
+  company: '', role: '', sector: '', package: '', ctcNotes: '', via: '', location: '',
 })
 
 function studentCohort(s) { return s.cohort || 'unknown' }
@@ -45,7 +45,6 @@ export default function RosterPage() {
   const [placementForm, setPlacementForm] = useState(newPlacementForm)
   const [viewModal, setViewModal]         = useState(null)
   const [rowMenu, setRowMenu]             = useState(null)
-  const [confirmClear, setConfirmClear]   = useState(false)
   const [columnsOpen, setColumnsOpen]     = useState(false)
   const [actionsOpen, setActionsOpen]     = useState(false)
   const [exportOpen, setExportOpen]       = useState(false)
@@ -221,9 +220,7 @@ export default function RosterPage() {
         <Btn size="sm" variant="ghost" onClick={() => setExportOpen(true)} disabled={!exportRows.length} title={!exportRows.length ? 'No rows to export' : 'Download filtered data'}>
           <Download size={13} /> Export
         </Btn>
-        {isAdmin && (
-          <Btn size="sm" variant="ghost" onClick={() => setActionsOpen(true)}>Actions</Btn>
-        )}
+        <Btn size="sm" variant="ghost" onClick={() => setActionsOpen(true)}>Actions</Btn>
         {isAdmin && (
           <Btn size="sm" variant="primary" onClick={() => { setImportStep(1); setImportFile(null); setImportParsed(null); setImportMsg(''); if (fileRef.current) fileRef.current.value = ''; setImportModalOpen(true) }} disabled={importing}>
             <Upload size={13} /> {importing ? 'Importing…' : 'Import File'}
@@ -239,9 +236,16 @@ export default function RosterPage() {
   const handlePushPlayground = async () => {
     setPlaygroundMsg('')
     try {
-      const { count } = await pushToPlayground(scopedStudents)
-      setPlaygroundMsg(`${count} ${selectedCohort} cohort students pushed to playground sheet.`)
-      setTimeout(() => setPlaygroundMsg(''), 5000)
+      const now = new Date()
+      const dateStr = now.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', timeZone: 'Asia/Kolkata' })
+      // Label reflects what's actually visible: cohort scope + row count
+      const cohortPart = scopedCohorts.length === 1 ? scopedCohorts[0] : `${scopedCohorts.length} cohorts`
+      const label = `${cohortPart} · ${dateStr}`
+      const rows = exportRows.map(r => visibleDefs.map(d => r[d.label] ?? ''))
+      const headers = visibleDefs.map(d => d.label)
+      const { sheetUrl, tabName, count } = await pushToPlayground({ rows, headers, label })
+      setPlaygroundMsg(`✓ ${count} rows pushed as "${tabName}"`)
+      setTimeout(() => setPlaygroundMsg(''), 8000)
     } catch (e) { setPlaygroundMsg('Error: ' + e.message) }
   }
 
@@ -281,7 +285,7 @@ export default function RosterPage() {
       await propose({
         type: 'place', cohort: studentCohort(placeModal), season: placeSeason,
         studentId: placeModal._id, studentName: getVal(placeModal, 'name'), studentRoll: getVal(placeModal, 'roll'),
-        company, placementDetails: { date: placementDate, company, role: placementForm.role.trim(), sector: placementForm.sector.trim(), package: placementForm.package.trim(), ctcNotes: placementForm.ctcNotes.trim(), via: placementForm.via.trim(), placedAtIso },
+        company, placementDetails: { date: placementDate, company, role: placementForm.role.trim(), sector: placementForm.sector.trim(), location: placementForm.location.trim(), package: placementForm.package.trim(), ctcNotes: placementForm.ctcNotes.trim(), via: placementForm.via.trim(), placedAtIso },
       })
       flash(`Placement proposal for ${getVal(placeModal, 'name')} submitted — awaiting approval.`)
       setPlaceModal(null); setPlacementForm(newPlacementForm())
@@ -294,12 +298,6 @@ export default function RosterPage() {
     flash(`Deletion of ${getVal(s, 'name')} proposed — awaiting approval.`)
   }
 
-  const proposeClearAll = async () => {
-    if (!hasStudents) { setImportMsg('No students to clear.'); return }
-    await propose({ type: 'clearAll', cohort: selectedCohort, studentIds: scopedStudents.map(s => s._id), studentCount: scopedStudents.length })
-    flash(`Clear-all for ${cohortLabel(selectedCohort)} proposed — awaiting approval from another admin.`)
-    setConfirmClear(false); setActionsOpen(false)
-  }
 
   // ── Table rows ─────────────────────────────────────────────────────────────
 
@@ -480,19 +478,6 @@ export default function RosterPage() {
         )}
       </Modal>
 
-      {/* Confirm Clear All */}
-      <Modal open={confirmClear} onClose={() => setConfirmClear(false)} title="Propose clearing all data?">
-        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 20 }}>
-          <AlertTriangle size={18} color="var(--amber)" style={{ flexShrink: 0, marginTop: 2 }} />
-          <p style={{ fontSize: 14, color: 'var(--text-2)', lineHeight: 1.6 }}>
-            This will submit a proposal to delete all {scopedStudents.length} students from <strong>{cohortLabel(selectedCohort)}</strong>. A second admin must approve before anything is deleted.
-          </p>
-        </div>
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-          <Btn onClick={() => setConfirmClear(false)}>Cancel</Btn>
-          <Btn variant="danger" onClick={proposeClearAll} disabled={!hasStudents}><Trash2 size={13} /> Submit Proposal</Btn>
-        </div>
-      </Modal>
 
       <ColumnsModal
         open={columnsOpen} onClose={() => setColumnsOpen(false)}
@@ -513,17 +498,37 @@ export default function RosterPage() {
       </Modal>
 
       {/* Actions */}
-      <Modal open={actionsOpen} onClose={() => setActionsOpen(false)} title="Roster actions" width={560}>
-        <div style={{ display: 'grid', gap: 14 }}>
-          {playgroundUrl && <Btn variant="ghost" onClick={() => window.open(playgroundUrl, '_blank')}><ExternalLink size={13} /> Open Playground</Btn>}
-          <Btn variant="ghost" onClick={handlePushPlayground} disabled={playgroundPushing || !sheetsConnected} title={!sheetsConnected ? 'Connect Sheets in Team Access first' : 'Push current roster to playground sheet'}>
-            <Sheet size={13} /> {playgroundPushing ? 'Pushing…' : `Push ${selectedCohort || ''} to Playground`}
-          </Btn>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, color: 'var(--text-2)', padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: replaceOnImport ? 'var(--amber-bg)' : 'var(--surface2)' }}>
-            <input type="checkbox" checked={replaceOnImport} onChange={e => setReplaceOnImport(e.target.checked)} />
-            Replace existing {selectedCohort || ''} roster on next import
-          </label>
-          <Btn variant="danger" onClick={() => { setConfirmClear(true); setActionsOpen(false) }} disabled={!hasStudents}><Trash2 size={13} /> Clear All</Btn>
+      <Modal open={actionsOpen} onClose={() => setActionsOpen(false)} title="Roster actions" width={520}>
+        <div style={{ display: 'grid', gap: 10 }}>
+
+          {/* Playground section */}
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 2 }}>Playground Sheet</div>
+          <div style={{ fontSize: 13, color: 'var(--text-2)', lineHeight: 1.5, marginBottom: 4 }}>
+            Push the current filtered view as a new tab in the shared Google Sheet. Each push creates a new tab — your previous tabs are preserved.
+          </div>
+
+          {isAdmin && (
+            <Btn
+              variant="ghost"
+              onClick={async () => { await handlePushPlayground() }}
+              disabled={playgroundPushing || !exportRows.length}
+              title={!exportRows.length ? 'No rows to push' : `Push ${exportRows.length} currently visible rows`}
+            >
+              <Sheet size={13} />
+              {playgroundPushing ? 'Pushing…' : `Push ${exportRows.length} filtered rows to Playground`}
+            </Btn>
+          )}
+
+          {playgroundUrl ? (
+            <Btn variant="ghost" onClick={() => window.open(playgroundUrl, '_blank')}>
+              <ExternalLink size={13} /> Open Playground Sheet
+            </Btn>
+          ) : (
+            <div style={{ fontSize: 12, color: 'var(--text-3)', fontStyle: 'italic' }}>
+              No pushes yet — the sheet link will appear here after the first push.
+            </div>
+          )}
+
         </div>
       </Modal>
 

@@ -31,6 +31,7 @@ export default function AdminPage() {
   const { selectedCohort, batches, activeBatches, archivedBatches, getCohortCycle, setCohortCycle } = useBatch()
   const { schemaHeaders, setSchemaHeaders } = useColumnSchema(selectedCohort || 'default')
   const { connected, sheetUrl, lastSync, syncing, authorize, syncNow } = useSheetsSync()
+  const { propose } = usePendingChanges()
   const [busy, setBusy] = useState(null)
   const [syncMsg, setSyncMsg] = useState('')
   const [authBusy, setAuthBusy] = useState(false)
@@ -181,6 +182,23 @@ export default function AdminPage() {
       })
       setCohortMsg(`Cohort "${label}" ${currentlyActive ? 'archived' : 'restored'}.`)
       setTimeout(() => setCohortMsg(''), 4000)
+    } catch (e) {
+      setCohortMsg('Error: ' + e.message)
+    }
+    setCohortBusy(false)
+  }
+
+  const handleClearStudents = async (cohortId) => {
+    const label = cohortLabel(cohortId)
+    const count = students.filter(s => s.cohort === cohortId).length
+    if (!count) { setCohortMsg('No students to clear.'); return }
+    if (!window.confirm(`Clear all ${count} students from "${label}"?\n\nThe cohort itself is kept. A second admin must approve before records are deleted.`)) return
+    setCohortBusy(true); setCohortMsg('')
+    try {
+      const ids = students.filter(s => s.cohort === cohortId).map(s => s._id)
+      await propose({ type: 'clearAll', cohort: cohortId, studentIds: ids, studentCount: ids.length })
+      setCohortMsg(`Clear proposal for "${label}" submitted — awaiting approval.`)
+      setTimeout(() => setCohortMsg(''), 5000)
     } catch (e) {
       setCohortMsg('Error: ' + e.message)
     }
@@ -504,6 +522,11 @@ export default function AdminPage() {
                       {isAdmin && (
                         <Btn size="sm" variant="ghost" onClick={() => handleToggleArchiveCohort(b.id, isActive)} disabled={cohortBusy} title={isActive ? 'Archive cohort' : 'Restore cohort'}>
                           {isActive ? <Archive size={12} /> : <RotateCcw size={12} />}
+                        </Btn>
+                      )}
+                      {isAdmin && (
+                        <Btn size="sm" variant="ghost" onClick={() => handleClearStudents(b.id)} disabled={cohortBusy} title="Propose clearing all students from this cohort (requires second admin approval)">
+                          <Database size={12} /> Clear
                         </Btn>
                       )}
                       {isMasterAdmin && (

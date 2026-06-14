@@ -29,8 +29,9 @@ service cloud.firestore {
     // Direct writes by admins are allowed; the approval workflow is enforced
     // at the app layer and backed by the immutable auditLog.
     match /students/{id} {
-      allow read:  if hasRole();
-      allow write: if isAdmin() && hasValidCohort();
+      allow read:           if hasRole();
+      allow create, update: if isAdmin() && hasValidCohort();
+      allow delete:         if isAdmin();
     }
 
     // ── Pending Changes ─────────────────────────────────────────────────────

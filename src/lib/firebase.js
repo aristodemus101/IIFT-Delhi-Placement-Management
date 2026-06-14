@@ -2,6 +2,7 @@ import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
+import { getFunctions, httpsCallable } from "firebase/functions";
 
 // Production Firebase Config
 const productionConfig = {
@@ -33,4 +34,6 @@ export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 export const db = getFirestore(app);
 export const storage = getStorage(app);
+const functions = getFunctions(app, 'asia-south1');
+export const callPushFilteredToSheet = httpsCallable(functions, 'pushFilteredToSheet');
 export const ENVIRONMENT = process.env.IS_PRODUCTION ? 'production' : 'staging';
