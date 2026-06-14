@@ -7,7 +7,7 @@ import { Modal, Btn, Badge } from '../../components/UI'
 import { useStages, useApplicants, advanceStage, STAGE_TYPES } from '../../lib/useOpportunities'
 import { OPPORTUNITY_ACTIONS, ACTION_META } from '../../config/opportunityActions'
 import { generateWhatsAppMessage, parseShortlist } from '../../lib/gemini'
-import { BATCH_LABEL, STATUS_LABEL, typeColor, TypeIcon } from './OppCard'
+import { BATCH_LABEL, STATUS_LABEL, typeColor, TypeIcon, normalizeOpportunityType } from './OppCard'
 import { PasteStep, MessageStep, MessageBox, PreviewStep } from './PostModal'
 import { serverTimestamp } from 'firebase/firestore'
 import { blankOpportunity } from '../../lib/useOpportunities'
@@ -78,9 +78,10 @@ export default function DetailModal({ opp, isAdmin, user, students, sheetsConnec
 
 function InfoTab({ opp, isAdmin, setStageFlow, setEditOpen }) {
   const [showAll, setShowAll] = useState(false)
+  const displayType = normalizeOpportunityType(opp.type)
 
   const rows = [
-    { label: 'Type',          value: opp.via ? `${opp.type} · via ${opp.via}` : opp.type },
+    { label: 'Type',          value: opp.via ? `${displayType} · via ${opp.via}` : displayType },
     { label: 'Organization',  value: opp.organization },
     { label: 'Applicable to', value: BATCH_LABEL[opp.applicability] || opp.applicability },
     { label: 'Status',        value: STATUS_LABEL[opp.status] || opp.status },
@@ -101,7 +102,7 @@ function InfoTab({ opp, isAdmin, setStageFlow, setEditOpen }) {
     { label: 'Tracker',  url: opp.tracker_link },
   ].filter(l => l.url)
 
-  const configEntry    = OPPORTUNITY_ACTIONS[opp.type]
+  const configEntry    = OPPORTUNITY_ACTIONS[displayType] || OPPORTUNITY_ACTIONS[opp.type]
   const allActionKeys  = Object.keys(ACTION_META)
   const configuredKeys = configEntry?.actions || allActionKeys
   const visibleKeys    = showAll ? allActionKeys : configuredKeys
@@ -379,7 +380,7 @@ function StageFlowModal({ opp, flow, user, students, sheetsConnected, createTrac
             season,
             opportunityId: opp.id,
             opportunityTitle: opp.title || '',
-            opportunityType: opp.type || '',
+            opportunityType: normalizeOpportunityType(opp.type) || '',
             placementDetails: {
               company: opp.organization || '',
               role: s.role || '',

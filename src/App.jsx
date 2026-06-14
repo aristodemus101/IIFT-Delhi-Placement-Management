@@ -32,7 +32,7 @@ function AuthGate({ children }) {
   const { user } = useAuth()
   const location = useLocation()
   if (user === undefined) return <FullSpinner />
-  if (!user) return <Navigate to="/login" state={{ from: location }} replace />
+  if (!user) return <Navigate to="/login" state={{ from: `${location.pathname}${location.search}${location.hash}` }} replace />
   return children
 }
 
@@ -42,7 +42,7 @@ function LoginRoute() {
   // Still resolving auth — show spinner so login page doesn't flash before redirect
   if (user === undefined) return <FullSpinner />
   // Already logged in — go back to where they came from, or home
-  if (user) return <Navigate to={location.state?.from?.pathname || '/'} replace />
+  if (user) return <Navigate to={location.state?.from || '/'} replace />
   return <LoginPage />
 }
 

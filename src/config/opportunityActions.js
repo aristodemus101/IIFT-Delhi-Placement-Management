@@ -39,7 +39,7 @@
 export const OPPORTUNITY_ACTIONS = {
 
   'SIP Hiring': {
-    label: 'SIP Hiring',
+    label: 'Hiring',
     actions: [
       'generate_announcement',
       'create_eoi_tracker',
@@ -58,7 +58,7 @@ export const OPPORTUNITY_ACTIONS = {
   },
 
   'Hiring': {
-    label: 'Final Hiring',
+    label: 'Hiring',
     actions: [
       'generate_announcement',
       'create_eoi_tracker',

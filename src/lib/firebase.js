@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider } from "firebase/auth";
+import { browserLocalPersistence, getAuth, GoogleAuthProvider, setPersistence } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { getFunctions, httpsCallable } from "firebase/functions";
@@ -25,15 +25,20 @@ const stagingConfig = {
   appId: "1:285193500177:web:d260979defffde9369e3b0",
 };
 
-// Select environment — use IS_PRODUCTION (set by vite.config.js per mode) rather
-// than NODE_ENV, because Vite sets NODE_ENV='production' for ALL builds including staging.
-const firebaseConfig = process.env.IS_PRODUCTION ? productionConfig : stagingConfig;
+const currentHostname = typeof window !== 'undefined' ? window.location.hostname : ''
+const isStagingHost =
+  currentHostname === 'localhost' ||
+  currentHostname === '127.0.0.1' ||
+  currentHostname.includes('placement-mgmt-staging')
+
+const firebaseConfig = isStagingHost ? stagingConfig : productionConfig;
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
+setPersistence(auth, browserLocalPersistence).catch(() => {})
 export const googleProvider = new GoogleAuthProvider();
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 const functions = getFunctions(app, 'asia-south1');
 export const callPushFilteredToSheet = httpsCallable(functions, 'pushFilteredToSheet');
-export const ENVIRONMENT = process.env.IS_PRODUCTION ? 'production' : 'staging';
+export const ENVIRONMENT = isStagingHost ? 'staging' : 'production';

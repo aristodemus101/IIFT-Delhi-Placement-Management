@@ -19,7 +19,7 @@ export const STAGE_TYPES = {
 export function blankOpportunity() {
   return {
     title:        '',
-    type:         'SIP Hiring',          // SIP Hiring | Hiring | Live Project | Event
+    type:         'Hiring',              // Hiring | Live Project | Event
     via:          '',                    // Case Comp | PPO | Hackathon | Referral | Direct | ''
     organization: '',
     applicability:'both',                // summer | final | both

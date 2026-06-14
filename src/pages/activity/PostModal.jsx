@@ -5,6 +5,39 @@ import { postOpportunity, blankOpportunity } from '../../lib/useOpportunities'
 import { parseOpportunity, generateWhatsAppMessage } from '../../lib/gemini'
 import { TYPES, VIA_OPTIONS } from './OppCard'
 
+const VALID_APPLICABILITY = new Set(['summer', 'final', 'both'])
+
+function normalizeParsedOpportunity(result) {
+  const parsed = { ...blankOpportunity(), ...result }
+  const rawType = String(parsed.type || '').trim()
+  const lowerType = rawType.toLowerCase()
+
+  if (parsed.applicability && !VALID_APPLICABILITY.has(parsed.applicability)) {
+    parsed.applicability = 'both'
+  }
+
+  if (parsed.via && !VIA_OPTIONS.includes(parsed.via)) {
+    parsed.via = ''
+  }
+
+  if (rawType && !TYPES.includes(rawType)) {
+    if (lowerType.includes('case')) {
+      parsed.type = 'Hiring'
+      parsed.via = parsed.via || 'Case Comp'
+    } else if (lowerType.includes('live')) {
+      parsed.type = 'Live Project'
+    } else if (lowerType.includes('event')) {
+      parsed.type = 'Event'
+    } else if (lowerType.includes('intern') || lowerType.includes('sip')) {
+      parsed.type = 'Hiring'
+    } else {
+      parsed.type = 'Hiring'
+    }
+  }
+
+  return parsed
+}
+
 export default function PostModal({ user, onClose }) {
   const [step, setStep]       = useState('paste')
   const [rawText, setRawText] = useState('')
@@ -17,7 +50,7 @@ export default function PostModal({ user, onClose }) {
     setBusy(true); setErr('')
     try {
       const result = await parseOpportunity(rawText)
-      setParsed({ ...blankOpportunity(), ...result })
+      setParsed(normalizeParsedOpportunity(result))
       setStep('preview')
     } catch (e) { setErr(e.message) }
     setBusy(false)

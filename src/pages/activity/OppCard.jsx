@@ -3,8 +3,7 @@ import { Trash2, ChevronRight, Briefcase, Trophy, FlaskConical, GraduationCap, C
 import { Btn, Badge } from '../../components/UI'
 
 const TYPE_META = {
-  'SIP Hiring':   { icon: GraduationCap, color: 'green'  },
-  'Hiring':       { icon: Briefcase,     color: 'blue'   },
+  'Hiring':       { icon: GraduationCap, color: 'green'  },
   'Live Project': { icon: FlaskConical,  color: 'purple' },
   'Event':        { icon: CalendarClock, color: 'gray'   },
 }
@@ -16,14 +15,19 @@ export const BATCH_COLOR = { final: 'blue', summer: 'amber', both: 'gray' }
 export const BATCH_LABEL = { final: 'Final', summer: 'Summer', both: 'Both' }
 export const STATUS_COLOR = { open: 'green', shortlisted: 'amber', interviewing: 'blue', closed: 'gray' }
 export const STATUS_LABEL = { open: 'Open', shortlisted: 'Shortlisted', interviewing: 'Interviewing', closed: 'Closed' }
-export const typeColor = t => TYPE_META[t]?.color || 'gray'
+export const normalizeOpportunityType = (type) => {
+  if (type === 'SIP Hiring') return 'Hiring'
+  return type || 'Hiring'
+}
+export const typeColor = t => TYPE_META[normalizeOpportunityType(t)]?.color || 'gray'
 export function TypeIcon({ type, size = 13 }) {
-  const Icon = TYPE_META[type]?.icon || Briefcase
+  const Icon = TYPE_META[normalizeOpportunityType(type)]?.icon || Briefcase
   return <Icon size={size} />
 }
 
 export default function OppCard({ opp, isAdmin, onOpen, onDelete }) {
   const ap = opp.applicability || 'both'
+  const displayType = normalizeOpportunityType(opp.type)
   const dateStr = opp.createdAt?.toDate
     ? opp.createdAt.toDate().toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
     : ''
@@ -54,7 +58,7 @@ export default function OppCard({ opp, isAdmin, onOpen, onDelete }) {
         <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', alignItems: 'center' }}>
           <Badge color={typeColor(opp.type)}>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-              <TypeIcon type={opp.type} size={10} />{opp.type || 'Other'}
+              <TypeIcon type={opp.type} size={10} />{displayType || 'Other'}
             </span>
           </Badge>
           <Badge color={BATCH_COLOR[ap]}>{BATCH_LABEL[ap] || ap}</Badge>

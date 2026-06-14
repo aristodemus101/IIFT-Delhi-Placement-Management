@@ -3,6 +3,39 @@ import React, { useState } from 'react'
 import { useAuth } from '../lib/AuthContext'
 import { GraduationCap } from 'lucide-react'
 
+function getSignInErrorMessage(error) {
+  const code = error?.code || ''
+  const currentHost = typeof window !== 'undefined' ? window.location.hostname : ''
+
+  if (code === 'auth/popup-blocked') {
+    return 'Google sign-in could not open a popup. Please allow popups for this site and try again.'
+  }
+
+  if (code === 'auth/popup-closed-by-user') {
+    return 'Google sign-in was closed before it completed. Please try again.'
+  }
+
+  if (code === 'auth/unauthorized-domain') {
+    return currentHost
+      ? `This domain (${currentHost}) is not authorized in Firebase Authentication. Add it under Firebase Console → Authentication → Settings → Authorized domains.`
+      : 'This domain is not authorized in Firebase Authentication. Add the current site under Firebase Console → Authentication → Settings → Authorized domains.'
+  }
+
+  if (code === 'auth/operation-not-allowed') {
+    return 'Google sign-in is not enabled for this Firebase project. Enable Google under Firebase Authentication → Sign-in method.'
+  }
+
+  if (code === 'auth/admin-restricted-operation') {
+    return 'This Firebase project does not allow Google sign-in from the current account or domain.'
+  }
+
+  if (error?.message) {
+    return `${error.message}${code ? ` (${code})` : ''}`
+  }
+
+  return 'Sign-in failed. Please try again.'
+}
+
 export default function LoginPage() {
   const { login } = useAuth()
   const [loading, setLoading] = useState(false)
@@ -11,7 +44,7 @@ export default function LoginPage() {
   const handleLogin = async () => {
     setLoading(true); setError('')
     try { await login() }
-    catch (e) { setError('Sign-in failed. Make sure pop-ups are allowed.') }
+    catch (e) { setError(getSignInErrorMessage(e)) }
     finally { setLoading(false) }
   }
 

@@ -7,7 +7,7 @@ import { useBatch } from '../lib/BatchContext'
 import { useOpportunities, deleteOpportunity } from '../lib/useOpportunities'
 import { PageHeader, Btn, Select, Spinner } from '../components/UI'
 import { Plus } from 'lucide-react'
-import OppCard, { TYPES } from './activity/OppCard'
+import OppCard, { TYPES, normalizeOpportunityType } from './activity/OppCard'
 import PostModal from './activity/PostModal'
 import DetailModal from './activity/DetailModal'
 
@@ -27,7 +27,7 @@ export default function ActivityPage() {
   const [postOpen, setPostOpen]         = useState(false)
 
   const filtered = useMemo(() => opportunities.filter(o => {
-    if (typeFilter !== 'all' && o.type !== typeFilter) return false
+    if (typeFilter !== 'all' && normalizeOpportunityType(o.type) !== typeFilter) return false
     if (applicabilityFilter !== 'all') {
       const ap = o.applicability || 'both'
       if (ap !== applicabilityFilter) return false
