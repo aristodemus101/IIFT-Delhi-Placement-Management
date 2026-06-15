@@ -105,14 +105,18 @@ export function AuthProvider({ children }) {
             setIsMasterAdmin(data.isMasterAdmin === true)
             setAuthStatus('authenticated')
           }, err => {
+            // Role listener error — fail closed: treat as unauthorized
             console.error('Role listener error:', err)
-            setUser(u); setRole(null); setIsMasterAdmin(false)
-            setAuthStatus('authenticated')
+            setUser(null); setRole(null); setIsMasterAdmin(false)
+            setAuthStatus('unauthorized')
+            signOut(auth)
           })
         } catch (err) {
+          // Any error during auth/allowlist check — fail closed: treat as unauthorized
           console.error('Role load error:', err)
-          setUser(u); setRole(null); setIsMasterAdmin(false)
-          setAuthStatus('authenticated')
+          setUser(null); setRole(null); setIsMasterAdmin(false)
+          setAuthStatus('unauthorized')
+          signOut(auth)
         }
       },
       err => {
