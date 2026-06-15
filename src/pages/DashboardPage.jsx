@@ -269,8 +269,10 @@ export default function DashboardPage() {
             ? <Badge color="blue">{cohortLabel(scopedCohorts[0])}</Badge>
             : <Badge color="blue">{scopedCohorts.length} cohorts</Badge>
           }
-          <Badge color="amber">Summer YTP {stats.summerYtp ?? 0} · Placed {stats.summerPlaced ?? 0}</Badge>
-          <Badge color="blue">Final YTP {stats.finalYtp ?? 0} · Placed {stats.finalPlaced ?? 0}</Badge>
+          {selectedSeason === 'summer'
+            ? <Badge color="amber">Summer · YTP {stats.summerYtp ?? 0} · Placed {stats.summerPlaced ?? 0}</Badge>
+            : <Badge color="blue">Final · YTP {stats.finalYtp ?? 0} · Placed {stats.finalPlaced ?? 0}</Badge>
+          }
         </div>
 
         {/* stat cards — scoped to selected season */}

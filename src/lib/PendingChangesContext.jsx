@@ -240,7 +240,7 @@ export function PendingChangesProvider({ children }) {
     const cohortId = change.cohort || null
     if (!cohortId) throw new Error('Import cohort is missing')
     const schemaRef = doc(db, 'config', schemaDocIdForBatch(cohortId))
-    const season = change.season || 'final'
+    const season = change.activeCycle || change.season || 'final'
 
     // Download file from Storage and parse it
     if (!change.storagePath) throw new Error('Import file reference missing')

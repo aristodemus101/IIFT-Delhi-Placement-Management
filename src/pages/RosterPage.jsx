@@ -70,10 +70,13 @@ export default function RosterPage() {
   const mountedRef = useRef(true)
   useEffect(() => () => { mountedRef.current = false }, [])
 
-  // Auto-fill cohort when import modal opens
+  // Auto-fill cohort + cycle when import modal opens
   useEffect(() => {
-    if (importModalOpen && !importCohort && selectedCohort) setImportCohort(selectedCohort)
-  }, [importModalOpen, selectedCohort, importCohort])
+    if (importModalOpen && !importCohort && selectedCohort) {
+      setImportCohort(selectedCohort)
+      setImportCycle(selectedCohortCycle || 'final')
+    }
+  }, [importModalOpen, selectedCohort, importCohort, selectedCohortCycle])
 
   const _scopedIds     = useMemo(() => new Set(scopedCohorts), [scopedCohorts])
   const scopedStudents = useMemo(() => students.filter(s => _scopedIds.has(studentCohort(s))), [students, _scopedIds])
@@ -155,8 +158,15 @@ export default function RosterPage() {
     if (filters.category && getVal(s, 'category') !== filters.category) return false
     if (filters.gender && getVal(s, 'gender') !== filters.gender) return false
     if (filters.pwdOnly && (getVal(s, 'pwd') || '').toLowerCase() !== 'yes') return false
+    if (filters.placementStatus) {
+      // scope placement filter to the cohort's active cycle
+      const cycle = selectedCohortCycle || 'final'
+      const isPlaced = cycle === 'summer' ? !!s._placed_summer : !!s._placed_final
+      if (filters.placementStatus === 'placed' && !isPlaced) return false
+      if (filters.placementStatus === 'ytp'    &&  isPlaced) return false
+    }
     return true
-  }), [scopedStudents, searchMatch, filters.catMin, filters.wxMin, filters.category, filters.gender, filters.pwdOnly])
+  }), [scopedStudents, searchMatch, filters.catMin, filters.wxMin, filters.category, filters.gender, filters.pwdOnly, filters.placementStatus, selectedCohortCycle])
 
   const sortedFiltered = useMemo(() => {
     const out = [...filtered]
@@ -399,6 +409,11 @@ export default function RosterPage() {
               <option value="">All genders</option>
               {genderOptions.map(g => <option key={g} value={g}>{g}</option>)}
             </Select>
+            <Select value={filters.placementStatus || ''} onChange={e => setF('placementStatus', e.target.value)} title={`Filter by ${selectedCohortCycle === 'summer' ? 'Summer' : 'Final'} placement status`}>
+              <option value="">All statuses</option>
+              <option value="placed">Placed ({selectedCohortCycle === 'summer' ? 'SIP' : 'Final'})</option>
+              <option value="ytp">YTP ({selectedCohortCycle === 'summer' ? 'SIP' : 'Final'})</option>
+            </Select>
             <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer', color: 'var(--text-2)' }}>
               <input type="checkbox" checked={filters.pwdOnly} onChange={e => setF('pwdOnly', e.target.checked)} />
               PWD only
@@ -534,7 +549,7 @@ export default function RosterPage() {
 
       <ImportModal
         open={importModalOpen}
-        onClose={() => { setImportModalOpen(false); setImportFile(null); setImportParsed(null); setImportStep(1); setImportCohort(''); setImportCycle('summer'); setLastImportSummary(null); if (fileRef.current) fileRef.current.value = '' }}
+        onClose={() => { setImportModalOpen(false); setImportFile(null); setImportParsed(null); setImportStep(1); setImportCohort(''); setImportCycle(selectedCohortCycle || 'final'); setLastImportSummary(null); if (fileRef.current) fileRef.current.value = '' }}
         step={importStep}
         importCohort={importCohort} setImportCohort={setImportCohort}
         importCycle={importCycle} setImportCycle={setImportCycle}
