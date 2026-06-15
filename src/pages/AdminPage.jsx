@@ -8,14 +8,16 @@ import { usePendingChanges } from '../lib/PendingChangesContext'
 import { cohortLabel, cohortYear, parseCohortId } from '../lib/batch'
 import { PageHeader, Btn, Badge, Spinner, Modal, Input } from '../components/UI'
 import CohortPicker from '../components/CohortPicker'
-import { ROLES, ROLE_LABELS, CONFIGURABLE_FIELDS } from '../lib/permissions'
+import { ROLES, ROLE_LABELS, CONFIGURABLE_FIELDS, CONFIGURABLE_PAGES, CONFIGURABLE_ACTIONS, CONFIGURABLE_ROLES, PAGE_ACCESS, ACTION_ACCESS, PAGE_LABELS, ACTION_LABELS } from '../lib/permissions'
+import { usePermissions } from '../lib/usePermissions'
 import {
   ShieldCheck, User, AlertTriangle, Sheet, RefreshCw, ExternalLink, CheckCircle,
-  Database, Columns3, Plus, Archive, RotateCcw, Crown, Trash2, Briefcase, GraduationCap
+  Database, Columns3, Plus, Archive, RotateCcw, Crown, Trash2, Briefcase, GraduationCap,
+  UserPlus, UserMinus, Mail
 } from 'lucide-react'
 import {
   collection, doc, setDoc, updateDoc, getDoc, getDocs, query, where,
-  serverTimestamp, writeBatch as writeBatchFn, deleteDoc,
+  serverTimestamp, writeBatch as writeBatchFn, deleteDoc, arrayUnion,
 } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 
@@ -27,6 +29,7 @@ function studentCohort(s) {
 export default function AdminPage() {
   const { roles, loading, setRole, adminCount, adminUsers } = useRoles()
   const { user, isMasterAdmin, isAdmin, toggleMasterAdmin } = useAuth()
+  const { pageConfig, actionConfig } = usePermissions()
   const { students } = useStudents()
   const { selectedCohort, batches, activeBatches, archivedBatches, getCohortCycle, setCohortCycle } = useBatch()
   const { schemaHeaders, setSchemaHeaders } = useColumnSchema(selectedCohort || 'default')
@@ -54,12 +57,63 @@ export default function AdminPage() {
   const [fieldPermsBusy, setFieldPermsBusy] = useState(false)
   const [fieldPermsMsg, setFieldPermsMsg] = useState('')
 
+  // Page & action access state (local draft, saved explicitly)
+  const [pagePerms, setPagePerms]     = useState({})  // page → roles[]
+  const [actionPerms, setActionPerms] = useState({})  // action → roles[]
+  const [accessBusy, setAccessBusy]   = useState(false)
+  const [accessMsg, setAccessMsg]     = useState('')
+
+  // Authorized users state (master admin only)
+  const [authUserEmails, setAuthUserEmails] = useState([])
+  const [authUsersLoading, setAuthUsersLoading] = useState(false)
+  const [newAuthEmail, setNewAuthEmail] = useState('')
+  const [newAuthRole, setNewAuthRole] = useState('committee')
+  const [authUsersBusy, setAuthUsersBusy] = useState(false)
+  const [authUsersMsg, setAuthUsersMsg] = useState('')
+
   // Load field permissions config on mount
   useEffect(() => {
     getDoc(doc(db, 'config', 'rolePermissions')).then(snap => {
       if (snap.exists()) setFieldPerms(snap.data())
     })
   }, [])
+
+  // Sync local draft from live Firestore config (pageConfig/actionConfig from usePermissions)
+  useEffect(() => { if (pageConfig)   setPagePerms(pageConfig)   }, [pageConfig])
+  useEffect(() => { if (actionConfig) setActionPerms(actionConfig) }, [actionConfig])
+
+  // Load authorized users on mount (master admin only)
+  useEffect(() => {
+    if (!isMasterAdmin) return
+    setAuthUsersLoading(true)
+    getDoc(doc(db, 'config', 'authorizedUsers')).then(snap => {
+      if (snap.exists()) setAuthUserEmails(snap.data()?.emails || [])
+      setAuthUsersLoading(false)
+    }).catch(() => setAuthUsersLoading(false))
+  }, [isMasterAdmin])
+
+  const saveAccessPerms = async () => {
+    setAccessBusy(true); setAccessMsg('')
+    try {
+      await setDoc(doc(db, 'config', 'pageAccess'),   pagePerms)
+      await setDoc(doc(db, 'config', 'actionAccess'), actionPerms)
+      setAccessMsg('Saved.')
+      setTimeout(() => setAccessMsg(''), 3000)
+    } catch (e) { setAccessMsg('Error: ' + e.message) }
+    setAccessBusy(false)
+  }
+
+  const toggleAccessRole = (map, setMap, key, role, hardcodedDefaults) => {
+    // Admin is always locked; cannot remove admin from any permission
+    if (role === 'admin') return
+    const current = map[key] ?? hardcodedDefaults[key] ?? []
+    const next = current.includes(role)
+      ? current.filter(r => r !== role)
+      : [...current, role]
+    // Always keep admin in the list
+    const withAdmin = next.includes('admin') ? next : ['admin', ...next]
+    setMap(prev => ({ ...prev, [key]: withAdmin }))
+  }
 
   const saveFieldPerms = async () => {
     setFieldPermsBusy(true); setFieldPermsMsg('')
@@ -69,6 +123,59 @@ export default function AdminPage() {
       setTimeout(() => setFieldPermsMsg(''), 3000)
     } catch (e) { setFieldPermsMsg('Error: ' + e.message) }
     setFieldPermsBusy(false)
+  }
+
+  const addAuthorizedUser = async () => {
+    const email = newAuthEmail.trim().toLowerCase()
+    if (!email) { setAuthUsersMsg('Email is required.'); return }
+    if (authUserEmails.includes(email)) { setAuthUsersMsg('Email already in the list.'); return }
+    setAuthUsersBusy(true); setAuthUsersMsg('')
+    try {
+      // Add to authorizedUsers list with email → role mapping for first-login seeding
+      await setDoc(doc(db, 'config', 'authorizedUsers'), {
+        emails: arrayUnion(email),
+        [`roleMap.${email.replace(/\./g, '_')}`]: newAuthRole,
+      }, { merge: true })
+      setAuthUserEmails(prev => [...prev, email])
+
+      // If they already have a roles doc (signed in before), update their role
+      const existingRoles = await getDocs(query(collection(db, 'roles'), where('email', '==', email)))
+      if (!existingRoles.empty) {
+        const roleDoc = existingRoles.docs[0]
+        await updateDoc(roleDoc.ref, { role: newAuthRole })
+      }
+
+      setNewAuthEmail('')
+      setAuthUsersMsg(`${email} added as ${ROLE_LABELS[newAuthRole]}. They will get this role on first sign-in.`)
+      setTimeout(() => setAuthUsersMsg(''), 5000)
+    } catch (e) {
+      setAuthUsersMsg('Error: ' + e.message)
+    }
+    setAuthUsersBusy(false)
+  }
+
+  const removeAuthorizedUser = async (email) => {
+    if (!window.confirm(`Remove ${email} from the authorized list? They will no longer be able to sign in.`)) return
+    setAuthUsersBusy(true); setAuthUsersMsg('')
+    try {
+      const safeKey = `roleMap.${email.replace(/\./g, '_')}`
+      // Use updateDoc to remove the roleMap key and the email from the array
+      const ref = doc(db, 'config', 'authorizedUsers')
+      const snap = await getDoc(ref)
+      if (snap.exists()) {
+        const data = snap.data()
+        const newEmails = (data.emails || []).filter(e => e !== email)
+        const newRoleMap = { ...(data.roleMap || {}) }
+        delete newRoleMap[email.replace(/\./g, '_')]
+        await setDoc(ref, { emails: newEmails, roleMap: newRoleMap }, { merge: false })
+      }
+      setAuthUserEmails(prev => prev.filter(e => e !== email))
+      setAuthUsersMsg(`${email} removed.`)
+      setTimeout(() => setAuthUsersMsg(''), 3000)
+    } catch (e) {
+      setAuthUsersMsg('Error: ' + e.message)
+    }
+    setAuthUsersBusy(false)
   }
 
   const toggleFieldRole = (fieldKey, role, defaultRoles) => {
@@ -238,7 +345,7 @@ export default function AdminPage() {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <PageHeader
         title="Team Access"
-        subtitle="Manage team roles: Admin · Committee Member · Viewer"
+        subtitle="Manage team roles: Admin · Committee · TPO · Faculty Coordinator"
       />
 
       <div style={{ padding: '20px 28px', overflow: 'auto' }}>
@@ -249,12 +356,11 @@ export default function AdminPage() {
         }}>
           <ShieldCheck size={16} color="var(--accent)" style={{ flexShrink: 0, marginTop: 1 }} />
           <div style={{ fontSize: 13, color: 'var(--accent-text)', lineHeight: 1.6 }}>
-            <strong>Admin</strong> — full access, propose + approve changes.&nbsp;
-            <strong>Committee Member</strong> — read access + Placed/Analytics pages, no financials.&nbsp;
-            <strong>Viewer</strong> — roster + activity only, no placement data.&nbsp;
-            <strong>Admin</strong> users can propose changes (place, delete, import) and approve proposals
-            made by <em>other</em> admins — no admin can approve their own change.&nbsp;
-            <strong>Viewer</strong> users have read-only access: view and download only, no edits.&nbsp;
+            <strong>Admin</strong> — full access, propose + approve changes, see all financial data.&nbsp;
+            <strong>Committee Member</strong> — Dashboard, Roster, Placed, Activity, Analytics (heatmap), Remapper, and can propose placement changes. No financial figures.&nbsp;
+            <strong>TPO</strong> — TPO Outreach only (own entries).&nbsp;
+            <strong>Faculty Coordinator</strong> — TPO Outreach read-only + Analytics TPO tab (no financial figures).&nbsp;
+            No admin can approve their own change.&nbsp;
             <strong>Master Admin</strong> status can be toggled per admin using the crown icon.
           </div>
         </div>
@@ -334,7 +440,7 @@ export default function AdminPage() {
                      : m.role === 'committee'         ? <><User size={10} /> Committee</>
                      : m.role === 'tpo'               ? <><Briefcase size={10} /> TPO</>
                      : m.role === 'faculty_coordinator' ? <><GraduationCap size={10} /> Faculty Coord</>
-                     : <><User size={10} /> Viewer</>}
+                     : <><User size={10} /> {ROLE_LABELS[m.role] || m.role || 'Unknown'}</>}
                   </Badge>
                 </div>
 
@@ -344,7 +450,7 @@ export default function AdminPage() {
                   ) : (
                     <>
                       <select
-                        value={pendingRoles[m.uid] ?? m.role ?? 'viewer'}
+                        value={pendingRoles[m.uid] ?? m.role ?? 'committee'}
                         disabled={busy === m.uid}
                         onChange={e => setPendingRoles(p => ({ ...p, [m.uid]: e.target.value }))}
                         style={{
@@ -384,8 +490,85 @@ export default function AdminPage() {
 
         <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 14, fontSize: 12, color: 'var(--text-3)' }}>
           <AlertTriangle size={12} />
-          Admin count: {adminCount} · Members appear here automatically after their first login. · Master admin can be toggled per admin using the <Crown size={11} style={{ display: 'inline', verticalAlign: 'middle' }} /> icon.
+          Admin count: {adminCount} · Members appear here after being added to the authorized list and signing in. · Master admin can be toggled per admin using the <Crown size={11} style={{ display: 'inline', verticalAlign: 'middle' }} /> icon.
         </div>
+
+        {/* ── Authorized Users ──────────────────────────────────────────── */}
+        {isMasterAdmin && (
+          <div style={{ marginTop: 32 }}>
+            <h2 style={{ fontSize: 15, fontWeight: 600, margin: '0 0 4px' }}>Authorized Users</h2>
+            <p style={{ fontSize: 13, color: 'var(--text-2)', marginBottom: 14, lineHeight: 1.6 }}>
+              Only emails on this list can sign in. Add a user and select their initial role. They will get that role automatically on first sign-in.
+            </p>
+
+            {authUsersMsg && (
+              <div style={{ fontSize: 13, color: authUsersMsg.startsWith('Error') ? 'var(--red-text)' : 'var(--green-text)', marginBottom: 12, display: 'flex', gap: 6, alignItems: 'center' }}>
+                {!authUsersMsg.startsWith('Error') && <CheckCircle size={13} />} {authUsersMsg}
+              </div>
+            )}
+
+            {/* Add new user */}
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 16 }}>
+              <div style={{ position: 'relative', flex: '1 1 240px', minWidth: 200 }}>
+                <Mail size={13} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-3)' }} />
+                <Input
+                  type="email"
+                  placeholder="email@iift.edu"
+                  value={newAuthEmail}
+                  onChange={e => setNewAuthEmail(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') addAuthorizedUser() }}
+                  style={{ paddingLeft: 30, width: '100%' }}
+                />
+              </div>
+              <select
+                value={newAuthRole}
+                onChange={e => setNewAuthRole(e.target.value)}
+                style={{ height: 36, padding: '0 10px', border: '1px solid var(--border)', borderRadius: 12, background: 'var(--surface2)', color: 'var(--text)', fontSize: 13 }}
+              >
+                {ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+              </select>
+              <Btn variant="primary" onClick={addAuthorizedUser} disabled={authUsersBusy}>
+                <UserPlus size={13} /> {authUsersBusy ? 'Adding…' : 'Add User'}
+              </Btn>
+            </div>
+
+            {/* Emails list */}
+            <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
+              <div style={{
+                padding: '8px 14px', background: 'var(--surface2)', borderBottom: '1px solid var(--border)',
+                fontSize: 11, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.04em',
+                display: 'grid', gridTemplateColumns: '1fr auto',
+              }}>
+                <span>Email</span>
+                <span></span>
+              </div>
+              {authUsersLoading ? (
+                <div style={{ padding: 20 }}><Spinner /></div>
+              ) : authUserEmails.length === 0 ? (
+                <div style={{ padding: '20px 14px', textAlign: 'center', fontSize: 13, color: 'var(--text-3)' }}>
+                  No authorized users yet. Add emails above.
+                </div>
+              ) : (
+                authUserEmails.map((email, i) => (
+                  <div key={email} style={{
+                    display: 'grid', gridTemplateColumns: '1fr auto',
+                    padding: '10px 14px', alignItems: 'center',
+                    borderBottom: i < authUserEmails.length - 1 ? '1px solid var(--border)' : 'none',
+                    background: 'var(--surface)',
+                  }}>
+                    <span style={{ fontSize: 13, color: 'var(--text)' }}>{email}</span>
+                    <Btn size="sm" variant="ghost" onClick={() => removeAuthorizedUser(email)} disabled={authUsersBusy} title="Remove from authorized list" style={{ color: 'var(--red-text)', padding: '2px 6px' }}>
+                      <UserMinus size={13} />
+                    </Btn>
+                  </div>
+                ))
+              )}
+            </div>
+            <p style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 8 }}>
+              Master admin emails are always authorized regardless of this list.
+            </p>
+          </div>
+        )}
 
         {/* ── Field Visibility ───────────────────────────────────────────── */}
         {isMasterAdmin && (
@@ -442,6 +625,102 @@ export default function AdminPage() {
             </div>
           </div>
         )}
+
+        {/* ── Page & Action Access ──────────────────────────────────────── */}
+        {isMasterAdmin && (() => {
+          const permTh = { textAlign: 'left', padding: '8px 14px', fontWeight: 600, fontSize: 11, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.04em', borderBottom: '1px solid var(--border)' }
+          return (
+          <div style={{ marginTop: 32 }}>
+            <h2 style={{ fontSize: 15, fontWeight: 600, margin: '0 0 4px' }}>Page & Action Access</h2>
+            <p style={{ fontSize: 13, color: 'var(--text-2)', marginBottom: 14, lineHeight: 1.6 }}>
+              Control which roles can access pages and perform actions. <strong>Admin always has full access</strong> and cannot be removed. Changes take effect immediately for all active sessions.
+            </p>
+
+            <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+              {/* Page access table */}
+              <div style={{ flex: 1, minWidth: 320 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 8 }}>Pages</div>
+                <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                    <thead>
+                      <tr style={{ background: 'var(--surface2)' }}>
+                        <th style={permTh}>Page</th>
+                        {CONFIGURABLE_ROLES.map(r => (
+                          <th key={r} style={{ ...permTh, textAlign: 'center', minWidth: 80 }}>{ROLE_LABELS[r]}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {CONFIGURABLE_PAGES.map((page, i) => {
+                        const current = pagePerms[page] ?? PAGE_ACCESS[page] ?? ['admin']
+                        return (
+                          <tr key={page} style={{ borderBottom: i < CONFIGURABLE_PAGES.length - 1 ? '1px solid var(--border)' : 'none', background: i % 2 === 0 ? 'var(--surface)' : 'var(--surface2)' }}>
+                            <td style={{ padding: '9px 14px', fontWeight: 500, fontSize: 13 }}>{PAGE_LABELS[page] || page}</td>
+                            {CONFIGURABLE_ROLES.map(r => (
+                              <td key={r} style={{ textAlign: 'center', padding: '9px 14px' }}>
+                                <input
+                                  type="checkbox"
+                                  checked={current.includes(r)}
+                                  onChange={() => toggleAccessRole(pagePerms, setPagePerms, page, r, PAGE_ACCESS)}
+                                  style={{ width: 15, height: 15, accentColor: 'var(--accent)', cursor: 'pointer' }}
+                                />
+                              </td>
+                            ))}
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Action access table */}
+              <div style={{ flex: 1, minWidth: 320 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 8 }}>Actions</div>
+                <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                    <thead>
+                      <tr style={{ background: 'var(--surface2)' }}>
+                        <th style={permTh}>Action</th>
+                        {CONFIGURABLE_ROLES.map(r => (
+                          <th key={r} style={{ ...permTh, textAlign: 'center', minWidth: 80 }}>{ROLE_LABELS[r]}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {CONFIGURABLE_ACTIONS.map((action, i) => {
+                        const current = actionPerms[action] ?? ACTION_ACCESS[action] ?? ['admin']
+                        return (
+                          <tr key={action} style={{ borderBottom: i < CONFIGURABLE_ACTIONS.length - 1 ? '1px solid var(--border)' : 'none', background: i % 2 === 0 ? 'var(--surface)' : 'var(--surface2)' }}>
+                            <td style={{ padding: '9px 14px', fontWeight: 500, fontSize: 13 }}>{ACTION_LABELS[action] || action}</td>
+                            {CONFIGURABLE_ROLES.map(r => (
+                              <td key={r} style={{ textAlign: 'center', padding: '9px 14px' }}>
+                                <input
+                                  type="checkbox"
+                                  checked={current.includes(r)}
+                                  onChange={() => toggleAccessRole(actionPerms, setActionPerms, action, r, ACTION_ACCESS)}
+                                  style={{ width: 15, height: 15, accentColor: 'var(--accent)', cursor: 'pointer' }}
+                                />
+                              </td>
+                            ))}
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 12 }}>
+              <Btn variant="primary" onClick={saveAccessPerms} disabled={accessBusy}>
+                <CheckCircle size={13} /> {accessBusy ? 'Saving…' : 'Save Access Rules'}
+              </Btn>
+              {accessMsg && <span style={{ fontSize: 13, color: accessMsg.startsWith('Error') ? 'var(--red-text)' : 'var(--green-text)' }}>{accessMsg}</span>}
+            </div>
+          </div>
+          )
+        })()}
 
         {/* ── Cohort Management ─────────────────────────────────────────── */}
         <div style={{ marginTop: 32 }}>
