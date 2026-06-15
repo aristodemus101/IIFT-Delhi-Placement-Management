@@ -65,11 +65,13 @@ export default function AdminPage() {
 
   // Authorized users state (master admin only)
   const [authUserEmails, setAuthUserEmails] = useState([])
+  const [authRoleMap, setAuthRoleMap] = useState({})       // email → role (from authorizedUsers.roleMap)
   const [authUsersLoading, setAuthUsersLoading] = useState(false)
   const [newAuthEmail, setNewAuthEmail] = useState('')
   const [newAuthRole, setNewAuthRole] = useState('committee')
   const [authUsersBusy, setAuthUsersBusy] = useState(false)
   const [authUsersMsg, setAuthUsersMsg] = useState('')
+  const [editingAuthRole, setEditingAuthRole] = useState({}) // email → pending role change
 
   // Load field permissions config on mount
   useEffect(() => {
@@ -100,7 +102,20 @@ export default function AdminPage() {
     if (!isMasterAdmin) return
     setAuthUsersLoading(true)
     getDoc(doc(db, 'config', 'authorizedUsers')).then(snap => {
-      if (snap.exists()) setAuthUserEmails(snap.data()?.emails || [])
+      if (snap.exists()) {
+        const data = snap.data()
+        setAuthUserEmails(data?.emails || [])
+        // roleMap keys use underscores for dots — convert back to email form for display
+        const raw = data?.roleMap || {}
+        const normalized = {}
+        Object.entries(raw).forEach(([k, v]) => {
+          normalized[k.replace(/_(?=[^_]*$)/g, '.').replace(/_/g, '.')] = v
+        })
+        setAuthRoleMap(raw) // keep raw keys for Firestore writes
+        setEditingAuthRole(
+          Object.fromEntries((data?.emails || []).map(e => [e, raw[e.replace(/\./g, '_')] || 'committee']))
+        )
+      }
       setAuthUsersLoading(false)
     }).catch(() => setAuthUsersLoading(false))
   }, [isMasterAdmin])
@@ -136,6 +151,22 @@ export default function AdminPage() {
       setTimeout(() => setFieldPermsMsg(''), 3000)
     } catch (e) { setFieldPermsMsg('Error: ' + e.message) }
     setFieldPermsBusy(false)
+  }
+
+  const changeAuthorizedUserRole = async (email, newRole) => {
+    const safeKey = email.replace(/\./g, '_')
+    setAuthUsersBusy(true); setAuthUsersMsg('')
+    try {
+      const ref = doc(db, 'config', 'authorizedUsers')
+      await setDoc(ref, { [`roleMap.${safeKey}`]: newRole }, { merge: true })
+      setEditingAuthRole(prev => ({ ...prev, [email]: newRole }))
+      // If they already have a roles doc, update it live
+      const existingRoles = await getDocs(query(collection(db, 'roles'), where('email', '==', email)))
+      if (!existingRoles.empty) await updateDoc(existingRoles.docs[0].ref, { role: newRole })
+      setAuthUsersMsg(`${email} role updated to ${ROLE_LABELS[newRole]}.`)
+      setTimeout(() => setAuthUsersMsg(''), 3000)
+    } catch (e) { setAuthUsersMsg('Error: ' + e.message) }
+    setAuthUsersBusy(false)
   }
 
   const addAuthorizedUser = async () => {
@@ -550,9 +581,10 @@ export default function AdminPage() {
               <div style={{
                 padding: '8px 14px', background: 'var(--surface2)', borderBottom: '1px solid var(--border)',
                 fontSize: 11, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.04em',
-                display: 'grid', gridTemplateColumns: '1fr auto',
+                display: 'grid', gridTemplateColumns: '1fr 160px auto',
               }}>
                 <span>Email</span>
+                <span>Role</span>
                 <span></span>
               </div>
               {authUsersLoading ? (
@@ -562,19 +594,30 @@ export default function AdminPage() {
                   No authorized users yet. Add emails above.
                 </div>
               ) : (
-                authUserEmails.map((email, i) => (
-                  <div key={email} style={{
-                    display: 'grid', gridTemplateColumns: '1fr auto',
-                    padding: '10px 14px', alignItems: 'center',
-                    borderBottom: i < authUserEmails.length - 1 ? '1px solid var(--border)' : 'none',
-                    background: 'var(--surface)',
-                  }}>
-                    <span style={{ fontSize: 13, color: 'var(--text)' }}>{email}</span>
-                    <Btn size="sm" variant="ghost" onClick={() => removeAuthorizedUser(email)} disabled={authUsersBusy} title="Remove from authorized list" style={{ color: 'var(--red-text)', padding: '2px 6px' }}>
-                      <UserMinus size={13} />
-                    </Btn>
-                  </div>
-                ))
+                authUserEmails.map((email, i) => {
+                  const currentRole = editingAuthRole[email] || 'committee'
+                  return (
+                    <div key={email} style={{
+                      display: 'grid', gridTemplateColumns: '1fr 160px auto',
+                      padding: '8px 14px', alignItems: 'center', gap: 8,
+                      borderBottom: i < authUserEmails.length - 1 ? '1px solid var(--border)' : 'none',
+                      background: i % 2 === 0 ? 'var(--surface)' : 'var(--surface2)',
+                    }}>
+                      <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{email}</span>
+                      <select
+                        value={currentRole}
+                        onChange={e => changeAuthorizedUserRole(email, e.target.value)}
+                        disabled={authUsersBusy}
+                        style={{ height: 30, padding: '0 8px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface2)', color: 'var(--text)', fontSize: 12 }}
+                      >
+                        {ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+                      </select>
+                      <Btn size="sm" variant="ghost" onClick={() => removeAuthorizedUser(email)} disabled={authUsersBusy} title="Remove from authorized list" style={{ color: 'var(--red-text)', padding: '2px 6px' }}>
+                        <UserMinus size={13} />
+                      </Btn>
+                    </div>
+                  )
+                })
               )}
             </div>
             <p style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 8 }}>
