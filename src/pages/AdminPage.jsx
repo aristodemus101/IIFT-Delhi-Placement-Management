@@ -6,6 +6,7 @@ import { useSheetsSync } from '../lib/SheetsSyncContext'
 import { useBatch } from '../lib/BatchContext'
 import { usePendingChanges } from '../lib/PendingChangesContext'
 import { cohortLabel, cohortYear, parseCohortId } from '../lib/batch'
+import { MASTER_ADMIN_EMAILS } from '../lib/roleConfig'
 import { PageHeader, Btn, Badge, Spinner, Modal, Input } from '../components/UI'
 import CohortPicker from '../components/CohortPicker'
 import { ROLES, ROLE_LABELS, CONFIGURABLE_FIELDS, CONFIGURABLE_PAGES, CONFIGURABLE_ACTIONS, CONFIGURABLE_ROLES, PAGE_ACCESS, ACTION_ACCESS, PAGE_LABELS, ACTION_LABELS } from '../lib/permissions'
@@ -65,13 +66,15 @@ export default function AdminPage() {
 
   // Authorized users state (master admin only)
   const [authUserEmails, setAuthUserEmails] = useState([])
-  const [authRoleMap, setAuthRoleMap] = useState({})       // email → role (from authorizedUsers.roleMap)
   const [authUsersLoading, setAuthUsersLoading] = useState(false)
   const [newAuthEmail, setNewAuthEmail] = useState('')
   const [newAuthRole, setNewAuthRole] = useState('committee')
   const [authUsersBusy, setAuthUsersBusy] = useState(false)
   const [authUsersMsg, setAuthUsersMsg] = useState('')
-  const [editingAuthRole, setEditingAuthRole] = useState({}) // email → pending role change
+  const [savedRoles, setSavedRoles] = useState({})        // email → committed role (from Firestore)
+  const [draftRoles, setDraftRoles] = useState({})        // email → unsaved local draft
+  const [roleSavingFor, setRoleSavingFor] = useState(null) // email currently being saved
+  const [roleSavedFor, setRoleSavedFor] = useState(null)  // email that just showed success
 
   // Load field permissions config on mount
   useEffect(() => {
@@ -104,17 +107,12 @@ export default function AdminPage() {
     getDoc(doc(db, 'config', 'authorizedUsers')).then(snap => {
       if (snap.exists()) {
         const data = snap.data()
-        setAuthUserEmails(data?.emails || [])
-        // roleMap keys use underscores for dots — convert back to email form for display
+        const emails = data?.emails || []
         const raw = data?.roleMap || {}
-        const normalized = {}
-        Object.entries(raw).forEach(([k, v]) => {
-          normalized[k.replace(/_(?=[^_]*$)/g, '.').replace(/_/g, '.')] = v
-        })
-        setAuthRoleMap(raw) // keep raw keys for Firestore writes
-        setEditingAuthRole(
-          Object.fromEntries((data?.emails || []).map(e => [e, raw[e.replace(/\./g, '_')] || 'committee']))
-        )
+        const rolesByEmail = Object.fromEntries(emails.map(e => [e, raw[e.replace(/\./g, '_')] || 'committee']))
+        setAuthUserEmails(emails)
+        setSavedRoles(rolesByEmail)
+        setDraftRoles(rolesByEmail)
       }
       setAuthUsersLoading(false)
     }).catch(() => setAuthUsersLoading(false))
@@ -153,20 +151,21 @@ export default function AdminPage() {
     setFieldPermsBusy(false)
   }
 
-  const changeAuthorizedUserRole = async (email, newRole) => {
+  const saveUserRole = async (email) => {
+    const newRole = draftRoles[email]
+    if (!newRole || newRole === savedRoles[email]) return
     const safeKey = email.replace(/\./g, '_')
-    setAuthUsersBusy(true); setAuthUsersMsg('')
+    setRoleSavingFor(email)
     try {
-      const ref = doc(db, 'config', 'authorizedUsers')
-      await setDoc(ref, { [`roleMap.${safeKey}`]: newRole }, { merge: true })
-      setEditingAuthRole(prev => ({ ...prev, [email]: newRole }))
-      // If they already have a roles doc, update it live
+      await setDoc(doc(db, 'config', 'authorizedUsers'), { [`roleMap.${safeKey}`]: newRole }, { merge: true })
+      setSavedRoles(prev => ({ ...prev, [email]: newRole }))
+      // If they already have a roles doc, update it live so they don't need to sign out
       const existingRoles = await getDocs(query(collection(db, 'roles'), where('email', '==', email)))
       if (!existingRoles.empty) await updateDoc(existingRoles.docs[0].ref, { role: newRole })
-      setAuthUsersMsg(`${email} role updated to ${ROLE_LABELS[newRole]}.`)
-      setTimeout(() => setAuthUsersMsg(''), 3000)
-    } catch (e) { setAuthUsersMsg('Error: ' + e.message) }
-    setAuthUsersBusy(false)
+      setRoleSavedFor(email)
+      setTimeout(() => setRoleSavedFor(null), 2500)
+    } catch (e) { setAuthUsersMsg('Error saving role: ' + e.message) }
+    setRoleSavingFor(null)
   }
 
   const addAuthorizedUser = async () => {
@@ -181,6 +180,8 @@ export default function AdminPage() {
         [`roleMap.${email.replace(/\./g, '_')}`]: newAuthRole,
       }, { merge: true })
       setAuthUserEmails(prev => [...prev, email])
+      setSavedRoles(prev => ({ ...prev, [email]: newAuthRole }))
+      setDraftRoles(prev => ({ ...prev, [email]: newAuthRole }))
 
       // If they already have a roles doc (signed in before), update their role
       const existingRoles = await getDocs(query(collection(db, 'roles'), where('email', '==', email)))
@@ -595,7 +596,12 @@ export default function AdminPage() {
                 </div>
               ) : (
                 authUserEmails.map((email, i) => {
-                  const currentRole = editingAuthRole[email] || 'committee'
+                  const isMasterAdminRow = MASTER_ADMIN_EMAILS.includes(email)
+                  const draft = draftRoles[email] || 'committee'
+                  const saved = savedRoles[email] || 'committee'
+                  const isDirty = draft !== saved
+                  const isSaving = roleSavingFor === email
+                  const justSaved = roleSavedFor === email
                   return (
                     <div key={email} style={{
                       display: 'grid', gridTemplateColumns: '1fr 160px auto',
@@ -603,18 +609,38 @@ export default function AdminPage() {
                       borderBottom: i < authUserEmails.length - 1 ? '1px solid var(--border)' : 'none',
                       background: i % 2 === 0 ? 'var(--surface)' : 'var(--surface2)',
                     }}>
-                      <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{email}</span>
-                      <select
-                        value={currentRole}
-                        onChange={e => changeAuthorizedUserRole(email, e.target.value)}
-                        disabled={authUsersBusy}
-                        style={{ height: 30, padding: '0 8px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface2)', color: 'var(--text)', fontSize: 12 }}
-                      >
-                        {ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
-                      </select>
-                      <Btn size="sm" variant="ghost" onClick={() => removeAuthorizedUser(email)} disabled={authUsersBusy} title="Remove from authorized list" style={{ color: 'var(--red-text)', padding: '2px 6px' }}>
-                        <UserMinus size={13} />
-                      </Btn>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                        {isMasterAdminRow && <Crown size={11} style={{ color: 'var(--accent)', flexShrink: 0 }} title="Master Admin — cannot be edited" />}
+                        <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{email}</span>
+                      </div>
+                      {isMasterAdminRow ? (
+                        <span style={{ fontSize: 12, color: 'var(--text-3)', fontStyle: 'italic' }}>Master Admin</span>
+                      ) : (
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                          <select
+                            value={draft}
+                            onChange={e => setDraftRoles(prev => ({ ...prev, [email]: e.target.value }))}
+                            disabled={isSaving}
+                            style={{ height: 30, padding: '0 8px', border: `1px solid ${isDirty ? 'var(--accent)' : 'var(--border)'}`, borderRadius: 8, background: 'var(--surface2)', color: 'var(--text)', fontSize: 12, flex: 1 }}
+                          >
+                            {ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+                          </select>
+                          {justSaved ? (
+                            <CheckCircle size={15} style={{ color: 'var(--green-text)', flexShrink: 0 }} />
+                          ) : isDirty ? (
+                            <Btn size="sm" variant="primary" onClick={() => saveUserRole(email)} disabled={isSaving} style={{ padding: '3px 10px', fontSize: 12, flexShrink: 0 }}>
+                              {isSaving ? '…' : 'Save'}
+                            </Btn>
+                          ) : null}
+                        </div>
+                      )}
+                      {isMasterAdminRow ? (
+                        <span style={{ width: 28 }} />
+                      ) : (
+                        <Btn size="sm" variant="ghost" onClick={() => removeAuthorizedUser(email)} disabled={authUsersBusy} title="Remove from authorized list" style={{ color: 'var(--red-text)', padding: '2px 6px' }}>
+                          <UserMinus size={13} />
+                        </Btn>
+                      )}
                     </div>
                   )
                 })
