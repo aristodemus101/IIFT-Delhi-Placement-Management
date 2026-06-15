@@ -2,14 +2,15 @@ import React, { createContext, useContext, useEffect, useState } from 'react'
 import { onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth'
 import { doc, getDoc, setDoc, updateDoc, onSnapshot, serverTimestamp } from 'firebase/firestore'
 import { auth, googleProvider, db } from './firebase'
-import { ADMIN_EMAILS, MASTER_ADMIN_EMAILS, TPO_EMAILS, FACULTY_COORDINATOR_EMAILS } from './roleConfig'
+import { MASTER_ADMIN_EMAILS } from './roleConfig'
 
 const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(undefined) // undefined = loading
+  const [user, setUser] = useState(undefined)       // undefined = still loading
   const [role, setRole] = useState(null)
   const [isMasterAdmin, setIsMasterAdmin] = useState(false)
+  const [authStatus, setAuthStatus] = useState('loading') // 'loading' | 'unauthorized' | 'authenticated'
   const [authError, setAuthError] = useState(null)
 
   useEffect(() => {
@@ -23,50 +24,101 @@ export function AuthProvider({ children }) {
 
         if (!u) {
           setUser(null); setRole(null); setIsMasterAdmin(false)
+          // Only set to 'unauthenticated' if we were previously unauthorized — keep 'unauthorized' sticky
+          setAuthStatus(prev => prev === 'unauthorized' ? 'unauthorized' : 'unauthenticated')
           return
         }
 
         try {
+          const isMasterAdminEmail = MASTER_ADMIN_EMAILS.includes(u.email)
+
+          // ── Allowlist check ──────────────────────────────────────────────
+          // Master admin emails are always allowed (bootstrap escape hatch).
+          // For everyone else, check /config/authorizedUsers.
+          if (!isMasterAdminEmail) {
+            const authUsersSnap = await getDoc(doc(db, 'config', 'authorizedUsers'))
+            const allowed = authUsersSnap.exists()
+              ? (authUsersSnap.data()?.emails || []).includes(u.email)
+              : false
+            if (!allowed) {
+              // Set state BEFORE signOut so the 'unauthorized' sticky check sees it
+              setUser(null); setRole(null); setIsMasterAdmin(false)
+              setAuthStatus('unauthorized')
+              await signOut(auth)
+              return
+            }
+          }
+
+          // ── Role loading ─────────────────────────────────────────────────
           const roleRef = doc(db, 'roles', u.uid)
           const roleSnap = await getDoc(roleRef)
 
-          // First login: seed the role doc
           if (!roleSnap.exists()) {
-            let assignedRole = 'viewer'
-            if (MASTER_ADMIN_EMAILS.includes(u.email)) assignedRole = 'admin'
-            else if (ADMIN_EMAILS.includes(u.email)) assignedRole = 'admin'
-            else if (TPO_EMAILS.includes(u.email)) assignedRole = 'tpo'
-            else if (FACULTY_COORDINATOR_EMAILS.includes(u.email)) assignedRole = 'faculty_coordinator'
-            await setDoc(roleRef, {
-              role: assignedRole,
-              isMasterAdmin: MASTER_ADMIN_EMAILS.includes(u.email),
-              email: u.email,
-              displayName: u.displayName,
-              photoURL: u.photoURL,
-              addedAt: serverTimestamp(),
-              addedBy: 'system',
-            })
+            if (isMasterAdminEmail) {
+              // Bootstrap: create master admin role doc on first login
+              await setDoc(roleRef, {
+                role: 'admin',
+                isMasterAdmin: true,
+                email: u.email,
+                displayName: u.displayName,
+                photoURL: u.photoURL,
+                addedAt: serverTimestamp(),
+                addedBy: 'system',
+              })
+            } else {
+              // Non-master-admin first login: look up their pre-assigned role from authorizedUsers roleMap
+              const authUsersSnap2 = await getDoc(doc(db, 'config', 'authorizedUsers'))
+              const roleMap = authUsersSnap2.exists() ? (authUsersSnap2.data()?.roleMap || {}) : {}
+              const safeKey = u.email.replace(/\./g, '_')
+              const assignedRole = roleMap[safeKey] || null
+              if (!assignedRole) {
+                // No role pre-assigned — they're in the allowlist but no role was set yet. Block.
+                setUser(null); setRole(null); setIsMasterAdmin(false)
+                setAuthStatus('unauthorized')
+                await signOut(auth)
+                return
+              }
+              await setDoc(roleRef, {
+                role: assignedRole,
+                isMasterAdmin: false,
+                email: u.email,
+                displayName: u.displayName,
+                photoURL: u.photoURL,
+                addedAt: serverTimestamp(),
+                addedBy: 'admin',
+              })
+            }
+          } else if (isMasterAdminEmail) {
+            // Returning master admin: ensure their doc reflects master admin status
+            const data = roleSnap.data()
+            if (!data.isMasterAdmin || data.role !== 'admin') {
+              await updateDoc(roleRef, { role: 'admin', isMasterAdmin: true })
+            }
           }
 
-          // Live listener on this user's role doc — picks up master admin transfers immediately
+          // Live listener on this user's role doc — picks up changes immediately
           unsubRole = onSnapshot(roleRef, snap => {
             if (!snap.exists()) return
             const data = snap.data()
             setUser(u)
-            setRole(data.role || 'viewer')
+            setRole(data.role || null)
             setIsMasterAdmin(data.isMasterAdmin === true)
+            setAuthStatus('authenticated')
           }, err => {
             console.error('Role listener error:', err)
-            setUser(u); setRole('viewer'); setIsMasterAdmin(false)
+            setUser(u); setRole(null); setIsMasterAdmin(false)
+            setAuthStatus('authenticated')
           })
         } catch (err) {
           console.error('Role load error:', err)
-          setUser(u); setRole('viewer'); setIsMasterAdmin(false)
+          setUser(u); setRole(null); setIsMasterAdmin(false)
+          setAuthStatus('authenticated')
         }
       },
       err => {
         console.error('Auth error:', err)
         setAuthError(err.message); setUser(null)
+        setAuthStatus('unauthenticated')
       }
     )
 
@@ -90,10 +142,9 @@ export function AuthProvider({ children }) {
 
   return (
     <AuthContext.Provider value={{
-      user, role, isMasterAdmin, login, logout, toggleMasterAdmin,
+      user, role, isMasterAdmin, authStatus, login, logout, toggleMasterAdmin,
       isAdmin:              role === 'admin',
       isCommittee:          role === 'committee',
-      isViewer:             role === 'viewer',
       isTpo:                role === 'tpo',
       isFacultyCoordinator: role === 'faculty_coordinator',
     }}>

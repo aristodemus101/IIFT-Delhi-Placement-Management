@@ -287,7 +287,7 @@ export default function Layout() {
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 13, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.displayName}</div>
               <div style={{ fontSize: 10, fontWeight: 600, color: role === 'admin' ? 'var(--accent)' : role === 'committee' ? 'var(--amber-text)' : 'var(--text-3)' }}>
-                {role === 'admin' ? '⬡ Admin' : role === 'committee' ? '◈ Committee' : 'Viewer'}
+                {role === 'admin' ? '⬡ Admin' : role === 'committee' ? '◈ Committee' : role === 'tpo' ? '◆ TPO' : role === 'faculty_coordinator' ? '◇ Faculty Coord' : role || ''}
               </div>
             </div>
             <button onClick={handleLogout} style={{ border: 'none', background: 'none', padding: 4, cursor: 'pointer', color: 'var(--text-3)', borderRadius: 4, display: 'flex' }} title="Sign out">

@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react'
 import { useAuth } from '../../lib/AuthContext'
+import { usePermissions } from '../../lib/usePermissions'
 import { useMyTpoOutreach, useAllTpoOutreach, OUTREACH_STATUSES } from '../../lib/useTpoOutreach'
 import { useBatch } from '../../lib/BatchContext'
 import { cohortLabel } from '../../lib/batch'
@@ -22,7 +23,7 @@ function fmt(n) {
 }
 
 // Summary card row
-function SummaryRow({ entries }) {
+function SummaryRow({ entries, canSeeFinancials }) {
   const totalCompanies  = new Set(entries.map(e => e.companyName.toLowerCase())).size
   const avgCtc          = avg(entries.map(e => e.ctc))
   const avgFixed        = avg(entries.map(e => e.fixedComponent))
@@ -32,8 +33,8 @@ function SummaryRow({ entries }) {
   return (
     <div style={{ display: 'flex', gap: 12, padding: '16px 24px', borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
       <StatCard label="Companies Reached" value={totalCompanies} color="blue" />
-      <StatCard label="Avg CTC (LPA)"      value={fmt(avgCtc)}   color="green" />
-      <StatCard label="Avg Fixed (LPA)"    value={fmt(avgFixed)} color="amber" />
+      {canSeeFinancials && <StatCard label="Avg CTC (LPA)"   value={fmt(avgCtc)}   color="green" />}
+      {canSeeFinancials && <StatCard label="Avg Fixed (LPA)" value={fmt(avgFixed)} color="amber" />}
       <StatCard label="Offers Made"        value={offers}        color="green" />
       <StatCard label="Offer Rate"         value={`${conversionRate}%`} color="gray" />
     </div>
@@ -41,7 +42,7 @@ function SummaryRow({ entries }) {
 }
 
 // Per-TPO breakdown table (admin / faculty_coordinator view)
-function TpoBreakdownTable({ entries, profiles, cohortFilter }) {
+function TpoBreakdownTable({ entries, profiles, cohortFilter, canSeeFinancials }) {
   const filtered = cohortFilter ? entries.filter(e => e.cohort === cohortFilter) : entries
 
   // Group by tpoUid
@@ -72,12 +73,14 @@ function TpoBreakdownTable({ entries, profiles, cohortFilter }) {
     )
   }
 
+  const headers = ['TPO', 'Companies', ...(canSeeFinancials ? ['Avg CTC (LPA)', 'Avg Fixed (LPA)'] : []), 'Offers', 'Total Entries', 'Offer Rate']
+
   return (
     <div style={{ overflow: 'auto' }}>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
         <thead>
           <tr>
-            {['TPO', 'Companies', 'Avg CTC (LPA)', 'Avg Fixed (LPA)', 'Offers', 'Total Entries', 'Offer Rate'].map(h => (
+            {headers.map(h => (
               <th key={h} style={thStyle}>{h}</th>
             ))}
           </tr>
@@ -87,8 +90,8 @@ function TpoBreakdownTable({ entries, profiles, cohortFilter }) {
             <tr key={r.uid} style={{ background: i % 2 === 0 ? 'var(--surface)' : 'var(--surface2)' }}>
               <td style={tdStyle}><strong>{r.name}</strong></td>
               <td style={tdStyle}>{r.companies}</td>
-              <td style={tdStyle}>{fmt(r.avgCtc)}</td>
-              <td style={tdStyle}>{fmt(r.avgFixed)}</td>
+              {canSeeFinancials && <td style={tdStyle}>{fmt(r.avgCtc)}</td>}
+              {canSeeFinancials && <td style={tdStyle}>{fmt(r.avgFixed)}</td>}
               <td style={tdStyle}>
                 <Badge color="green">{r.offers}</Badge>
               </td>
@@ -105,7 +108,7 @@ function TpoBreakdownTable({ entries, profiles, cohortFilter }) {
 }
 
 // Per-company breakdown table (own TPO view — scoped to their entries only)
-function MyCompanyBreakdownTable({ entries }) {
+function MyCompanyBreakdownTable({ entries, canSeeFinancials }) {
   const rows = useMemo(() => {
     const m = {}
     entries.forEach(e => {
@@ -131,12 +134,14 @@ function MyCompanyBreakdownTable({ entries }) {
     )
   }
 
+  const headers = ['Company', 'Roles', ...(canSeeFinancials ? ['Avg CTC (LPA)', 'Avg Fixed (LPA)'] : []), 'Best Status', 'Entries']
+
   return (
     <div style={{ overflow: 'auto' }}>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
         <thead>
           <tr>
-            {['Company', 'Roles', 'Avg CTC (LPA)', 'Avg Fixed (LPA)', 'Best Status', 'Entries'].map(h => (
+            {headers.map(h => (
               <th key={h} style={thStyle}>{h}</th>
             ))}
           </tr>
@@ -146,8 +151,8 @@ function MyCompanyBreakdownTable({ entries }) {
             <tr key={r.companyName} style={{ background: i % 2 === 0 ? 'var(--surface)' : 'var(--surface2)' }}>
               <td style={tdStyle}><strong>{r.companyName}</strong></td>
               <td style={{ ...tdStyle, color: 'var(--text-2)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.roles}</td>
-              <td style={tdStyle}>{fmt(r.avgCtc)}</td>
-              <td style={tdStyle}>{fmt(r.avgFixed)}</td>
+              {canSeeFinancials && <td style={tdStyle}>{fmt(r.avgCtc)}</td>}
+              {canSeeFinancials && <td style={tdStyle}>{fmt(r.avgFixed)}</td>}
               <td style={tdStyle}>
                 <Badge color={STATUS_COLOR[r.bestStatus] || 'gray'}>
                   {OUTREACH_STATUSES.find(s => s.value === r.bestStatus)?.label || r.bestStatus}
@@ -168,6 +173,7 @@ function TpoAnalyticsOwn() {
   const { activeBatches } = useBatch()
   const [cohortFilter, setCohortFilter] = useState('')
   const { entries, loading } = useMyTpoOutreach()
+  const { canSeeFinancials } = usePermissions()
 
   if (loading) return <Spinner />
   const filtered = cohortFilter ? entries.filter(e => e.cohort === cohortFilter) : entries
@@ -181,9 +187,9 @@ function TpoAnalyticsOwn() {
           {activeBatches.map(b => <option key={b.id} value={b.id}>{cohortLabel(b.id)}</option>)}
         </Select>
       </div>
-      <SummaryRow entries={filtered} />
+      <SummaryRow entries={filtered} canSeeFinancials={canSeeFinancials} />
       <div style={{ padding: '16px 24px 8px', fontWeight: 600, fontSize: 13, color: 'var(--text-2)' }}>Company Breakdown</div>
-      <MyCompanyBreakdownTable entries={filtered} />
+      <MyCompanyBreakdownTable entries={filtered} canSeeFinancials={canSeeFinancials} />
     </div>
   )
 }
@@ -192,6 +198,7 @@ function TpoAnalyticsAll() {
   const { activeBatches } = useBatch()
   const [cohortFilter, setCohortFilter] = useState('')
   const { entries, profiles, loading } = useAllTpoOutreach()
+  const { canSeeFinancials } = usePermissions()
 
   if (loading) return <Spinner />
   const filtered = cohortFilter ? entries.filter(e => e.cohort === cohortFilter) : entries
@@ -205,9 +212,9 @@ function TpoAnalyticsAll() {
           {activeBatches.map(b => <option key={b.id} value={b.id}>{cohortLabel(b.id)}</option>)}
         </Select>
       </div>
-      <SummaryRow entries={filtered} />
+      <SummaryRow entries={filtered} canSeeFinancials={canSeeFinancials} />
       <div style={{ padding: '16px 24px 8px', fontWeight: 600, fontSize: 13, color: 'var(--text-2)' }}>Per-TPO Breakdown</div>
-      <TpoBreakdownTable entries={filtered} profiles={profiles} cohortFilter={cohortFilter} />
+      <TpoBreakdownTable entries={filtered} profiles={profiles} cohortFilter={cohortFilter} canSeeFinancials={canSeeFinancials} />
     </div>
   )
 }

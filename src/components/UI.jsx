@@ -1,5 +1,6 @@
 // src/components/UI.jsx
 import React from 'react'
+import { ShieldOff } from 'lucide-react'
 
 export function PageHeader({ title, subtitle, actions }) {
   return (
@@ -211,6 +212,15 @@ export function CategoryBadge({ category }) {
     'SC': 'purple', 'ST': 'red', 'EWS': 'green'
   }
   return <Badge color={map[category] || 'gray'}>{category || '—'}</Badge>
+}
+
+export function UnauthorizedMessage({ message = 'You do not have permission to view this page.' }) {
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, color: 'var(--text-3)', padding: 40, textAlign: 'center' }}>
+      <ShieldOff size={36} />
+      <p style={{ fontSize: 14, maxWidth: 360 }}>{message}</p>
+    </div>
+  )
 }
 
 export function Spinner() {

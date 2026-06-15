@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { useAuth } from '../lib/AuthContext'
+import { usePermissions } from '../lib/usePermissions'
 import { useMyTpoOutreach, useAllTpoOutreach, OUTREACH_STATUSES } from '../lib/useTpoOutreach'
 import { useBatch } from '../lib/BatchContext'
 import { cohortLabel } from '../lib/batch'
@@ -242,7 +243,7 @@ function MyOutreachView() {
 
 // ── Admin / Faculty Coordinator read-only view ────────────────────────────────
 
-function TpoSummaryCards({ entries, profiles }) {
+function TpoSummaryCards({ entries, profiles, canSeeFinancials }) {
   // Build per-TPO stats
   const stats = {}
   entries.forEach(e => {
@@ -278,7 +279,7 @@ function TpoSummaryCards({ entries, profiles }) {
               <div>{s.companies} {s.companies === 1 ? 'company' : 'companies'}</div>
               <div>{s.offers} {s.offers === 1 ? 'offer' : 'offers'}</div>
               <div>{s.studentsPlaced} students placed</div>
-              {avgCtc && <div>Avg CTC: {avgCtc} LPA</div>}
+              {canSeeFinancials && avgCtc && <div>Avg CTC: {avgCtc} LPA</div>}
             </div>
           </div>
         )
@@ -290,6 +291,7 @@ function TpoSummaryCards({ entries, profiles }) {
 function AllOutreachView() {
   const { entries, profiles, loading } = useAllTpoOutreach()
   const { activeBatches } = useBatch()
+  const { canSeeFinancials } = usePermissions()
   const [cohortFilter, setCohortFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
 
@@ -305,7 +307,7 @@ function AllOutreachView() {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <PageHeader title="TPO Outreach" subtitle="All TPO outreach entries (read-only overview)" />
 
-      <TpoSummaryCards entries={entries} profiles={profiles} />
+      <TpoSummaryCards entries={entries} profiles={profiles} canSeeFinancials={canSeeFinancials} />
 
       <div style={{ padding: '10px 24px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', background: 'var(--surface)', marginTop: 14 }}>
         <Select value={cohortFilter} onChange={e => setCohortFilter(e.target.value)} style={{ width: 180, height: 30, fontSize: 12 }}>
@@ -328,7 +330,7 @@ function AllOutreachView() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr>
-                {['TPO', 'Company', 'Role', 'CTC (LPA)', 'Fixed (LPA)', 'Students Placed', 'Status', 'Cohort'].map(h => (
+                {['TPO', 'Company', 'Role', ...(canSeeFinancials ? ['CTC (LPA)', 'Fixed (LPA)'] : []), 'Students Placed', 'Status', 'Cohort'].map(h => (
                   <th key={h} style={thStyle}>{h}</th>
                 ))}
               </tr>
@@ -341,8 +343,8 @@ function AllOutreachView() {
                     <td style={tdStyle}>{profile.displayName || e.tpoUid}</td>
                     <td style={tdStyle}><strong>{e.companyName}</strong></td>
                     <td style={tdStyle}>{e.roleTitle || '—'}</td>
-                    <td style={tdStyle}>{e.ctc != null ? e.ctc : '—'}</td>
-                    <td style={tdStyle}>{e.fixedComponent != null ? e.fixedComponent : '—'}</td>
+                    {canSeeFinancials && <td style={tdStyle}>{e.ctc != null ? e.ctc : '—'}</td>}
+                    {canSeeFinancials && <td style={tdStyle}>{e.fixedComponent != null ? e.fixedComponent : '—'}</td>}
                     <td style={{ ...tdStyle, textAlign: 'center' }}>{e.studentsPlaced != null ? e.studentsPlaced : '—'}</td>
                     <td style={tdStyle}>
                       <Badge color={STATUS_COLOR[e.status] || 'gray'}>

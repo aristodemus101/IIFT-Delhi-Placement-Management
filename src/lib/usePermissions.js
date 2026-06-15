@@ -2,60 +2,92 @@ import { useState, useEffect, useMemo } from 'react'
 import { doc, onSnapshot } from 'firebase/firestore'
 import { db, auth } from './firebase'
 import { useAuth } from './AuthContext'
-import { PAGE_ACCESS, ACTION_ACCESS, FIELD_DEFAULTS, canAccess, canDo } from './permissions'
+import { PAGE_ACCESS, ACTION_ACCESS, FIELD_DEFAULTS } from './permissions'
 
-// Reads the live rolePermissions config doc and merges with hardcoded defaults.
-// The config doc can only further restrict visibility — it can never grant more
-// than the FIELD_DEFAULTS allow.
+// Loads three config docs and merges with hardcoded defaults:
+//   /config/rolePermissions  — field-level visibility overrides
+//   /config/pageAccess       — page-level access overrides
+//   /config/actionAccess     — action-level access overrides
+//
+// Security model:
+//   - Hardcoded values in permissions.js are the FLOOR — Firestore config can only
+//     grant access UP TO but never BEYOND what the Firestore security rules allow.
+//   - 'admin' always has full access regardless of config (enforced here AND in rules).
+//   - Config can expand access for committee/tpo/faculty_coordinator within the bounds
+//     that Firestore rules permit for those roles.
 export function usePermissions() {
   const { role } = useAuth()
-  const [config, setConfig] = useState(null)
+  const [fieldConfig, setFieldConfig]   = useState(null)
+  const [pageConfig, setPageConfig]     = useState(null)
+  const [actionConfig, setActionConfig] = useState(null)
 
   useEffect(() => {
-    let unsub = null
+    const subs = []
     const unsubAuth = auth.onAuthStateChanged(u => {
-      if (unsub) { unsub(); unsub = null }
-      if (!u) { setConfig(null); return }
-      unsub = onSnapshot(
+      subs.forEach(fn => fn())
+      subs.length = 0
+      if (!u) { setFieldConfig(null); setPageConfig(null); setActionConfig(null); return }
+
+      subs.push(onSnapshot(
         doc(db, 'config', 'rolePermissions'),
-        snap => setConfig(snap.exists() ? snap.data() : {}),
-        () => setConfig({})
-      )
+        snap => setFieldConfig(snap.exists() ? snap.data() : {}),
+        () => setFieldConfig({})
+      ))
+      subs.push(onSnapshot(
+        doc(db, 'config', 'pageAccess'),
+        snap => setPageConfig(snap.exists() ? snap.data() : {}),
+        () => setPageConfig({})
+      ))
+      subs.push(onSnapshot(
+        doc(db, 'config', 'actionAccess'),
+        snap => setActionConfig(snap.exists() ? snap.data() : {}),
+        () => setActionConfig({})
+      ))
     })
-    return () => { unsubAuth(); if (unsub) unsub() }
+    return () => { unsubAuth(); subs.forEach(fn => fn()) }
   }, [])
 
   return useMemo(() => {
-    // Field visibility: merge hardcoded defaults with admin overrides
+    // ── Page access ──────────────────────────────────────────────────────────
+    // Admin always has access. For others: check Firestore override first,
+    // fall back to hardcoded PAGE_ACCESS.
+    const canAccessPage = (page) => {
+      if (!role) return false
+      if (role === 'admin') return true
+      const override = pageConfig?.[page]
+      const allowed = Array.isArray(override) ? override : (PAGE_ACCESS[page] || [])
+      return allowed.includes(role)
+    }
+
+    // ── Action access ────────────────────────────────────────────────────────
+    const canDo = (action) => {
+      if (!role) return false
+      if (role === 'admin') return true
+      const override = actionConfig?.[action]
+      const allowed = Array.isArray(override) ? override : (ACTION_ACCESS[action] || [])
+      return allowed.includes(role)
+    }
+
+    // ── Field visibility ─────────────────────────────────────────────────────
     const fieldVisible = (fieldKey) => {
       if (!role) return false
-      if (role === 'admin') return true   // admins always see everything
-
-      // Check if admin has configured an override for this field
-      const overrideRoles = config?.[fieldKey]
-      if (overrideRoles !== undefined) {
-        return Array.isArray(overrideRoles) ? overrideRoles.includes(role) : false
-      }
-
-      // Fall back to hardcoded defaults
-      const defaultRoles = FIELD_DEFAULTS[fieldKey]
-      if (defaultRoles !== undefined) return defaultRoles.includes(role)
-
-      return true  // fields not listed in FIELD_DEFAULTS are visible to all
+      if (role === 'admin') return true
+      const override = fieldConfig?.[fieldKey]
+      if (override !== undefined) return Array.isArray(override) ? override.includes(role) : false
+      const defaults = FIELD_DEFAULTS[fieldKey]
+      if (defaults !== undefined) return defaults.includes(role)
+      return true
     }
 
     return {
-      // Page-level gate
-      canAccessPage: (page) => canAccess(page, role),
-
-      // Action gate
-      canDo: (action) => canDo(action, role),
-
-      // Field-level visibility
+      canAccessPage,
+      canDo,
       fieldVisible,
-
-      // Convenience: true if the user can see any placement financial details
-      canSeeFinancials: role === 'admin' || (config?.ctc || []).includes(role),
+      canSeeFinancials: role === 'admin' || (fieldConfig?.ctc || []).includes(role),
+      // Raw config exposed so AdminPage can read current state
+      pageConfig:   pageConfig   || {},
+      actionConfig: actionConfig || {},
+      fieldConfig:  fieldConfig  || {},
     }
-  }, [role, config])
+  }, [role, fieldConfig, pageConfig, actionConfig])
 }

@@ -3,6 +3,7 @@ import React, { useState } from 'react'
 import { useAuth } from '../lib/AuthContext'
 import { GraduationCap } from 'lucide-react'
 
+
 function getSignInErrorMessage(error) {
   const code = error?.code || ''
   const currentHost = typeof window !== 'undefined' ? window.location.hostname : ''
@@ -37,7 +38,7 @@ function getSignInErrorMessage(error) {
 }
 
 export default function LoginPage() {
-  const { login } = useAuth()
+  const { login, authStatus } = useAuth()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -46,6 +47,35 @@ export default function LoginPage() {
     try { await login() }
     catch (e) { setError(getSignInErrorMessage(e)) }
     finally { setLoading(false) }
+  }
+
+  // Show access-denied message if user was rejected by allowlist
+  if (authStatus === 'unauthorized') {
+    return (
+      <div style={{
+        minHeight: '100vh', background: 'var(--bg-grad)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontFamily: 'var(--font-sans)'
+      }}>
+        <div style={{
+          background: 'var(--surface)', border: '1px solid var(--border)',
+          borderRadius: 'var(--radius-lg)', padding: '40px 44px', width: 400,
+          boxShadow: 'var(--shadow)', textAlign: 'center', backdropFilter: 'blur(20px)'
+        }}>
+          <div style={{
+            width: 52, height: 52, background: 'var(--red-bg)', borderRadius: 'var(--radius)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px',
+            border: '1px solid var(--red-border)'
+          }}>
+            <GraduationCap size={26} color="var(--red-text)" />
+          </div>
+          <h1 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em', marginBottom: 10 }}>Access Denied</h1>
+          <p style={{ fontSize: 14, color: 'var(--text-2)', lineHeight: 1.6 }}>
+            Your email is not authorised to access this platform. Contact the placement team.
+          </p>
+        </div>
+      </div>
+    )
   }
 
   return (

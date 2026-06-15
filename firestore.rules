@@ -10,14 +10,15 @@ service cloud.firestore {
     function isAuthed()      { return request.auth != null; }
     function isAdmin()              { return isAuthed() && roleData().role == 'admin'; }
     function isMasterAdmin()        { return isAuthed() && roleData().isMasterAdmin == true; }
+    function isCommittee()          { return isAuthed() && roleData().role == 'committee'; }
     function isTpo()                { return isAuthed() && roleData().role == 'tpo'; }
     function isFacultyCoordinator() { return isAuthed() && roleData().role == 'faculty_coordinator'; }
-    // hasRole: existing placement committee roles only (students/pipeline data)
-    function hasRole()              { return isAuthed() && roleData().role in ['admin', 'committee', 'viewer']; }
+    // hasRole: placement committee roles (students/pipeline data)
+    function hasRole()              { return isAuthed() && roleData().role in ['admin', 'committee']; }
     // hasAnyRole: any recognised role (for non-sensitive shared config)
-    function hasAnyRole()           { return isAuthed() && roleData().role in ['admin', 'committee', 'viewer', 'tpo', 'faculty_coordinator']; }
+    function hasAnyRole()           { return isAuthed() && roleData().role in ['admin', 'committee', 'tpo', 'faculty_coordinator']; }
     function canViewTpoData()       { return isAdmin() || isFacultyCoordinator(); }
-    
+
     function hasValidCohort() {
       return request.resource.data.cohort is string
         && request.resource.data.cohort.size() > 0
@@ -25,9 +26,7 @@ service cloud.firestore {
     }
 
     // ── Students ────────────────────────────────────────────────────────────
-    // Viewers: read only. Admins: read + write.
-    // Direct writes by admins are allowed; the approval workflow is enforced
-    // at the app layer and backed by the immutable auditLog.
+    // Committee members: read only. Admins: read + write.
     match /students/{id} {
       allow read:           if hasRole();
       allow create, update: if isAdmin() && hasValidCohort();
@@ -35,28 +34,30 @@ service cloud.firestore {
     }
 
     // ── Pending Changes ─────────────────────────────────────────────────────
-    // Only admins can propose (create) or review (update) changes.
-    // An admin cannot approve/reject their own proposal (enforced here AND in app).
+    // Admins and committee members can propose (create) changes.
+    // Only admins can review (approve/reject) — and not their own proposals.
+    // Proposers (admin or committee) can withdraw their own pending proposals.
     match /pendingChanges/{id} {
       allow read: if hasRole();
 
-      allow create: if isAdmin()
+      allow create: if (isAdmin() || isCommittee())
         && request.resource.data.proposedBy == request.auth.uid
         && request.resource.data.status    == 'pending';
 
       // Review path: a different admin approves/rejects pending proposals.
-      // Withdraw path: proposer withdraws their own pending proposal.
-      allow update: if isAdmin()
-        && resource.data.status == 'pending'
+      // Withdraw path: proposer (admin or committee) withdraws their own pending proposal.
+      allow update: if resource.data.status == 'pending'
         && request.resource.data.proposedBy == resource.data.proposedBy
         && (
           (
-            resource.data.proposedBy != request.auth.uid
+            isAdmin()
+            && resource.data.proposedBy != request.auth.uid
             && request.resource.data.status in ['approved', 'rejected']
           )
           ||
           (
-            resource.data.proposedBy == request.auth.uid
+            (isAdmin() || isCommittee())
+            && resource.data.proposedBy == request.auth.uid
             && request.resource.data.status == 'withdrawn'
             && request.resource.data.withdrawnBy == request.auth.uid
           )
@@ -91,10 +92,12 @@ service cloud.firestore {
     }
 
     // ── Config ──────────────────────────────────────────────────────────────
-    // Shared app config. TPOs need rolePermissions to resolve field visibility.
+    // Shared app config.
+    // /config/authorizedUsers: any authenticated user needs to read it for the allowlist check.
+    // Write is master-admin only.
     match /config/{docId} {
-      allow read:  if hasAnyRole();
-      allow write: if isAdmin();
+      allow read:  if isAuthed();
+      allow write: if docId == 'authorizedUsers' ? isMasterAdmin() : isAdmin();
     }
 
     // ── Templates ───────────────────────────────────────────────────────────
