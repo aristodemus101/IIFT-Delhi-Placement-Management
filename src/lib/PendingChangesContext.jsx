@@ -13,7 +13,7 @@ import { cohortLabel, seasonLabel, schemaDocIdForBatch, parseCohortId, cohortYea
 const PendingChangesContext = createContext(null)
 
 export function PendingChangesProvider({ children }) {
-  const { user, isAdmin } = useAuth()
+  const { user, isAdmin, isCommittee } = useAuth()
   const { appendChange } = useSheetsSync()
   const [changes, setChanges] = useState([])
   const [loading, setLoading] = useState(true)
@@ -31,9 +31,13 @@ export function PendingChangesProvider({ children }) {
 
   const pendingCount = changes.filter(c => c.status === 'pending').length
 
-  // Create a proposal — any admin action goes here first
+  // Create a proposal — admin or committee members can propose changes.
+  // Import and clearAll are admin-only.
   const propose = async (changeData) => {
-    if (!isAdmin) throw new Error('Not authorized')
+    if (!isAdmin && !isCommittee) throw new Error('Not authorized')
+    if (!isAdmin && (changeData.type === 'import' || changeData.type === 'clearAll')) {
+      throw new Error('Not authorized')
+    }
 
     if (changeData.type === 'clearAll') {
       if (!Array.isArray(changeData.studentIds) || !changeData.studentIds.length || !changeData.studentCount) {
@@ -53,9 +57,7 @@ export function PendingChangesProvider({ children }) {
       const storagePath = `imports/${importId}/${changeData.file.name}`
       const storageRef = ref(storage, storagePath)
 
-      console.log('[import] uploading to storage:', storagePath)
       await uploadBytes(storageRef, changeData.file)
-      console.log('[import] storage upload done, writing pendingChanges...')
 
       // Create the batch doc now so the cohort appears in the sidebar immediately,
       // even before the import is approved. merge:true is safe — won't overwrite
@@ -91,7 +93,6 @@ export function PendingChangesProvider({ children }) {
         status: 'pending',
         applied: false,
       })
-      console.log('[import] pendingChanges written, done.')
       return
     }
 
@@ -214,9 +215,9 @@ export function PendingChangesProvider({ children }) {
     appendChange({ ...change, reviewedByName: user.displayName, note })
   }
 
-  // Withdraw your own pending change
+  // Withdraw your own pending change (admin or committee can withdraw their own proposals)
   const withdraw = async (changeId, note = '') => {
-    if (!isAdmin) throw new Error('Not authorized')
+    if (!isAdmin && !isCommittee) throw new Error('Not authorized')
     const change = changes.find(c => c._id === changeId)
     if (!change) throw new Error('Change not found')
     if (change.status !== 'pending') throw new Error('Only pending changes can be withdrawn')

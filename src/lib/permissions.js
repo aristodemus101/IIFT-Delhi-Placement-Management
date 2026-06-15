@@ -1,17 +1,17 @@
 // Central permissions definition.
 // PAGE_ACCESS and FIELD_DEFAULTS are the hardcoded minimums.
 // Master admin can FURTHER restrict field visibility via Firestore config
-// (they can hide fields from committee/viewer but never from admin).
+// (they can hide fields from committee but never from admin).
 
 // ── Page access ──────────────────────────────────────────────────────────────
 // Which roles can access each route
 export const PAGE_ACCESS = {
-  dashboard:  ['admin', 'committee', 'viewer'],
-  roster:     ['admin', 'committee', 'viewer'],
+  dashboard:  ['admin', 'committee'],
+  roster:     ['admin', 'committee'],
   placed:     ['admin', 'committee'],
-  activity:   ['admin', 'committee', 'viewer'],
+  activity:   ['admin', 'committee'],
   analytics:  ['admin', 'committee', 'faculty_coordinator'],
-  remapper:   ['admin', 'committee', 'viewer'],
+  remapper:   ['admin', 'committee'],
   approvals:  ['admin'],
   admin:      ['admin'],
   tpo:        ['admin', 'tpo', 'faculty_coordinator'],
@@ -19,16 +19,16 @@ export const PAGE_ACCESS = {
 
 // ── Action permissions ────────────────────────────────────────────────────────
 export const ACTION_ACCESS = {
-  proposePlace:       ['admin'],
-  proposeUnplace:     ['admin'],
-  proposeDelete:      ['admin'],
+  proposePlace:       ['admin', 'committee'],
+  proposeUnplace:     ['admin', 'committee'],
+  proposeDelete:      ['admin', 'committee'],
   proposeImport:      ['admin'],
   proposeClearAll:    ['admin'],
   approveChange:      ['admin'],
   manageRoles:        ['admin'],
   manageCohorts:      ['admin'],
   exportData:         ['admin', 'committee'],
-  viewFullRoster:     ['admin', 'committee', 'viewer'],
+  viewFullRoster:     ['admin', 'committee'],
   writeTpoOutreach:   ['admin', 'tpo'],
   viewAllTpoData:     ['admin', 'faculty_coordinator'],
 }
@@ -55,18 +55,38 @@ export const CONFIGURABLE_FIELDS = [
 export const ROLE_LABELS = {
   admin:               'Admin',
   committee:           'Committee Member',
-  viewer:              'Viewer',
   tpo:                 'TPO',
   faculty_coordinator: 'Faculty Coordinator',
 }
 
-export const ROLES = ['admin', 'committee', 'viewer', 'tpo', 'faculty_coordinator']
+export const ROLES = ['admin', 'committee', 'tpo', 'faculty_coordinator']
 
-// ── Helper ────────────────────────────────────────────────────────────────────
-export function canAccess(page, role) {
-  return (PAGE_ACCESS[page] || []).includes(role)
+// ── Page & Action labels (for Admin UI) ───────────────────────────────────────
+export const PAGE_LABELS = {
+  dashboard: 'Dashboard',
+  roster:    'Roster (view)',
+  placed:    'Placed Students',
+  activity:  'Activity (Opportunities)',
+  analytics: 'Analytics',
+  remapper:  'Column Remapper',
+  approvals: 'Approvals',
+  tpo:       'TPO Outreach',
 }
 
-export function canDo(action, role) {
-  return (ACTION_ACCESS[action] || []).includes(role)
+export const ACTION_LABELS = {
+  proposePlace:    'Propose: Mark Placed',
+  proposeUnplace:  'Propose: Unplace Student',
+  proposeDelete:   'Propose: Delete Student',
+  proposeImport:   'Propose: Import Students',
+  proposeClearAll: 'Propose: Clear All Students',
+  exportData:      'Export Data (CSV)',
+  viewAllTpoData:  'View All TPO Outreach',
 }
+
+// Which pages/actions are configurable (admin access is always locked; tpo/fc fixed roles excluded)
+export const CONFIGURABLE_PAGES   = ['dashboard', 'roster', 'placed', 'activity', 'analytics', 'remapper', 'approvals', 'tpo']
+export const CONFIGURABLE_ACTIONS = ['proposePlace', 'proposeUnplace', 'proposeDelete', 'proposeImport', 'proposeClearAll', 'exportData', 'viewAllTpoData']
+
+// Roles that can be toggled in the permission grid (admin is always locked on)
+export const CONFIGURABLE_ROLES = ['committee', 'faculty_coordinator', 'tpo']
+

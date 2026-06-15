@@ -68,16 +68,6 @@ export function cohortLabel(id) {
   return parts.join(' ')
 }
 
-// Returns the programme part, e.g. 'D27-Delhi-IB' → 'IB'
-export function cohortProgramme(id) {
-  return parseCohortId(id).programme
-}
-
-// Returns the campus part, e.g. 'D27-Delhi-IB' → 'Delhi'
-export function cohortCampus(id) {
-  return parseCohortId(id).campus
-}
-
 export function cohortYear(id) {
   if (!id) return 0
   const digits = String(id).replace(/[^0-9]/g, '')
@@ -90,12 +80,6 @@ export function seasonLabel(season) {
   if (season === 'summer') return 'Summer Internship'
   if (season === 'final')  return 'Final Placement'
   return season || 'Unknown Season'
-}
-
-export function seasonShort(season) {
-  if (season === 'summer') return 'Summer'
-  if (season === 'final')  return 'Final'
-  return season || ''
 }
 
 export function schemaDocIdForBatch(batchId) {

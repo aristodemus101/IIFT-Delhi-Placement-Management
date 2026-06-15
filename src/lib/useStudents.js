@@ -91,7 +91,7 @@ export function useColumnSchema(batch = 'final') {
       updatedBy: updatedBy?.uid || null,
       updatedByName: updatedBy?.displayName || null,
       source: 'manual',
-      batch: normalizedBatch,
+      batch,
     }, { merge: true })
   }
 
