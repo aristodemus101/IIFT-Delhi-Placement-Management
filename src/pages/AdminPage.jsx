@@ -78,9 +78,22 @@ export default function AdminPage() {
     })
   }, [])
 
-  // Sync local draft from live Firestore config (pageConfig/actionConfig from usePermissions)
-  useEffect(() => { if (pageConfig)   setPagePerms(pageConfig)   }, [pageConfig])
-  useEffect(() => { if (actionConfig) setActionPerms(actionConfig) }, [actionConfig])
+  // Seed local draft from Firestore config on first load only (not on every live update,
+  // which would silently overwrite in-progress edits)
+  const pageConfigSeeded   = React.useRef(false)
+  const actionConfigSeeded = React.useRef(false)
+  useEffect(() => {
+    if (!pageConfigSeeded.current && pageConfig && Object.keys(pageConfig).length > 0) {
+      pageConfigSeeded.current = true
+      setPagePerms(pageConfig)
+    }
+  }, [pageConfig])
+  useEffect(() => {
+    if (!actionConfigSeeded.current && actionConfig && Object.keys(actionConfig).length > 0) {
+      actionConfigSeeded.current = true
+      setActionPerms(actionConfig)
+    }
+  }, [actionConfig])
 
   // Load authorized users on mount (master admin only)
   useEffect(() => {

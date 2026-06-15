@@ -29,19 +29,51 @@ function FullSpinner() {
 }
 
 function AuthGate({ children }) {
-  const { user } = useAuth()
+  const { user, authStatus } = useAuth()
   const location = useLocation()
-  if (user === undefined) return <FullSpinner />
+  if (authStatus === 'loading' || user === undefined) return <FullSpinner />
+  if (authStatus === 'unauthorized') return <UnauthorizedPage />
   if (!user) return <Navigate to="/login" state={{ from: `${location.pathname}${location.search}${location.hash}` }} replace />
   return children
 }
 
+function UnauthorizedPage() {
+  return (
+    <div style={{
+      minHeight: '100vh', background: 'var(--bg-grad)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      fontFamily: 'var(--font-sans)'
+    }}>
+      <div style={{
+        background: 'var(--surface)', border: '1px solid var(--border)',
+        borderRadius: 'var(--radius-lg)', padding: '40px 44px', width: 400,
+        boxShadow: 'var(--shadow)', textAlign: 'center', backdropFilter: 'blur(20px)'
+      }}>
+        <div style={{
+          width: 52, height: 52, background: 'var(--red-bg)', borderRadius: 'var(--radius)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px',
+          border: '1px solid var(--red-border)'
+        }}>
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--red-text)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            <line x1="12" y1="8" x2="12" y2="12"/>
+            <line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+        </div>
+        <h1 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em', marginBottom: 10, color: 'var(--text)' }}>Access Denied</h1>
+        <p style={{ fontSize: 14, color: 'var(--text-2)', lineHeight: 1.6 }}>
+          Your email is not authorised to access this platform. Contact the placement team.
+        </p>
+      </div>
+    </div>
+  )
+}
+
 function LoginRoute() {
-  const { user } = useAuth()
+  const { user, authStatus } = useAuth()
   const location = useLocation()
-  // Still resolving auth — show spinner so login page doesn't flash before redirect
-  if (user === undefined) return <FullSpinner />
-  // Already logged in — go back to where they came from, or home
+  if (authStatus === 'loading' || user === undefined) return <FullSpinner />
+  if (authStatus === 'unauthorized') return <UnauthorizedPage />
   if (user) return <Navigate to={location.state?.from || '/'} replace />
   return <LoginPage />
 }
@@ -74,10 +106,10 @@ function AppRoutes() {
       <Route path="/login" element={<LoginRoute />} />
       <Route path="/" element={<AuthGate><BatchProvider><SheetsSyncProvider><PendingChangesProvider><Layout /></PendingChangesProvider></SheetsSyncProvider></BatchProvider></AuthGate>}>
         <Route index                element={<RoleHome />} />
-        <Route path="roster"        element={<RosterPage />} />
+        <Route path="roster"        element={<PageGate page="roster"><RosterPage /></PageGate>} />
         <Route path="placed"        element={<PageGate page="placed"><PlacedPage /></PageGate>} />
-        <Route path="remapper"      element={<RemapperPage />} />
-        <Route path="activity"      element={<ActivityPage />} />
+        <Route path="remapper"      element={<PageGate page="remapper"><RemapperPage /></PageGate>} />
+        <Route path="activity"      element={<PageGate page="activity"><ActivityPage /></PageGate>} />
         <Route path="analytics"     element={<PageGate page="analytics"><AnalyticsPage /></PageGate>} />
         <Route path="tpo"           element={<PageGate page="tpo"><TpoPage /></PageGate>} />
         <Route path="approvals"     element={<PageGate page="approvals"><ApprovalsPage /></PageGate>} />
