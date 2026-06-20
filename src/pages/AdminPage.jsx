@@ -157,7 +157,7 @@ export default function AdminPage() {
     const safeKey = email.replace(/\./g, '_')
     setRoleSavingFor(email)
     try {
-      await setDoc(doc(db, 'config', 'authorizedUsers'), { [`roleMap.${safeKey}`]: newRole }, { merge: true })
+      await setDoc(doc(db, 'config', 'authorizedUsers'), { roleMap: { [safeKey]: newRole } }, { merge: true })
       setSavedRoles(prev => ({ ...prev, [email]: newRole }))
       // If they already have a roles doc, update it live so they don't need to sign out
       const existingRoles = await getDocs(query(collection(db, 'roles'), where('email', '==', email)))
@@ -177,7 +177,7 @@ export default function AdminPage() {
       // Add to authorizedUsers list with email → role mapping for first-login seeding
       await setDoc(doc(db, 'config', 'authorizedUsers'), {
         emails: arrayUnion(email),
-        [`roleMap.${email.replace(/\./g, '_')}`]: newAuthRole,
+        roleMap: { [email.replace(/\./g, '_')]: newAuthRole },
       }, { merge: true })
       setAuthUserEmails(prev => [...prev, email])
       setSavedRoles(prev => ({ ...prev, [email]: newAuthRole }))

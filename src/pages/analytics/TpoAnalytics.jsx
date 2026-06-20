@@ -6,168 +6,395 @@ import { useBatch } from '../../lib/BatchContext'
 import { cohortLabel } from '../../lib/batch'
 import { Badge, Spinner, Select, StatCard } from '../../components/UI'
 
-const STATUS_COLOR = {
-  reached_out: 'gray',
-  shortlisted: 'blue',
-  offer_made:  'green',
-  declined:    'red',
+// ── KPI targets ───────────────────────────────────────────────────────────────
+
+const T = {
+  summer: {
+    kpi1_newOrgs:   10,
+    kpi1_gckkNew:   5,
+    kpi3_intl:      2,
+    kpi4_highValue: 15,
+    kpi5_premium:   5,
+    kpi6_lateral:   5,
+    kpi7_gckk:      10,
+  },
+  final: {
+    kpi1_newOrgs:             7,
+    kpi1_multiCampus:         5,
+    kpi2_avgCtc:              27,
+    kpi2_minCtc:              16,
+    kpi3_intl:                3,
+    kpi4_highValue:           10,
+    kpi4_minCtc:              30,
+    kpi5_premium:             3,
+    kpi5_minCtc:              50,
+    kpi6_lateral:             15,
+    kpi6_lateralHighCtc:      5,
+    kpi6_lateralCtcThreshold: 27,
+    kpi7_gckk:                20,
+    kpi7_gckkPremium:         5,
+  },
 }
 
-function avg(nums) {
-  const valid = nums.filter(n => n != null && !isNaN(n))
-  return valid.length ? (valid.reduce((a, b) => a + b, 0) / valid.length) : null
-}
+const GCKK_CAMPUSES = ['Gift City', 'Kakinada']
+const HIGH_VALUE_SECTORS = ['Consulting', 'BFSI', 'FMCG', 'Technology', 'GLP']
 
-function fmt(n) {
-  return n != null ? n.toFixed(2) : '—'
-}
+// ── KPI computation ───────────────────────────────────────────────────────────
 
-// Summary card row
-function SummaryRow({ entries, canSeeFinancials }) {
-  const totalCompanies  = new Set(entries.map(e => e.companyName.toLowerCase())).size
-  const avgCtc          = avg(entries.map(e => e.ctc))
-  const avgFixed        = avg(entries.map(e => e.fixedComponent))
-  const offers          = entries.filter(e => e.status === 'offer_made').length
-  const conversionRate  = entries.length ? Math.round((offers / entries.length) * 100) : 0
+function computeKpis(entries) {
+  const s = entries.filter(e => e.season === 'summer')
+  const f = entries.filter(e => e.season === 'final')
+  const offers = (arr) => arr.filter(e => e.status === 'offer_made')
+  const gckkEntries = (arr) => arr.filter(e => (e.campus || []).some(c => GCKK_CAMPUSES.includes(c)))
 
-  return (
-    <div style={{ display: 'flex', gap: 12, padding: '16px 24px', borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
-      <StatCard label="Companies Reached" value={totalCompanies} color="blue" />
-      {canSeeFinancials && <StatCard label="Avg CTC (LPA)"   value={fmt(avgCtc)}   color="green" />}
-      {canSeeFinancials && <StatCard label="Avg Fixed (LPA)" value={fmt(avgFixed)} color="amber" />}
-      <StatCard label="Offers Made"        value={offers}        color="green" />
-      <StatCard label="Offer Rate"         value={`${conversionRate}%`} color="gray" />
-    </div>
-  )
-}
+  const sOffers = offers(s)
+  const fOffers = offers(f)
 
-// Per-TPO breakdown table (admin / faculty_coordinator view)
-function TpoBreakdownTable({ entries, profiles, cohortFilter, canSeeFinancials }) {
-  const filtered = cohortFilter ? entries.filter(e => e.cohort === cohortFilter) : entries
-
-  // Group by tpoUid
-  const byTpo = useMemo(() => {
-    const m = {}
-    filtered.forEach(e => {
-      if (!m[e.tpoUid]) m[e.tpoUid] = []
-      m[e.tpoUid].push(e)
-    })
-    return m
-  }, [filtered])
-
-  const rows = Object.entries(byTpo).map(([uid, es]) => ({
-    uid,
-    name:       profiles[uid]?.displayName || uid,
-    companies:  new Set(es.map(e => e.companyName.toLowerCase())).size,
-    avgCtc:     avg(es.map(e => e.ctc)),
-    avgFixed:   avg(es.map(e => e.fixedComponent)),
-    offers:     es.filter(e => e.status === 'offer_made').length,
-    total:      es.length,
-  })).sort((a, b) => b.offers - a.offers)
-
-  if (rows.length === 0) {
-    return (
-      <div style={{ padding: '40px 24px', textAlign: 'center', color: 'var(--text-3)', fontSize: 14 }}>
-        No outreach data for this cohort yet.
-      </div>
-    )
+  // avg CTC of offer_made entries with a valid CTC
+  const avgCtc = (arr) => {
+    const vals = arr.map(e => e.ctc).filter(v => v != null && !isNaN(v))
+    return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null
   }
 
-  const headers = ['TPO', 'Companies', ...(canSeeFinancials ? ['Avg CTC (LPA)', 'Avg Fixed (LPA)'] : []), 'Offers', 'Total Entries', 'Offer Rate']
-
-  return (
-    <div style={{ overflow: 'auto' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-        <thead>
-          <tr>
-            {headers.map(h => (
-              <th key={h} style={thStyle}>{h}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r, i) => (
-            <tr key={r.uid} style={{ background: i % 2 === 0 ? 'var(--surface)' : 'var(--surface2)' }}>
-              <td style={tdStyle}><strong>{r.name}</strong></td>
-              <td style={tdStyle}>{r.companies}</td>
-              {canSeeFinancials && <td style={tdStyle}>{fmt(r.avgCtc)}</td>}
-              {canSeeFinancials && <td style={tdStyle}>{fmt(r.avgFixed)}</td>}
-              <td style={tdStyle}>
-                <Badge color="green">{r.offers}</Badge>
-              </td>
-              <td style={tdStyle}>{r.total}</td>
-              <td style={tdStyle}>
-                {r.total ? Math.round((r.offers / r.total) * 100) + '%' : '—'}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  )
-}
-
-// Per-company breakdown table (own TPO view — scoped to their entries only)
-function MyCompanyBreakdownTable({ entries, canSeeFinancials }) {
-  const rows = useMemo(() => {
-    const m = {}
-    entries.forEach(e => {
-      const key = e.companyName.toLowerCase()
-      if (!m[key]) m[key] = { companyName: e.companyName, entries: [] }
-      m[key].entries.push(e)
-    })
-    return Object.values(m).map(({ companyName, entries: es }) => ({
-      companyName,
-      roles:    [...new Set(es.map(e => e.roleTitle).filter(Boolean))].join(', ') || '—',
-      avgCtc:   avg(es.map(e => e.ctc)),
-      avgFixed: avg(es.map(e => e.fixedComponent)),
-      bestStatus: OUTREACH_STATUSES.slice().reverse().find(s => es.some(e => e.status === s.value))?.value || 'reached_out',
-      count:    es.length,
-    })).sort((a, b) => a.companyName.localeCompare(b.companyName))
-  }, [entries])
-
-  if (rows.length === 0) {
-    return (
-      <div style={{ padding: '40px 24px', textAlign: 'center', color: 'var(--text-3)', fontSize: 14 }}>
-        No outreach data yet.
-      </div>
-    )
+  return {
+    summer: {
+      kpi1: {
+        newOrgs:  s.filter(e => e.isNew).length,
+        gckkNew:  gckkEntries(s).filter(e => e.isNew).length,
+      },
+      kpi2: {
+        avgCtc: avgCtc(sOffers),
+      },
+      kpi3: {
+        intl: sOffers.filter(e => e.isInternational).length,
+      },
+      kpi4: {
+        highValue: sOffers.filter(e => HIGH_VALUE_SECTORS.includes(e.sector)).length,
+      },
+      kpi5: {
+        premium: sOffers.filter(e => e.isPremium).length,
+      },
+      kpi6: {
+        lateral: s.filter(e => e.isLateral).length,
+      },
+      kpi7: {
+        gckk: gckkEntries(s).length,
+      },
+    },
+    final: {
+      kpi1: {
+        newOrgs:     f.filter(e => e.isNew).length,
+        multiCampus: f.filter(e => e.isMultiCampus).length,
+      },
+      kpi2: {
+        avgCtc:  avgCtc(fOffers),
+        minCtc:  fOffers.length ? Math.min(...fOffers.map(e => e.ctc).filter(v => v != null && !isNaN(v))) : null,
+      },
+      kpi3: {
+        intl: fOffers.filter(e => e.isInternational).length,
+      },
+      kpi4: {
+        highValue:   fOffers.filter(e => (e.ctc || 0) >= T.final.kpi4_minCtc).length,
+      },
+      kpi5: {
+        premium:     fOffers.filter(e => e.isPremium).length,
+        premiumHigh: fOffers.filter(e => e.isPremium && (e.ctc || 0) >= T.final.kpi5_minCtc).length,
+      },
+      kpi6: {
+        lateral:     f.filter(e => e.isLateral).length,
+        lateralHigh: f.filter(e => e.isLateral && (e.ctc || 0) >= T.final.kpi6_lateralCtcThreshold).length,
+      },
+      kpi7: {
+        gckk:        gckkEntries(f).length,
+        gckkPremium: gckkEntries(fOffers).filter(e => e.isPremium).length,
+      },
+    },
   }
+}
 
-  const headers = ['Company', 'Roles', ...(canSeeFinancials ? ['Avg CTC (LPA)', 'Avg Fixed (LPA)'] : []), 'Best Status', 'Entries']
+// ── UI helpers ────────────────────────────────────────────────────────────────
 
+function pct(actual, target) {
+  return target > 0 ? Math.min(100, Math.round((actual / target) * 100)) : 0
+}
+
+function statusBadge(actual, target) {
+  const p = pct(actual, target)
+  if (p >= 100) return <Badge color="green">Met</Badge>
+  if (p >= 60)  return <Badge color="amber">On Track</Badge>
+  return <Badge color="red">Behind</Badge>
+}
+
+function ProgressBar({ actual, target, color }) {
+  const p = pct(actual, target)
+  const barColor = p >= 100 ? 'var(--green)' : p >= 60 ? 'var(--amber)' : 'var(--red, #ef4444)'
   return (
-    <div style={{ overflow: 'auto' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-        <thead>
-          <tr>
-            {headers.map(h => (
-              <th key={h} style={thStyle}>{h}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r, i) => (
-            <tr key={r.companyName} style={{ background: i % 2 === 0 ? 'var(--surface)' : 'var(--surface2)' }}>
-              <td style={tdStyle}><strong>{r.companyName}</strong></td>
-              <td style={{ ...tdStyle, color: 'var(--text-2)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.roles}</td>
-              {canSeeFinancials && <td style={tdStyle}>{fmt(r.avgCtc)}</td>}
-              {canSeeFinancials && <td style={tdStyle}>{fmt(r.avgFixed)}</td>}
-              <td style={tdStyle}>
-                <Badge color={STATUS_COLOR[r.bestStatus] || 'gray'}>
-                  {OUTREACH_STATUSES.find(s => s.value === r.bestStatus)?.label || r.bestStatus}
-                </Badge>
-              </td>
-              <td style={tdStyle}>{r.count}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div style={{ height: 4, borderRadius: 99, background: 'var(--border)', marginTop: 6, overflow: 'hidden' }}>
+      <div style={{ height: '100%', width: `${p}%`, background: barColor, borderRadius: 99, transition: 'width 0.4s ease' }} />
     </div>
   )
 }
 
-// ── Main export ───────────────────────────────────────────────────────────────
+function KpiRow({ label, actual, target, format }) {
+  const display = format ? format(actual) : actual
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+      <span style={{ color: 'var(--text-2)', flex: 1 }}>{label}</span>
+      <span style={{ fontWeight: 600, color: 'var(--text)', minWidth: 28, textAlign: 'right' }}>{display ?? '—'}</span>
+      <span style={{ color: 'var(--text-3)' }}>/ {target}</span>
+      {statusBadge(actual ?? 0, target)}
+    </div>
+  )
+}
+
+function SeasonCol({ title, color, children }) {
+  return (
+    <div style={{ flex: 1, padding: '10px 14px', borderRadius: 8, background: color === 'amber' ? 'var(--amber-bg)' : 'var(--accent-bg)', border: `1px solid ${color === 'amber' ? 'var(--amber-border, #fde68a)' : '#BFDBFE'}` }}>
+      <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: color === 'amber' ? 'var(--amber-text)' : 'var(--accent-text)', marginBottom: 10 }}>{title}</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {children}
+      </div>
+    </div>
+  )
+}
+
+function KpiDetailCard({ number, title, summerContent, finalContent }) {
+  return (
+    <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: 'var(--surface)', overflow: 'hidden' }}>
+      <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10 }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, borderRadius: 99, background: 'var(--accent)', color: '#fff', fontSize: 10, fontWeight: 700, flexShrink: 0 }}>{number}</span>
+        <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--text)' }}>{title}</span>
+      </div>
+      <div style={{ padding: 12, display: 'flex', gap: 10 }}>
+        {summerContent}
+        {finalContent}
+      </div>
+    </div>
+  )
+}
+
+// Top-row compact summary cards (one per KPI)
+function KpiSummaryRow({ kpis }) {
+  const { summer: s, final: f } = kpis
+
+  const items = [
+    {
+      label: 'Corporate Engagement',
+      sActual: s.kpi1.newOrgs, sTarget: T.summer.kpi1_newOrgs,
+      fActual: f.kpi1.newOrgs, fTarget: T.final.kpi1_newOrgs,
+    },
+    {
+      label: 'Compensation',
+      sActual: s.kpi2.avgCtc != null ? +s.kpi2.avgCtc.toFixed(1) : null,
+      sTarget: null,
+      fActual: f.kpi2.avgCtc != null ? +f.kpi2.avgCtc.toFixed(1) : null,
+      fTarget: T.final.kpi2_avgCtc,
+      format: v => v != null ? `${v} L` : '—',
+      fNoBar: true,
+    },
+    {
+      label: 'International',
+      sActual: s.kpi3.intl, sTarget: T.summer.kpi3_intl,
+      fActual: f.kpi3.intl, fTarget: T.final.kpi3_intl,
+    },
+    {
+      label: 'High Value Offers',
+      sActual: s.kpi4.highValue, sTarget: T.summer.kpi4_highValue,
+      fActual: f.kpi4.highValue, fTarget: T.final.kpi4_highValue,
+    },
+    {
+      label: 'Premium / Dream',
+      sActual: s.kpi5.premium, sTarget: T.summer.kpi5_premium,
+      fActual: f.kpi5.premium, fTarget: T.final.kpi5_premium,
+    },
+    {
+      label: 'Lateral',
+      sActual: s.kpi6.lateral, sTarget: T.summer.kpi6_lateral,
+      fActual: f.kpi6.lateral, fTarget: T.final.kpi6_lateral,
+    },
+    {
+      label: 'GC / Kakinada',
+      sActual: s.kpi7.gckk, sTarget: T.summer.kpi7_gckk,
+      fActual: f.kpi7.gckk, fTarget: T.final.kpi7_gckk,
+    },
+  ]
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 8, padding: '14px 24px', borderBottom: '1px solid var(--border)' }}>
+      {items.map((item, i) => {
+        const sPct = item.sTarget ? pct(item.sActual ?? 0, item.sTarget) : null
+        const fPct = item.fTarget ? pct(item.fActual ?? 0, item.fTarget) : null
+        const fmt = item.format || (v => v ?? '—')
+        return (
+          <div key={i} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 12px', boxShadow: 'var(--shadow-sm)' }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8, lineHeight: 1.3 }}>{item.label}</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
+                  <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--amber-text)', textTransform: 'uppercase' }}>S</span>
+                  <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', lineHeight: 1 }}>{fmt(item.sActual)}</span>
+                  {item.sTarget && <span style={{ fontSize: 10, color: 'var(--text-3)' }}>/{item.sTarget}</span>}
+                </div>
+                {sPct != null && <ProgressBar actual={item.sActual ?? 0} target={item.sTarget} />}
+              </div>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
+                  <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--accent-text)', textTransform: 'uppercase' }}>F</span>
+                  <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', lineHeight: 1 }}>{fmt(item.fActual)}</span>
+                  {item.fTarget && <span style={{ fontSize: 10, color: 'var(--text-3)' }}>/{item.fTarget}</span>}
+                </div>
+                {fPct != null && !item.fNoBar && <ProgressBar actual={item.fActual ?? 0} target={item.fTarget} />}
+              </div>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// Full KPI detail cards
+function KpiDetailSection({ kpis, canSeeFinancials }) {
+  const { summer: s, final: f } = kpis
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '14px 24px 24px' }}>
+
+      <KpiDetailCard
+        number={1} title="Corporate Outreach Engagement"
+        summerContent={
+          <SeasonCol title="Summer Internship" color="amber">
+            <KpiRow label="New recruiting organisations" actual={s.kpi1.newOrgs} target={T.summer.kpi1_newOrgs} />
+            <KpiRow label="New orgs for GC / Kakinada" actual={s.kpi1.gckkNew} target={T.summer.kpi1_gckkNew} />
+          </SeasonCol>
+        }
+        finalContent={
+          <SeasonCol title="Final Placement" color="accent">
+            <KpiRow label="New recruiting organisations" actual={f.kpi1.newOrgs} target={T.final.kpi1_newOrgs} />
+            <KpiRow label="Multi-campus recruiters" actual={f.kpi1.multiCampus} target={T.final.kpi1_multiCampus} />
+          </SeasonCol>
+        }
+      />
+
+      {canSeeFinancials && (
+        <KpiDetailCard
+          number={2} title="Compensation Benchmark"
+          summerContent={
+            <SeasonCol title="Summer Internship" color="amber">
+              <div style={{ fontSize: 12, color: 'var(--text-2)' }}>
+                Avg stipend (offer_made entries)
+              </div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                <span style={{ fontSize: 22, fontWeight: 700, color: 'var(--text)' }}>
+                  {s.kpi2.avgCtc != null ? `${s.kpi2.avgCtc.toFixed(2)} L` : '—'}
+                </span>
+                <span style={{ fontSize: 11, color: 'var(--text-3)' }}>target ≥ ₹2.5L stipend</span>
+              </div>
+            </SeasonCol>
+          }
+          finalContent={
+            <SeasonCol title="Final Placement" color="accent">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div>
+                  <div style={{ fontSize: 12, color: 'var(--text-2)', marginBottom: 4 }}>Avg CTC (offer_made entries)</div>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                    <span style={{ fontSize: 22, fontWeight: 700, color: 'var(--text)' }}>
+                      {f.kpi2.avgCtc != null ? `${f.kpi2.avgCtc.toFixed(2)} LPA` : '—'}
+                    </span>
+                    <span style={{ fontSize: 11, color: 'var(--text-3)' }}>target ≥ {T.final.kpi2_avgCtc} LPA</span>
+                  </div>
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--text-2)' }}>
+                  Min offer floor: {T.final.kpi2_minCtc} LPA
+                  {f.kpi2.minCtc != null && (
+                    <span style={{ marginLeft: 8, fontWeight: 600, color: f.kpi2.minCtc >= T.final.kpi2_minCtc ? 'var(--green-text)' : 'var(--red-text)' }}>
+                      (lowest: {f.kpi2.minCtc.toFixed(1)} LPA)
+                    </span>
+                  )}
+                </div>
+              </div>
+            </SeasonCol>
+          }
+        />
+      )}
+
+      <KpiDetailCard
+        number={3} title="International Opportunities"
+        summerContent={
+          <SeasonCol title="Summer Internship" color="amber">
+            <KpiRow label="International internship offers" actual={s.kpi3.intl} target={T.summer.kpi3_intl} />
+          </SeasonCol>
+        }
+        finalContent={
+          <SeasonCol title="Final Placement" color="accent">
+            <KpiRow label="International placement offers" actual={f.kpi3.intl} target={T.final.kpi3_intl} />
+          </SeasonCol>
+        }
+      />
+
+      <KpiDetailCard
+        number={4} title="High Value Offers"
+        summerContent={
+          <SeasonCol title="Summer Internship" color="amber">
+            <KpiRow label="Offers from Consulting / BFSI / FMCG / Tech / GLP" actual={s.kpi4.highValue} target={T.summer.kpi4_highValue} />
+          </SeasonCol>
+        }
+        finalContent={
+          <SeasonCol title="Final Placement" color="accent">
+            <KpiRow label={`Offers ≥ ${T.final.kpi4_minCtc} LPA`} actual={f.kpi4.highValue} target={T.final.kpi4_highValue} />
+          </SeasonCol>
+        }
+      />
+
+      <KpiDetailCard
+        number={5} title="Premium / Dream Companies"
+        summerContent={
+          <SeasonCol title="Summer Internship" color="amber">
+            <KpiRow label="Offers from premier recruiters (MBB / top banks / FMCG)" actual={s.kpi5.premium} target={T.summer.kpi5_premium} />
+          </SeasonCol>
+        }
+        finalContent={
+          <SeasonCol title="Final Placement" color="accent">
+            <KpiRow label="Premium company offers" actual={f.kpi5.premium} target={T.final.kpi5_premium} />
+            {canSeeFinancials && <KpiRow label={`Premium offers ≥ ${T.final.kpi5_minCtc} LPA`} actual={f.kpi5.premiumHigh} target={T.final.kpi5_premium} />}
+          </SeasonCol>
+        }
+      />
+
+      <KpiDetailCard
+        number={6} title="Lateral Placement Development"
+        summerContent={
+          <SeasonCol title="Summer Internship" color="amber">
+            <KpiRow label="Internship opps for work-ex candidates" actual={s.kpi6.lateral} target={T.summer.kpi6_lateral} />
+          </SeasonCol>
+        }
+        finalContent={
+          <SeasonCol title="Final Placement" color="accent">
+            <KpiRow label="Lateral hiring opportunities" actual={f.kpi6.lateral} target={T.final.kpi6_lateral} />
+            {canSeeFinancials && <KpiRow label={`Lateral offers ≥ ${T.final.kpi6_lateralCtcThreshold} LPA`} actual={f.kpi6.lateralHigh} target={T.final.kpi6_lateralHighCtc} />}
+          </SeasonCol>
+        }
+      />
+
+      <KpiDetailCard
+        number={7} title="Gift City & Kakinada Campus Development"
+        summerContent={
+          <SeasonCol title="Summer Internship" color="amber">
+            <KpiRow label="Internship opps for GC / Kakinada" actual={s.kpi7.gckk} target={T.summer.kpi7_gckk} />
+          </SeasonCol>
+        }
+        finalContent={
+          <SeasonCol title="Final Placement" color="accent">
+            <KpiRow label="Placement opps for GC / Kakinada" actual={f.kpi7.gckk} target={T.final.kpi7_gckk} />
+            <KpiRow label="Premium offers for GC / Kakinada" actual={f.kpi7.gckkPremium} target={T.final.kpi7_gckkPremium} />
+          </SeasonCol>
+        }
+      />
+    </div>
+  )
+}
+
+// ── Own TPO analytics view ────────────────────────────────────────────────────
 
 function TpoAnalyticsOwn() {
   const { activeBatches } = useBatch()
@@ -175,8 +402,14 @@ function TpoAnalyticsOwn() {
   const { entries, loading } = useMyTpoOutreach()
   const { canSeeFinancials } = usePermissions()
 
+  const filtered = useMemo(() =>
+    cohortFilter ? entries.filter(e => (e.cohorts || []).includes(cohortFilter)) : entries,
+    [entries, cohortFilter]
+  )
+
+  const kpis = useMemo(() => computeKpis(filtered), [filtered])
+
   if (loading) return <Spinner />
-  const filtered = cohortFilter ? entries.filter(e => e.cohort === cohortFilter) : entries
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -187,12 +420,13 @@ function TpoAnalyticsOwn() {
           {activeBatches.map(b => <option key={b.id} value={b.id}>{cohortLabel(b.id)}</option>)}
         </Select>
       </div>
-      <SummaryRow entries={filtered} canSeeFinancials={canSeeFinancials} />
-      <div style={{ padding: '16px 24px 8px', fontWeight: 600, fontSize: 13, color: 'var(--text-2)' }}>Company Breakdown</div>
-      <MyCompanyBreakdownTable entries={filtered} canSeeFinancials={canSeeFinancials} />
+      <KpiSummaryRow kpis={kpis} />
+      <KpiDetailSection kpis={kpis} canSeeFinancials={canSeeFinancials} />
     </div>
   )
 }
+
+// ── FC / Admin analytics view ─────────────────────────────────────────────────
 
 function TpoAnalyticsAll() {
   const { activeBatches } = useBatch()
@@ -200,8 +434,14 @@ function TpoAnalyticsAll() {
   const { entries, profiles, loading } = useAllTpoOutreach()
   const { canSeeFinancials } = usePermissions()
 
+  const filtered = useMemo(() =>
+    cohortFilter ? entries.filter(e => (e.cohorts || []).includes(cohortFilter)) : entries,
+    [entries, cohortFilter]
+  )
+
+  const kpis = useMemo(() => computeKpis(filtered), [filtered])
+
   if (loading) return <Spinner />
-  const filtered = cohortFilter ? entries.filter(e => e.cohort === cohortFilter) : entries
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -211,10 +451,10 @@ function TpoAnalyticsAll() {
           <option value="">All</option>
           {activeBatches.map(b => <option key={b.id} value={b.id}>{cohortLabel(b.id)}</option>)}
         </Select>
+        <span style={{ fontSize: 12, color: 'var(--text-3)', marginLeft: 8 }}>{filtered.length} entries</span>
       </div>
-      <SummaryRow entries={filtered} canSeeFinancials={canSeeFinancials} />
-      <div style={{ padding: '16px 24px 8px', fontWeight: 600, fontSize: 13, color: 'var(--text-2)' }}>Per-TPO Breakdown</div>
-      <TpoBreakdownTable entries={filtered} profiles={profiles} cohortFilter={cohortFilter} canSeeFinancials={canSeeFinancials} />
+      <KpiSummaryRow kpis={kpis} />
+      <KpiDetailSection kpis={kpis} canSeeFinancials={canSeeFinancials} />
     </div>
   )
 }
@@ -222,15 +462,4 @@ function TpoAnalyticsAll() {
 export default function TpoAnalytics() {
   const { isTpo } = useAuth()
   return isTpo ? <TpoAnalyticsOwn /> : <TpoAnalyticsAll />
-}
-
-const thStyle = {
-  padding: '8px 12px', textAlign: 'left', fontWeight: 600, fontSize: 11,
-  color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.04em',
-  borderBottom: '1px solid var(--border)', background: 'var(--surface)',
-  position: 'sticky', top: 0, zIndex: 1,
-}
-
-const tdStyle = {
-  padding: '8px 12px', borderBottom: '1px solid var(--border)', verticalAlign: 'middle',
 }

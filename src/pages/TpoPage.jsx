@@ -14,6 +14,17 @@ const STATUS_COLOR = {
   declined:    'red',
 }
 
+export const SECTORS = [
+  { value: 'Consulting', label: 'Consulting' },
+  { value: 'BFSI',       label: 'BFSI' },
+  { value: 'FMCG',       label: 'FMCG' },
+  { value: 'Technology', label: 'Technology' },
+  { value: 'GLP',        label: 'Global Leadership Programs' },
+  { value: 'Other',      label: 'Other' },
+]
+
+const CAMPUSES = ['Delhi', 'Gift City', 'Kakinada', 'Kolkata']
+
 const EMPTY_FORM = {
   companyName:       '',
   roleTitle:         '',
@@ -24,6 +35,15 @@ const EMPTY_FORM = {
   status:            'reached_out',
   cohorts:           [],
   notes:             '',
+  // KPI fields
+  season:            'summer',
+  isNew:             false,
+  isMultiCampus:     false,
+  isInternational:   false,
+  sector:            '',
+  isPremium:         false,
+  isLateral:         false,
+  campus:            [],
 }
 
 // Normalise legacy single-cohort entries to cohorts array
@@ -35,7 +55,8 @@ function normaliseCohorts(e) {
 
 function OutreachForm({ initial, batches, onSave, onCancel, busy }) {
   const initCohorts = initial ? normaliseCohorts(initial) : []
-  const [form, setForm] = useState({ ...EMPTY_FORM, ...initial, cohorts: initCohorts })
+  const initCampus  = initial?.campus || []
+  const [form, setForm] = useState({ ...EMPTY_FORM, ...initial, cohorts: initCohorts, campus: initCampus })
   const [err, setErr] = useState('')
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
@@ -44,6 +65,13 @@ function OutreachForm({ initial, batches, onSave, onCancel, busy }) {
     setForm(f => {
       const cur = f.cohorts || []
       return { ...f, cohorts: cur.includes(batchId) ? cur.filter(c => c !== batchId) : [...cur, batchId] }
+    })
+  }
+
+  const toggleCampus = (c) => {
+    setForm(f => {
+      const cur = f.campus || []
+      return { ...f, campus: cur.includes(c) ? cur.filter(x => x !== c) : [...cur, c] }
     })
   }
 
@@ -66,6 +94,14 @@ function OutreachForm({ initial, batches, onSave, onCancel, busy }) {
       status:            form.status,
       cohorts:           form.cohorts,
       notes:             form.notes.trim(),
+      season:            form.season,
+      isNew:             !!form.isNew,
+      isMultiCampus:     !!form.isMultiCampus,
+      isInternational:   !!form.isInternational,
+      sector:            form.sector || null,
+      isPremium:         !!form.isPremium,
+      isLateral:         !!form.isLateral,
+      campus:            form.campus || [],
     })
   }
 
@@ -121,6 +157,62 @@ function OutreachForm({ initial, batches, onSave, onCancel, busy }) {
           </div>
         </div>
       </div>
+      {/* KPI Classification */}
+      <div style={{ border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px', background: 'var(--surface2)', display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>KPI Classification</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <label style={labelStyle}>
+            Season *
+            <Select value={form.season} onChange={e => set('season', e.target.value)}>
+              <option value="summer">Summer Internship</option>
+              <option value="final">Final Placement</option>
+            </Select>
+          </label>
+          <label style={labelStyle}>
+            Sector
+            <Select value={form.sector || ''} onChange={e => set('sector', e.target.value)}>
+              <option value="">— Select sector —</option>
+              {SECTORS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+            </Select>
+          </label>
+        </div>
+        <div style={labelStyle}>
+          Campus(es)
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 20px', padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--surface)' }}>
+            {CAMPUSES.map(c => (
+              <label key={c} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 400, cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={(form.campus || []).includes(c)}
+                  onChange={() => toggleCampus(c)}
+                  style={{ width: 14, height: 14, accentColor: 'var(--accent)', cursor: 'pointer' }}
+                />
+                {c}
+              </label>
+            ))}
+          </div>
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 24px' }}>
+          {[
+            { key: 'isNew',           label: 'New recruiting organisation' },
+            { key: 'isMultiCampus',   label: 'Multi-campus recruiter' },
+            { key: 'isInternational', label: 'International opportunity' },
+            { key: 'isPremium',       label: 'Premium / dream company' },
+            { key: 'isLateral',       label: 'Lateral hire opportunity' },
+          ].map(({ key, label }) => (
+            <label key={key} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 400, cursor: 'pointer', color: 'var(--text)' }}>
+              <input
+                type="checkbox"
+                checked={!!form[key]}
+                onChange={e => set(key, e.target.checked)}
+                style={{ width: 14, height: 14, accentColor: 'var(--accent)', cursor: 'pointer' }}
+              />
+              {label}
+            </label>
+          ))}
+        </div>
+      </div>
+
       <label style={labelStyle}>
         Notes
         <textarea

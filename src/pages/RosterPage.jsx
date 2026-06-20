@@ -3,6 +3,7 @@ import { useOutletContext } from 'react-router-dom'
 import { useStudents, useColumnSchema } from '../lib/useStudents'
 import { usePendingChanges } from '../lib/PendingChangesContext'
 import { useAuth } from '../lib/AuthContext'
+import { usePermissions } from '../lib/usePermissions'
 import { useSheetsSync } from '../lib/SheetsSyncContext'
 import { useBatch } from '../lib/BatchContext'
 import { getVal, OUR_COLS } from '../lib/columns'
@@ -36,6 +37,7 @@ export default function RosterPage() {
   const { schemaHeaders } = useColumnSchema(selectedCohort || 'final')
   const { propose, changes } = usePendingChanges()
   const { isAdmin, user } = useAuth()
+  const { canDo } = usePermissions()
   const { playgroundUrl, playgroundPushing, pushToPlayground, connected: sheetsConnected } = useSheetsSync()
   const { setWorkspaceActions } = useOutletContext()
 
@@ -239,7 +241,7 @@ export default function RosterPage() {
       </>
     )
     return () => setWorkspaceActions(null)
-  }, [setWorkspaceActions, selectedCohort, isAdmin, exportRows.length, importing])
+  }, [setWorkspaceActions, selectedCohort, isAdmin, canDo, exportRows.length, importing])
 
   // ── Action handlers ────────────────────────────────────────────────────────
 
@@ -333,14 +335,14 @@ export default function RosterPage() {
   const rows = sortedFiltered.map(s => {
     const actionCell = (
       <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+        {canDo('proposePlace') && (
+          <Btn size="sm" variant="success" onClick={() => openPlaceModal(s)} title="Propose placement"><CheckCircle size={13} /> Place</Btn>
+        )}
         {s._placed_summer && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 20, background: 'var(--amber-bg)', color: 'var(--amber-text)', border: '1px solid var(--amber)', whiteSpace: 'nowrap' }}>SIP ✓</span>}
         {s._placed_final  && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 20, background: 'var(--green-bg)', color: 'var(--green-text)', border: '1px solid var(--green-border)', whiteSpace: 'nowrap' }}>Final ✓</span>}
         <Btn size="sm" variant="ghost" onClick={() => setViewModal(s)} title="View details"><Eye size={13} /></Btn>
-        {isAdmin && (
-          <>
-            <Btn size="sm" variant="success" onClick={() => openPlaceModal(s)} title="Propose placement"><CheckCircle size={13} /> Place</Btn>
-            <Btn size="sm" variant="ghost" onClick={() => proposeDelete(s)} title="Propose deletion"><Trash2 size={13} /></Btn>
-          </>
+        {canDo('proposeDelete') && (
+          <Btn size="sm" variant="ghost" onClick={() => proposeDelete(s)} title="Propose deletion"><Trash2 size={13} /></Btn>
         )}
       </div>
     )
@@ -433,7 +435,7 @@ export default function RosterPage() {
               headers={dynamicHeaders}
               rows={rows}
               emptyMessage={scopedStudents.length ? 'No matches' : 'No roster yet. Import a file.'}
-              onRowContextMenu={isAdmin ? (e, idx) => {
+              onRowContextMenu={canDo('proposePlace') ? (e, idx) => {
                 const target = sortedFiltered[idx]
                 if (!target) return
                 e.preventDefault()
@@ -453,7 +455,7 @@ export default function RosterPage() {
       )}
 
       {/* Row context menu */}
-      {isAdmin && rowMenu && (
+      {canDo('proposePlace') && rowMenu && (
         <div onClick={e => e.stopPropagation()} style={{ position: 'fixed', left: rowMenu.x, top: rowMenu.y, zIndex: 1200, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', boxShadow: 'var(--shadow)', minWidth: 190, padding: 6 }}>
           <button onClick={() => { openPlaceModal(rowMenu.student); setRowMenu(null) }} style={{ width: '100%', border: 'none', background: 'none', textAlign: 'left', padding: '8px 10px', borderRadius: 8, cursor: 'pointer', fontSize: 13, color: 'var(--text)', fontFamily: 'var(--font-sans)' }}>
             Mark candidate as placed
