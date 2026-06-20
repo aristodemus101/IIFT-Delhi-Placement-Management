@@ -25,10 +25,20 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Generate version tag
+        id: version
+        run: |
+          COUNT=$(git tag --list 'v*' | wc -l | tr -d ' ')
+          PATCH=$((COUNT + 1))
+          echo "tag=v1.0.${PATCH}" >> $GITHUB_OUTPUT
+          echo "date=$(date -u +%Y-%m-%d)" >> $GITHUB_OUTPUT
+
       - name: Build
         run: npm run build
         env:
           VITE_GEMINI_KEY: ${{ secrets.VITE_GEMINI_KEY }}
+          VITE_APP_VERSION: ${{ steps.version.outputs.tag }}
+          VITE_APP_BUILD_DATE: ${{ steps.version.outputs.date }}
 
       - name: Deploy to Firebase (Production)
         uses: FirebaseExtended/action-hosting-deploy@v0
@@ -37,16 +47,6 @@ jobs:
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_PRODUCTION }}
           projectId: placement-management-6133f
           channelId: live
-
-      - name: Generate version tag
-        id: version
-        run: |
-          # Auto-increment patch version based on number of releases
-          COUNT=$(git tag --list 'v*' | wc -l | tr -d ' ')
-          MAJOR=1
-          MINOR=0
-          PATCH=$((COUNT + 1))
-          echo "tag=v${MAJOR}.${MINOR}.${PATCH}" >> $GITHUB_OUTPUT
 
       - name: Generate changelog
         id: changelog

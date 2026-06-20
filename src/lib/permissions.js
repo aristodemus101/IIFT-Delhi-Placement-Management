@@ -15,6 +15,7 @@ export const PAGE_ACCESS = {
   approvals:  ['admin'],
   admin:      ['admin'],
   tpo:        ['admin', 'tpo', 'faculty_coordinator'],
+  about:      ['admin', 'committee', 'tpo', 'faculty_coordinator'],
 }
 
 // ── Action permissions ────────────────────────────────────────────────────────
@@ -71,6 +72,7 @@ export const PAGE_LABELS = {
   remapper:  'Column Remapper',
   approvals: 'Approvals',
   tpo:       'TPO Outreach',
+  about:     'About',
 }
 
 export const ACTION_LABELS = {

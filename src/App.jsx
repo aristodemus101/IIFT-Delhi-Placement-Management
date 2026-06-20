@@ -18,6 +18,7 @@ import AdminPage from './pages/AdminPage'
 import ActivityPage from './pages/ActivityPage'
 import AnalyticsPage from './pages/AnalyticsPage'
 import TpoPage from './pages/TpoPage'
+import AboutPage from './pages/AboutPage'
 
 // Full-screen centered spinner used during auth resolution
 function FullSpinner() {
@@ -114,6 +115,7 @@ function AppRoutes() {
         <Route path="tpo"           element={<PageGate page="tpo"><TpoPage /></PageGate>} />
         <Route path="approvals"     element={<PageGate page="approvals"><ApprovalsPage /></PageGate>} />
         <Route path="admin"         element={<PageGate page="admin"><AdminPage /></PageGate>} />
+        <Route path="about"         element={<PageGate page="about"><AboutPage /></PageGate>} />
       </Route>
     </Routes>
   )

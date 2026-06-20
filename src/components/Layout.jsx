@@ -9,7 +9,7 @@ import { useStudents } from '../lib/useStudents'
 import { Badge } from './UI'
 import {
   LayoutDashboard, Users, CheckSquare, ArrowLeftRight, Activity,
-  LogOut, GraduationCap, ShieldCheck, ClipboardCheck, User, Sun, Moon, BarChart2, Briefcase
+  LogOut, GraduationCap, ShieldCheck, ClipboardCheck, User, Sun, Moon, BarChart2, Briefcase, Info
 } from 'lucide-react'
 
 export default function Layout() {
@@ -84,6 +84,7 @@ export default function Layout() {
     { to: '/remapper',   icon: ArrowLeftRight,  label: 'Remapper',   exact: false, page: 'remapper' },
     { to: '/approvals',  icon: ClipboardCheck,  label: 'Approvals',  exact: false, page: 'approvals', badge: pendingCount },
     { to: '/admin',      icon: ShieldCheck,     label: 'Team Access', exact: false, page: 'admin' },
+    { to: '/about',      icon: Info,            label: 'About',       exact: false, page: 'about' },
   ].filter(n => canAccessPage(n.page))
 
   return (
