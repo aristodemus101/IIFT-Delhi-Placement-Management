@@ -380,14 +380,42 @@ function TpoSummaryCards({ entries, profiles, canSeeFinancials }) {
   )
 }
 
+const FLAG_COLS = [
+  { key: 'isNew',           short: 'New' },
+  { key: 'isMultiCampus',   short: 'Multi' },
+  { key: 'isInternational', short: 'Intl' },
+  { key: 'isPremium',       short: 'Premium' },
+  { key: 'isLateral',       short: 'Lateral' },
+]
+
+function FlagChips({ entry }) {
+  const active = FLAG_COLS.filter(f => entry[f.key])
+  if (!active.length) return <span style={{ color: 'var(--text-3)' }}>—</span>
+  return (
+    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+      {active.map(f => (
+        <span key={f.key} style={{ fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 99, background: 'var(--accent-bg)', color: 'var(--accent-text)', border: '1px solid #BFDBFE' }}>
+          {f.short}
+        </span>
+      ))}
+    </div>
+  )
+}
+
 function AllOutreachView() {
   const { entries, profiles, loading } = useAllTpoOutreach()
   const { activeBatches } = useBatch()
   const { canSeeFinancials } = usePermissions()
   const [cohortFilter, setCohortFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+  const [tpoFilter, setTpoFilter] = useState('')
+
+  // Build TPO list from profiles
+  const tpoList = Object.entries(profiles).map(([uid, p]) => ({ uid, name: p.displayName || uid }))
+    .sort((a, b) => a.name.localeCompare(b.name))
 
   const filtered = entries.filter(e => {
+    if (tpoFilter && e.tpoUid !== tpoFilter) return false
     if (cohortFilter && !normaliseCohorts(e).includes(cohortFilter)) return false
     if (statusFilter && e.status !== statusFilter) return false
     return true
@@ -395,18 +423,28 @@ function AllOutreachView() {
 
   if (loading) return <Spinner />
 
+  const headers = [
+    'TPO', 'Company', 'Role',
+    ...(canSeeFinancials ? ['CTC (LPA)', 'Fixed (LPA)'] : []),
+    'Students Placed', 'Status', 'Season', 'Sector', 'Campus', 'Flags', 'Cohort',
+  ]
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <PageHeader title="TPO Outreach" subtitle="All TPO outreach entries (read-only overview)" />
 
-      <TpoSummaryCards entries={entries} profiles={profiles} canSeeFinancials={canSeeFinancials} />
+      <TpoSummaryCards entries={tpoFilter ? filtered : entries} profiles={profiles} canSeeFinancials={canSeeFinancials} />
 
       <div style={{ padding: '10px 24px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', background: 'var(--surface)', marginTop: 14 }}>
-        <Select value={cohortFilter} onChange={e => setCohortFilter(e.target.value)} style={{ width: 180, height: 30, fontSize: 12 }}>
+        <Select value={tpoFilter} onChange={e => setTpoFilter(e.target.value)} style={{ width: 170, height: 30, fontSize: 12 }}>
+          <option value="">All TPOs</option>
+          {tpoList.map(t => <option key={t.uid} value={t.uid}>{t.name}</option>)}
+        </Select>
+        <Select value={cohortFilter} onChange={e => setCohortFilter(e.target.value)} style={{ width: 160, height: 30, fontSize: 12 }}>
           <option value="">All cohorts</option>
           {activeBatches.map(b => <option key={b.id} value={b.id}>{cohortLabel(b.id)}</option>)}
         </Select>
-        <Select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ width: 160, height: 30, fontSize: 12 }}>
+        <Select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ width: 150, height: 30, fontSize: 12 }}>
           <option value="">All statuses</option>
           {OUTREACH_STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
         </Select>
@@ -422,9 +460,7 @@ function AllOutreachView() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr>
-                {['TPO', 'Company', 'Role', ...(canSeeFinancials ? ['CTC (LPA)', 'Fixed (LPA)'] : []), 'Students Placed', 'Status', 'Cohort'].map(h => (
-                  <th key={h} style={thStyle}>{h}</th>
-                ))}
+                {headers.map(h => <th key={h} style={thStyle}>{h}</th>)}
               </tr>
             </thead>
             <tbody>
@@ -443,6 +479,16 @@ function AllOutreachView() {
                         {OUTREACH_STATUSES.find(s => s.value === e.status)?.label || e.status}
                       </Badge>
                     </td>
+                    <td style={tdStyle}>
+                      {e.season ? (
+                        <Badge color={e.season === 'summer' ? 'amber' : 'blue'}>
+                          {e.season === 'summer' ? 'Summer' : 'Final'}
+                        </Badge>
+                      ) : '—'}
+                    </td>
+                    <td style={tdStyle}>{e.sector || '—'}</td>
+                    <td style={{ ...tdStyle, maxWidth: 120 }}>{(e.campus || []).join(', ') || '—'}</td>
+                    <td style={tdStyle}><FlagChips entry={e} /></td>
                     <td style={tdStyle}>{normaliseCohorts(e).map(c => cohortLabel(c)).join(', ') || '—'}</td>
                   </tr>
                 )

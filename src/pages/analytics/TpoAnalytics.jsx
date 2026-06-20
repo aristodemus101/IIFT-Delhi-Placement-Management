@@ -431,28 +431,51 @@ function TpoAnalyticsOwn() {
 function TpoAnalyticsAll() {
   const { activeBatches } = useBatch()
   const [cohortFilter, setCohortFilter] = useState('')
+  const [tpoFilter, setTpoFilter] = useState('')
   const { entries, profiles, loading } = useAllTpoOutreach()
   const { canSeeFinancials } = usePermissions()
 
-  const filtered = useMemo(() =>
-    cohortFilter ? entries.filter(e => (e.cohorts || []).includes(cohortFilter)) : entries,
-    [entries, cohortFilter]
+  const tpoList = useMemo(() =>
+    Object.entries(profiles)
+      .map(([uid, p]) => ({ uid, name: p.displayName || uid }))
+      .sort((a, b) => a.name.localeCompare(b.name)),
+    [profiles]
   )
 
+  const filtered = useMemo(() => entries.filter(e => {
+    if (tpoFilter && e.tpoUid !== tpoFilter) return false
+    if (cohortFilter && !(e.cohorts || []).includes(cohortFilter)) return false
+    return true
+  }), [entries, tpoFilter, cohortFilter])
+
   const kpis = useMemo(() => computeKpis(filtered), [filtered])
+
+  const selectedTpoName = tpoFilter ? (profiles[tpoFilter]?.displayName || tpoFilter) : null
 
   if (loading) return <Spinner />
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column' }}>
-      <div style={{ padding: '10px 24px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 10, alignItems: 'center', background: 'var(--surface)' }}>
+      <div style={{ padding: '10px 24px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 10, alignItems: 'center', background: 'var(--surface)', flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-3)' }}>TPO:</span>
+        <Select value={tpoFilter} onChange={e => setTpoFilter(e.target.value)} style={{ width: 180, height: 28, fontSize: 12 }}>
+          <option value="">All TPOs</option>
+          {tpoList.map(t => <option key={t.uid} value={t.uid}>{t.name}</option>)}
+        </Select>
         <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-3)' }}>Cohort:</span>
-        <Select value={cohortFilter} onChange={e => setCohortFilter(e.target.value)} style={{ width: 180, height: 28, fontSize: 12 }}>
+        <Select value={cohortFilter} onChange={e => setCohortFilter(e.target.value)} style={{ width: 170, height: 28, fontSize: 12 }}>
           <option value="">All</option>
           {activeBatches.map(b => <option key={b.id} value={b.id}>{cohortLabel(b.id)}</option>)}
         </Select>
-        <span style={{ fontSize: 12, color: 'var(--text-3)', marginLeft: 8 }}>{filtered.length} entries</span>
+        <span style={{ fontSize: 12, color: 'var(--text-3)', marginLeft: 4 }}>{filtered.length} entries</span>
       </div>
+
+      {tpoFilter && (
+        <div style={{ padding: '8px 24px', background: 'var(--accent-bg)', borderBottom: '1px solid #BFDBFE', fontSize: 13, color: 'var(--accent-text)', fontWeight: 600 }}>
+          Showing KPIs for: {selectedTpoName}
+        </div>
+      )}
+
       <KpiSummaryRow kpis={kpis} />
       <KpiDetailSection kpis={kpis} canSeeFinancials={canSeeFinancials} />
     </div>
