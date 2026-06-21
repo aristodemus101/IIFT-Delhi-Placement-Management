@@ -7,9 +7,10 @@ import { useBatch } from '../lib/BatchContext'
 import { useOpportunities, deleteOpportunity } from '../lib/useOpportunities'
 import { PageHeader, Btn, Select, Spinner } from '../components/UI'
 import { Plus } from 'lucide-react'
-import OppCard, { TYPES, normalizeOpportunityType } from './activity/OppCard'
+import OppCard, { normalizeOpportunityType } from './activity/OppCard'
 import PostModal from './activity/PostModal'
 import DetailModal from './activity/DetailModal'
+import { ACTIVITY_TYPE_OPTIONS } from '../config/activityTaxonomy'
 
 export default function ActivityPage() {
   const { user, role } = useAuth()
@@ -51,7 +52,7 @@ export default function ActivityPage() {
       <div style={{ padding: '10px 28px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', flexShrink: 0 }}>
         <Select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} style={{ height: 32, fontSize: 12 }}>
           <option value="all">All types</option>
-          {TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+          {ACTIVITY_TYPE_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
         </Select>
         <Select value={applicabilityFilter} onChange={e => setApplicabilityFilter(e.target.value)} style={{ height: 32, fontSize: 12 }}>
           <option value="all">All cycles</option>

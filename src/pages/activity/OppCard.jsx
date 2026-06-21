@@ -1,33 +1,31 @@
 import React, { useState } from 'react'
-import { Trash2, ChevronRight, Briefcase, Trophy, FlaskConical, GraduationCap, CalendarClock } from 'lucide-react'
+import { Trash2, ChevronRight, Briefcase } from 'lucide-react'
 import { Btn, Badge } from '../../components/UI'
 
-const TYPE_META = {
-  'Hiring':       { icon: GraduationCap, color: 'green'  },
-  'Live Project': { icon: FlaskConical,  color: 'purple' },
-  'Event':        { icon: CalendarClock, color: 'gray'   },
-}
+import {
+  ACTIVITY_TYPE_OPTIONS,
+  VIA_OPTIONS,
+  getActivityTypeMeta,
+  normalizeActivityType,
+  normalizeCampusEngagementSubtype,
+} from '../../config/activityTaxonomy'
 
-export const VIA_OPTIONS = ['', 'Case Comp', 'PPO', 'Hackathon', 'Referral', 'Direct']
-
-export const TYPES = Object.keys(TYPE_META)
+export const TYPES = ACTIVITY_TYPE_OPTIONS
 export const BATCH_COLOR = { final: 'blue', summer: 'amber', both: 'gray' }
 export const BATCH_LABEL = { final: 'Final', summer: 'Summer', both: 'Both' }
 export const STATUS_COLOR = { open: 'green', shortlisted: 'amber', interviewing: 'blue', closed: 'gray' }
 export const STATUS_LABEL = { open: 'Open', shortlisted: 'Shortlisted', interviewing: 'Interviewing', closed: 'Closed' }
-export const normalizeOpportunityType = (type) => {
-  if (type === 'SIP Hiring') return 'Hiring'
-  return type || 'Hiring'
-}
-export const typeColor = t => TYPE_META[normalizeOpportunityType(t)]?.color || 'gray'
+export const normalizeOpportunityType = normalizeActivityType
+export const typeColor = t => getActivityTypeMeta(t)?.color || 'gray'
 export function TypeIcon({ type, size = 13 }) {
-  const Icon = TYPE_META[normalizeOpportunityType(type)]?.icon || Briefcase
+  const Icon = getActivityTypeMeta(type)?.icon || Briefcase
   return <Icon size={size} />
 }
 
 export default function OppCard({ opp, isAdmin, onOpen, onDelete }) {
   const ap = opp.applicability || 'both'
   const displayType = normalizeOpportunityType(opp.type)
+  const displaySubtype = displayType === 'Campus Engagement' ? normalizeCampusEngagementSubtype(opp.subtype) : ''
   const dateStr = opp.createdAt?.toDate
     ? opp.createdAt.toDate().toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
     : ''
@@ -61,6 +59,7 @@ export default function OppCard({ opp, isAdmin, onOpen, onDelete }) {
               <TypeIcon type={opp.type} size={10} />{displayType || 'Other'}
             </span>
           </Badge>
+          {displaySubtype && <Badge color="gray">{displaySubtype}</Badge>}
           <Badge color={BATCH_COLOR[ap]}>{BATCH_LABEL[ap] || ap}</Badge>
           {opp.via && <Badge color="amber">{opp.via}</Badge>}
           <Badge color={STATUS_COLOR[opp.status] || 'gray'}>{STATUS_LABEL[opp.status] || opp.status}</Badge>

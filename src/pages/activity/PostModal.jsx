@@ -3,7 +3,14 @@ import { Copy, Check } from 'lucide-react'
 import { Modal, Btn } from '../../components/UI'
 import { postOpportunity, blankOpportunity } from '../../lib/useOpportunities'
 import { parseOpportunity, generateWhatsAppMessage } from '../../lib/gemini'
-import { TYPES, VIA_OPTIONS } from './OppCard'
+import { TYPES } from './OppCard'
+import {
+  CAMPUS_ENGAGEMENT_SUBTYPE_OPTIONS,
+  inferCampusEngagementSubtype,
+  VIA_OPTIONS,
+  normalizeActivityType,
+  normalizeCampusEngagementSubtype,
+} from '../../config/activityTaxonomy'
 
 const VALID_APPLICABILITY = new Set(['summer', 'final', 'both'])
 
@@ -20,14 +27,22 @@ function normalizeParsedOpportunity(result) {
     parsed.via = ''
   }
 
+  parsed.type = normalizeActivityType(parsed.type)
+
+  if (parsed.type === 'Campus Engagement') {
+    parsed.subtype = normalizeCampusEngagementSubtype(parsed.subtype || parsed.engagementType || inferCampusEngagementSubtype(rawType))
+  } else {
+    parsed.subtype = ''
+  }
+
   if (rawType && !TYPES.includes(rawType)) {
     if (lowerType.includes('case')) {
-      parsed.type = 'Hiring'
       parsed.via = parsed.via || 'Case Comp'
     } else if (lowerType.includes('live')) {
       parsed.type = 'Live Project'
-    } else if (lowerType.includes('event')) {
-      parsed.type = 'Event'
+    } else if (lowerType.includes('event') || lowerType.includes('workshop') || lowerType.includes('lecture') || lowerType.includes('webinar') || lowerType.includes('alumni')) {
+      parsed.type = 'Campus Engagement'
+      parsed.subtype = normalizeCampusEngagementSubtype(parsed.subtype || inferCampusEngagementSubtype(rawType))
     } else if (lowerType.includes('intern') || lowerType.includes('sip')) {
       parsed.type = 'Hiring'
     } else {
@@ -115,6 +130,7 @@ export function PasteStep({ rawText, setRawText, busy, err, placeholder, onNext,
 const FIELD_DEFS = [
   { key: 'title',         label: 'Title',         type: 'text' },
   { key: 'type',          label: 'Type',          type: 'select', options: TYPES },
+  { key: 'subtype',       label: 'Subtype',       type: 'select', options: ['', ...CAMPUS_ENGAGEMENT_SUBTYPE_OPTIONS] },
   { key: 'via',           label: 'Via',           type: 'select', options: VIA_OPTIONS },
   { key: 'organization',  label: 'Organization',  type: 'text' },
   { key: 'applicability', label: 'Applicability', type: 'select', options: [{ value: 'summer', label: 'Summer' }, { value: 'final', label: 'Final' }, { value: 'both', label: 'Both' }] },
@@ -135,7 +151,18 @@ const FIELD_DEFS = [
 export function PreviewStep({ parsed, setParsed, busy, err, onBack, onNext, nextLabel = 'Generate WhatsApp Message →', backLabel = '← Edit Text' }) {
   const set = (key, val, fieldDef) => {
     const v = fieldDef?.parse ? fieldDef.parse(val) : val
-    setParsed(p => ({ ...p, [key]: v }))
+    setParsed(p => {
+      const next = { ...p, [key]: v }
+      if (key === 'type') {
+        next.type = normalizeActivityType(v)
+        if (next.type === 'Campus Engagement' && !next.subtype) next.subtype = 'Guest Lecture'
+        if (next.type !== 'Campus Engagement') next.subtype = ''
+      }
+      if (key === 'subtype') {
+        next.subtype = normalizeCampusEngagementSubtype(v)
+      }
+      return next
+    })
   }
 
   return (
@@ -151,7 +178,7 @@ export function PreviewStep({ parsed, setParsed, busy, err, onBack, onNext, next
               {f.type === 'select' ? (
                 <select value={display} onChange={e => set(f.key, e.target.value, f)}
                   style={{ flex: 1, height: 32, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface2)', color: 'var(--text)', padding: '0 10px', fontSize: 13, fontFamily: 'var(--font-sans)' }}>
-                  {f.options.map(o => typeof o === 'string' ? <option key={o} value={o}>{o}</option> : <option key={o.value} value={o.value}>{o.label}</option>)}
+                  {f.options.map(o => typeof o === 'string' ? <option key={o} value={o}>{o || 'None'}</option> : <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
               ) : f.type === 'textarea' ? (
                 <textarea value={display} onChange={e => set(f.key, e.target.value, f)}

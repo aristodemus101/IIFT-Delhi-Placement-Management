@@ -1,4 +1,10 @@
 import { STAGE_TYPES } from './useOpportunities'
+import {
+  CAMPUS_ENGAGEMENT_SUBTYPE_OPTIONS,
+  normalizeActivityType,
+  normalizeCampusEngagementSubtype,
+  getActivityAnnouncementHeader,
+} from '../config/activityTaxonomy'
 
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${import.meta.env.VITE_GEMINI_KEY}`
 
@@ -8,50 +14,13 @@ async function callGemini(prompt) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.1, maxOutputTokens: 2048 },
+      generationConfig: { temperature: 0, maxOutputTokens: 2048 },
     }),
   })
   if (!res.ok) throw new Error(`Gemini ${res.status}: ${await res.text()}`)
   const data = await res.json()
   const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text || ''
   return raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
-}
-
-function normalizeType(type) {
-  if (type === 'SIP Hiring') return 'Hiring'
-  return type || 'Hiring'
-}
-
-function getAnnouncementSubject(opp, preferCombined = false) {
-  const org = String(opp?.organization || '').trim()
-  const title = String(opp?.title || '').trim()
-  if (preferCombined && org && title) {
-    const titleHasOrg = title.toLowerCase().includes(org.toLowerCase())
-    if (!titleHasOrg) return `${org} / ${title}`
-  }
-  return org || title || 'Opportunity'
-}
-
-function getAnnouncementHeader(opp) {
-  const via = String(opp?.via || '').trim()
-  const type = normalizeType(opp?.type)
-  const ap = String(opp?.applicability || 'both').toLowerCase()
-
-  if (via === 'Case Comp') {
-    return `Case Comp | ${getAnnouncementSubject(opp, true)}`
-  }
-
-  const subject = getAnnouncementSubject(opp, false)
-
-  if (type === 'Hiring') {
-    if (ap === 'summer') return `SIP Opportunity | ${subject}`
-    if (ap === 'final') return `Final Opportunity | ${subject}`
-    return `Placement Opportunity | ${subject}`
-  }
-
-  if (type === 'Live Project') return `Live Project | ${subject}`
-  if (type === 'Event') return `Event | ${subject}`
-  return `Opportunity | ${subject}`
 }
 
 function forceFirstLine(message, header) {
@@ -71,7 +40,8 @@ Use null for any field not mentioned. Do not add extra keys.
 
 {
   "title": "short title string",
-  "type": "one of: Hiring | Live Project | Event",
+  "type": "one of: Hiring | Live Project | Campus Engagement",
+  "subtype": "one of: ${CAMPUS_ENGAGEMENT_SUBTYPE_OPTIONS.join(' | ')} | null",
   "via": "one of: Case Comp | PPO | Hackathon | Referral | Direct | null",
   "organization": "company or organiser name",
   "applicability": "one of: summer | final | both",
@@ -88,7 +58,11 @@ Use null for any field not mentioned. Do not add extra keys.
   "description": "1-2 sentence summary of the opportunity, max 280 chars"
 }
 
-If it is a case competition, keep "type" as "Hiring" and set "via" to "Case Comp".
+Rules:
+- If it is a case competition, keep "type" as "Hiring" and set "via" to "Case Comp".
+- If it is a guest lecture, workshop, webinar, alumni session, company visit, panel discussion, seminar, conference, networking session, or similar, set "type" to "Campus Engagement" and fill "subtype".
+- Use "Campus Engagement" whenever the text is about a non-hiring campus event.
+- Prefer the exact subtype labels shown above.
 
 Text:
 ${rawText}
@@ -100,43 +74,51 @@ ${rawText}
 export async function generateWhatsAppMessage(opp, stageType, extra = {}) {
   const stageLabel = STAGE_TYPES[stageType]
   const isAnnouncement = stageType === 'opportunity' || stageType === 'generate_announcement'
-  const forcedHeader = isAnnouncement ? getAnnouncementHeader(opp) : ''
+  const normalizedOpp = {
+    ...opp,
+    type: normalizeActivityType(opp?.type),
+    subtype: normalizeCampusEngagementSubtype(opp?.subtype),
+  }
+  const forcedHeader = isAnnouncement ? getActivityAnnouncementHeader(normalizedOpp) : ''
+  const messageStyle = normalizedOpp.type === 'Campus Engagement'
+    ? `
+Campus engagement message style:
+- Use a clean announcement with one line describing the engagement type first.
+- Include the speaker/organization if present.
+- Include venue, time, date, and registration or tracker links if present.
+- Keep the same section order every time: header, greeting, engagement summary, details, action required, closing line.
+`
+    : `
+Opportunity message style:
+- Use a clean announcement with the same section order every time: header, greeting, summary, roles, compensation, location, duration, links, deadline, closing line.
+- Keep the wording concise and professional.
+`
+  const promptPayload = {
+    ...normalizedOpp,
+    ...extra,
+    type: normalizedOpp.type,
+    subtype: normalizedOpp.subtype,
+    via: normalizedOpp.via || '',
+  }
   const prompt = `
 You are drafting a WhatsApp announcement for IIFT Delhi placement committee.
-Match the tone and format of these real examples:
-
-Example 1 (opportunity):
-*Altius Investech || SIP Application*
-Dear Batch,
-Altius Investech has opened its applications for summer internship.
-*Roles on Offer:*
-1. Research Analyst Intern
-2. B2B Channel Growth Manager Intern
-*Stipend:* 20,000 - 30,000 per month
-*Location:* Kolkata
-*Duration:* 2 months
-*EOI:* https://forms.gle/...
-*Deadline:* 9:30 PM, 7th January
-*All CRCAD Rules Apply*
-
-Example 2 (shortlist):
-*Royal Brothers || Shortlist*
-Dear Batch,
-PFA the shortlist for Royal Brothers. Please join the WhatsApp group and mark the tracker:
-*Tracker*: https://...
-*Process Group*: https://...
-*Deadline:* 9:00 AM, 21 February 2026
-*All CRCAD Rules Apply*
+Follow these formatting rules exactly:
+- Return only the final message text, no explanation.
+- The first non-empty line must be the forced header if provided.
+- Keep the section order stable across runs.
+- Do not invent facts that are not present in the input.
+- Use bold only for section labels and the first line.
 
 Now write a WhatsApp message for stage: "${stageLabel}"
 
 Opportunity details (use only what's relevant and non-null):
-${JSON.stringify({ ...opp, ...extra }, null, 2)}
+${JSON.stringify(promptPayload, null, 2)}
 
 ${extra.whatsappGroupLink ? `WhatsApp group link: ${extra.whatsappGroupLink}` : ''}
 ${extra.selectedStudents ? `Selected students:\n${extra.selectedStudents}` : ''}
 
 ${forcedHeader ? `First line must be exactly: *${forcedHeader}*` : ''}
+${messageStyle}
 
 Rules:
 - Use *bold* for headers

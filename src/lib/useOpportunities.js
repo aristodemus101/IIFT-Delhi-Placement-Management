@@ -19,7 +19,8 @@ export const STAGE_TYPES = {
 export function blankOpportunity() {
   return {
     title:        '',
-    type:         'Hiring',              // Hiring | Live Project | Event
+    type:         'Hiring',              // Hiring | Live Project | Campus Engagement
+    subtype:      '',                    // Guest Lecture | Workshop | Webinar | ...
     via:          '',                    // Case Comp | PPO | Hackathon | Referral | Direct | ''
     organization: '',
     applicability:'both',                // summer | final | both

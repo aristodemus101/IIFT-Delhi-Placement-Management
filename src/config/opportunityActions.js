@@ -30,8 +30,8 @@
 //   generate_final_msg         — WhatsApp message for final selection
 //   generate_reminder          — deadline / attendance reminder message
 //   post_submission            — Case Comp: record team/individual submissions
-//   create_attendance_tracker  — Event: Roll | Name | Email | Attended (Yes/No)
-//   generate_event_msg         — Event: reminder with venue, time, dress code
+//   create_attendance_tracker  — Campus Engagement: Roll | Name | Email | Attended (Yes/No)
+//   generate_event_msg         — Campus Engagement: reminder with venue, time, dress code
 //   mark_closed                — closes the opportunity, no further actions
 //
 // ─────────────────────────────────────────────────────────────────────────────
@@ -86,8 +86,8 @@ export const OPPORTUNITY_ACTIONS = {
     ],
   },
 
-  'Event': {
-    label: 'Event / PPT / Guest Lecture',
+  'Campus Engagement': {
+    label: 'Campus Engagement',
     actions: [
       'generate_event_msg',
       'generate_reminder',
@@ -191,10 +191,10 @@ export const ACTION_META = {
     description: 'Google Sheet: Roll | Name | Email | Attended (Yes/No)',
     icon:        'Sheet',
     color:       'green',
-    tracker:     { sheetTitle: 'Attendance', colHeader: 'Attended' },
+    tracker:     { sheetTitle: 'Engagement', colHeader: 'Attended' },
   },
   generate_event_msg: {
-    label:       'Generate Event Message',
+    label:       'Generate Engagement Message',
     description: 'WhatsApp message with venue, time, dress code, etc.',
     icon:        'MessageSquare',
     color:       'blue',

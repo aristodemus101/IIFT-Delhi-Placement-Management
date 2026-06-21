@@ -11,6 +11,7 @@ import { BATCH_LABEL, STATUS_LABEL, typeColor, TypeIcon, normalizeOpportunityTyp
 import { PasteStep, MessageStep, MessageBox, PreviewStep } from './PostModal'
 import { serverTimestamp } from 'firebase/firestore'
 import { blankOpportunity } from '../../lib/useOpportunities'
+import { getActivityDisplayLabel } from '../../config/activityTaxonomy'
 
 import {
   MessageSquare, Users, Award, Bell, FileText, XCircle, Plus,
@@ -81,7 +82,7 @@ function InfoTab({ opp, isAdmin, setStageFlow, setEditOpen }) {
   const displayType = normalizeOpportunityType(opp.type)
 
   const rows = [
-    { label: 'Type',          value: opp.via ? `${displayType} · via ${opp.via}` : displayType },
+    { label: 'Type',          value: getActivityDisplayLabel(opp) },
     { label: 'Organization',  value: opp.organization },
     { label: 'Applicable to', value: BATCH_LABEL[opp.applicability] || opp.applicability },
     { label: 'Status',        value: STATUS_LABEL[opp.status] || opp.status },
