@@ -55,8 +55,8 @@ export default function DashboardPage() {
     const active = selectedSeason === 'summer' ? summerYtp : finalYtp
     const placePct = scoped.length ? Math.round(placed.length / scoped.length * 100) : 0
 
-    const cats = scoped.map(s => parseFloat(getVal(s, 'cat'))).filter(Boolean)
-    const wxs  = scoped.map(s => parseFloat(getVal(s, 'wx'))).filter(Boolean)
+    const cats = scoped.map(s => parseFloat(getVal(s, 'cat'))).filter(v => Number.isFinite(v) && v > 0)
+    const wxs  = scoped.map(s => parseFloat(getVal(s, 'wx'))).filter(v => Number.isFinite(v) && v >= 0)
     const avgCat = cats.length ? (cats.reduce((a, b) => a + b, 0) / cats.length).toFixed(1) : '—'
     const avgWx  = wxs.length  ? Math.round(wxs.reduce((a, b) => a + b, 0) / wxs.length)    : '—'
 
