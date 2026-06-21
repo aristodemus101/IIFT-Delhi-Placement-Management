@@ -9,7 +9,8 @@ import { useStudents } from '../lib/useStudents'
 import { Badge } from './UI'
 import {
   LayoutDashboard, Users, CheckSquare, ArrowLeftRight, Activity,
-  LogOut, GraduationCap, ShieldCheck, ClipboardCheck, User, Sun, Moon, BarChart2, Briefcase, Info
+  LogOut, GraduationCap, ShieldCheck, ClipboardCheck, User, Sun, Moon, BarChart2, Briefcase, Info,
+  ChevronLeft, ChevronRight
 } from 'lucide-react'
 
 export default function Layout() {
@@ -29,6 +30,10 @@ export default function Layout() {
   const { students } = useStudents()
   const navigate = useNavigate()
   const [workspaceActions, setWorkspaceActions] = useState(null)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return window.localStorage.getItem('placementos-sidebar-collapsed') === '1'
+  })
 
   const hasActiveCohorts = activeBatches.length > 0
   const courseAllLabel = 'All'
@@ -74,6 +79,16 @@ export default function Layout() {
     navigate('/login', { replace: true })
   }
 
+  const toggleSidebar = () => {
+    setSidebarCollapsed(current => {
+      const next = !current
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem('placementos-sidebar-collapsed', next ? '1' : '0')
+      }
+      return next
+    })
+  }
+
   const NAV = [
     { to: '/',           icon: LayoutDashboard, label: 'Dashboard',  exact: true,  page: 'dashboard' },
     { to: '/roster',     icon: Users,           label: 'Roster',     exact: false, page: 'roster' },
@@ -90,7 +105,7 @@ export default function Layout() {
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
       <aside style={{
-        width: 236,
+        width: sidebarCollapsed ? 80 : 236,
         flexShrink: 0,
         background: 'color-mix(in srgb, var(--surface) 88%, transparent)',
         borderRight: '1px solid var(--border)',
@@ -99,21 +114,45 @@ export default function Layout() {
         padding: '20px 0',
         backdropFilter: 'blur(20px)',
       }}>
-        <div style={{ padding: '0 20px 24px', borderBottom: '1px solid var(--border)', marginBottom: 8 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ padding: sidebarCollapsed ? '0 12px 16px' : '0 20px 24px', borderBottom: '1px solid var(--border)', marginBottom: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: sidebarCollapsed ? 0 : 10, justifyContent: sidebarCollapsed ? 'center' : 'flex-start' }}>
             <div style={{ width: 34, height: 34, borderRadius: 'var(--radius-sm)', background: 'var(--accent-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <GraduationCap size={18} color="#fff" />
             </div>
-            <div>
-              <div style={{ fontWeight: 700, fontSize: 14, letterSpacing: '-0.02em', lineHeight: 1.2 }}>PlacementOS</div>
-              <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 1 }}>IIFT Delhi</div>
-            </div>
+            {!sidebarCollapsed && (
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 14, letterSpacing: '-0.02em', lineHeight: 1.2 }}>PlacementOS</div>
+                <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 1 }}>IIFT Delhi</div>
+              </div>
+            )}
+            <button
+              onClick={toggleSidebar}
+              title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              style={{
+                marginLeft: sidebarCollapsed ? 0 : 'auto',
+                marginTop: sidebarCollapsed ? 10 : 0,
+                border: '1px solid var(--border)',
+                background: 'var(--surface)',
+                color: 'var(--text-2)',
+                width: 28,
+                height: 28,
+                borderRadius: 999,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              {sidebarCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+            </button>
           </div>
         </div>
 
         <nav style={{ flex: 1, padding: '8px 12px', overflowY: 'auto' }}>
-          <div style={{ marginBottom: 12, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: 8 }}>
-            {hasActiveCohorts ? (
+          {!sidebarCollapsed && (
+            <div style={{ marginBottom: 12, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: 8 }}>
+              {hasActiveCohorts ? (
               <>
                 {availableYears.length > 0 && (
                   <>
@@ -212,7 +251,7 @@ export default function Layout() {
                   </div>
                 )}
               </>
-            ) : (
+              ) : (
               <div style={{ marginTop: 10, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: 12, fontSize: 12, color: 'var(--text-3)', lineHeight: 1.6 }}>
                 No active cohorts yet.
                 <div style={{ marginTop: 8 }}>
@@ -230,12 +269,13 @@ export default function Layout() {
                   </button>
                 </div>
               </div>
-            )}
-          </div>
+              )}
+            </div>
+          )}
 
           {NAV.map(({ to, icon: Icon, label, exact, badge }) => (
             <NavLink key={to} to={to} end={exact} style={({ isActive }) => ({
-              display: 'flex', alignItems: 'center', gap: 10, padding: '9px 10px',
+              display: 'flex', alignItems: 'center', justifyContent: sidebarCollapsed ? 'center' : 'flex-start', gap: sidebarCollapsed ? 0 : 10, padding: sidebarCollapsed ? '9px 0' : '9px 10px',
               borderRadius: 'var(--radius-sm)', marginBottom: 2, textDecoration: 'none',
               fontSize: 14, fontWeight: isActive ? 600 : 500,
               background: isActive ? 'var(--accent-bg)' : 'transparent',
@@ -243,9 +283,9 @@ export default function Layout() {
               border: `1px solid ${isActive ? 'color-mix(in srgb, var(--accent) 35%, transparent)' : 'transparent'}`,
             })}>
               <Icon size={16} />
-              {label}
+              {!sidebarCollapsed && label}
               {badge > 0 && (
-                <span style={{ marginLeft: 'auto', background: 'var(--accent-dark)', color: '#fff', borderRadius: 999, fontSize: 10, fontWeight: 700, padding: '1px 6px', minWidth: 18, textAlign: 'center' }}>
+                <span style={{ marginLeft: sidebarCollapsed ? 0 : 'auto', background: 'var(--accent-dark)', color: '#fff', borderRadius: 999, fontSize: 10, fontWeight: 700, padding: '1px 6px', minWidth: 18, textAlign: 'center' }}>
                   {badge}
                 </span>
               )}
@@ -254,47 +294,51 @@ export default function Layout() {
         </nav>
 
         <div style={{ padding: '12px 12px 0', borderTop: '1px solid var(--border)' }}>
-          <button
-            onClick={toggleTheme}
-            title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-            style={{
-              width: '100%',
-              height: 34,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 8,
-              borderRadius: 'var(--radius-sm)',
-              border: '1px solid var(--border)',
-              background: 'var(--surface2)',
-              color: 'var(--text-2)',
-              fontSize: 12,
-              fontWeight: 600,
-              marginBottom: 8,
-            }}
-          >
-            {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
-            {theme === 'dark' ? 'Light mode' : 'Dark mode'}
-          </button>
+          {!sidebarCollapsed && (
+            <>
+              <button
+                onClick={toggleTheme}
+                title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+                style={{
+                  width: '100%',
+                  height: 34,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  borderRadius: 'var(--radius-sm)',
+                  border: '1px solid var(--border)',
+                  background: 'var(--surface2)',
+                  color: 'var(--text-2)',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  marginBottom: 8,
+                }}
+              >
+                {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
+                {theme === 'dark' ? 'Light mode' : 'Dark mode'}
+              </button>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 'var(--radius-sm)' }}>
-            {user?.photoURL ? (
-              <img src={user.photoURL} alt="" style={{ width: 28, height: 28, borderRadius: '50%' }} />
-            ) : (
-              <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--surface2)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <User size={14} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 'var(--radius-sm)' }}>
+                {user?.photoURL ? (
+                  <img src={user.photoURL} alt="" style={{ width: 28, height: 28, borderRadius: '50%' }} />
+                ) : (
+                  <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--surface2)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <User size={14} />
+                  </div>
+                )}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.displayName}</div>
+                  <div style={{ fontSize: 10, fontWeight: 600, color: role === 'admin' ? 'var(--accent)' : role === 'committee' ? 'var(--amber-text)' : 'var(--text-3)' }}>
+                    {role === 'admin' ? '⬡ Admin' : role === 'committee' ? '◈ Committee' : role === 'tpo' ? '◆ TPO' : role === 'faculty_coordinator' ? '◇ Faculty Coord' : role || ''}
+                  </div>
+                </div>
+                <button onClick={handleLogout} style={{ border: 'none', background: 'none', padding: 4, cursor: 'pointer', color: 'var(--text-3)', borderRadius: 4, display: 'flex' }} title="Sign out">
+                  <LogOut size={15} />
+                </button>
               </div>
-            )}
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 13, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.displayName}</div>
-              <div style={{ fontSize: 10, fontWeight: 600, color: role === 'admin' ? 'var(--accent)' : role === 'committee' ? 'var(--amber-text)' : 'var(--text-3)' }}>
-                {role === 'admin' ? '⬡ Admin' : role === 'committee' ? '◈ Committee' : role === 'tpo' ? '◆ TPO' : role === 'faculty_coordinator' ? '◇ Faculty Coord' : role || ''}
-              </div>
-            </div>
-            <button onClick={handleLogout} style={{ border: 'none', background: 'none', padding: 4, cursor: 'pointer', color: 'var(--text-3)', borderRadius: 4, display: 'flex' }} title="Sign out">
-              <LogOut size={15} />
-            </button>
-          </div>
+            </>
+          )}
         </div>
       </aside>
 
