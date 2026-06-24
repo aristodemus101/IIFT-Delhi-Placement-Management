@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../lib/AuthContext'
 import { usePermissions } from '../lib/usePermissions'
@@ -34,6 +34,20 @@ export default function Layout() {
     if (typeof window === 'undefined') return false
     return window.localStorage.getItem('placementos-sidebar-collapsed') === '1'
   })
+  const [isNarrowViewport, setIsNarrowViewport] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return window.innerWidth < 900
+  })
+
+  useEffect(() => {
+    const updateViewport = () => setIsNarrowViewport(window.innerWidth < 900)
+
+    updateViewport()
+    window.addEventListener('resize', updateViewport)
+    return () => window.removeEventListener('resize', updateViewport)
+  }, [])
+
+  const isCompactSidebar = sidebarCollapsed || isNarrowViewport
 
   const hasActiveCohorts = activeBatches.length > 0
   const courseAllLabel = 'All'
@@ -103,54 +117,57 @@ export default function Layout() {
   ].filter(n => canAccessPage(n.page))
 
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: isNarrowViewport ? 'column' : 'row', minHeight: '100vh', overflow: 'hidden' }}>
       <aside style={{
-        width: sidebarCollapsed ? 80 : 236,
+        width: isCompactSidebar ? 80 : 236,
         flexShrink: 0,
         background: 'color-mix(in srgb, var(--surface) 88%, transparent)',
-        borderRight: '1px solid var(--border)',
+        borderRight: isNarrowViewport ? 'none' : '1px solid var(--border)',
+        borderBottom: isNarrowViewport ? '1px solid var(--border)' : 'none',
         display: 'flex',
         flexDirection: 'column',
-        padding: '20px 0',
+        padding: isCompactSidebar ? '16px 0' : '20px 0',
         backdropFilter: 'blur(20px)',
       }}>
-        <div style={{ padding: sidebarCollapsed ? '0 12px 16px' : '0 20px 24px', borderBottom: '1px solid var(--border)', marginBottom: 8 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: sidebarCollapsed ? 0 : 10, justifyContent: sidebarCollapsed ? 'center' : 'flex-start' }}>
+        <div style={{ padding: isCompactSidebar ? '0 12px 16px' : '0 20px 24px', borderBottom: '1px solid var(--border)', marginBottom: 8 }}>
+          <div style={{ display: 'flex', flexDirection: isCompactSidebar ? 'column' : 'row', alignItems: 'center', gap: isCompactSidebar ? 8 : 10, justifyContent: 'center' }}>
             <div style={{ width: 34, height: 34, borderRadius: 'var(--radius-sm)', background: 'var(--accent-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <GraduationCap size={18} color="#fff" />
             </div>
-            {!sidebarCollapsed && (
+            {!isCompactSidebar && (
               <div>
                 <div style={{ fontWeight: 700, fontSize: 14, letterSpacing: '-0.02em', lineHeight: 1.2 }}>PlacementOS</div>
                 <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 1 }}>IIFT Delhi</div>
               </div>
             )}
-            <button
-              onClick={toggleSidebar}
-              title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-              style={{
-                marginLeft: sidebarCollapsed ? 0 : 'auto',
-                marginTop: sidebarCollapsed ? 10 : 0,
-                border: '1px solid var(--border)',
-                background: 'var(--surface)',
-                color: 'var(--text-2)',
-                width: 28,
-                height: 28,
-                borderRadius: 999,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-              }}
-            >
-              {sidebarCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
-            </button>
+            {!isNarrowViewport && (
+              <button
+                onClick={toggleSidebar}
+                title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                style={{
+                  marginLeft: isCompactSidebar ? 0 : 'auto',
+                  marginTop: 0,
+                  border: '1px solid var(--border)',
+                  background: 'var(--surface)',
+                  color: 'var(--text-2)',
+                  width: 28,
+                  height: 28,
+                  borderRadius: 999,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                {sidebarCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+              </button>
+            )}
           </div>
         </div>
 
         <nav style={{ flex: 1, padding: '8px 12px', overflowY: 'auto' }}>
-          {!sidebarCollapsed && (
+          {!isCompactSidebar && (
             <div style={{ marginBottom: 12, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: 8 }}>
               {hasActiveCohorts ? (
               <>

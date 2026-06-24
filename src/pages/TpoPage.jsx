@@ -15,12 +15,30 @@ const STATUS_COLOR = {
 }
 
 export const SECTORS = [
-  { value: 'Consulting', label: 'Consulting' },
-  { value: 'BFSI',       label: 'BFSI' },
-  { value: 'FMCG',       label: 'FMCG' },
-  { value: 'Technology', label: 'Technology' },
-  { value: 'GLP',        label: 'Global Leadership Programs' },
-  { value: 'Other',      label: 'Other' },
+  { value: 'Agri & Allied Industries', label: 'Agri & Allied Industries' },
+  { value: 'Airlines & Aviation', label: 'Airlines & Aviation' },
+  { value: 'Automobile', label: 'Automobile' },
+  { value: 'Banking', label: 'Banking' },
+  { value: 'Conglomerates', label: 'Conglomerates' },
+  { value: 'E-Commerce', label: 'E-Commerce' },
+  { value: 'EPC (Engineering, Procurement & Construction)', label: 'EPC (Engineering, Procurement & Construction)' },
+  { value: 'Export Companies', label: 'Export Companies' },
+  { value: 'Facilities Management', label: 'Facilities Management' },
+  { value: 'Fintech & Payment Gateways', label: 'Fintech & Payment Gateways' },
+  { value: 'FMCD (Consumer Durables)', label: 'FMCD (Consumer Durables)' },
+  { value: 'FMCG', label: 'FMCG' },
+  { value: 'FSI (Financial Services & Insurance)', label: 'FSI (Financial Services & Insurance)' },
+  { value: 'Hotel', label: 'Hotel' },
+  { value: 'IT & ITES', label: 'IT & ITES' },
+  { value: 'Logistics & Supply Chain', label: 'Logistics & Supply Chain' },
+  { value: 'Manufacturing', label: 'Manufacturing' },
+  { value: 'Market Research & Consulting', label: 'Market Research & Consulting' },
+  { value: 'Media', label: 'Media' },
+  { value: 'Oil, Power, Energy & Semiconductor', label: 'Oil, Power, Energy & Semiconductor' },
+  { value: 'Pharma', label: 'Pharma' },
+  { value: 'Real Estate, Sanitaryware, Tiles, Cement & Paints', label: 'Real Estate, Sanitaryware, Tiles, Cement & Paints' },
+  { value: 'Retail', label: 'Retail' },
+  { value: 'Telecom', label: 'Telecom' },
 ]
 
 const CAMPUSES = ['Delhi', 'Gift City', 'Kakinada', 'Kolkata']
