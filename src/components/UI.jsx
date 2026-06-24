@@ -183,10 +183,10 @@ export function Table({ headers, rows, emptyMessage = 'No data', onRowContextMen
   )
 }
 
-export function Modal({ open, onClose, title, children, width = 520 }) {
+export function Modal({ open, onClose, title, children, width = 520, closeOnBackdropClick = true }) {
   if (!open) return null
   return (
-    <div onClick={onClose} style={{
+    <div onClick={closeOnBackdropClick ? onClose : undefined} style={{
       position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)',
       display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
       padding: 16

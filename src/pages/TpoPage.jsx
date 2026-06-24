@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useAuth } from '../lib/AuthContext'
 import { usePermissions } from '../lib/usePermissions'
 import { useMyTpoOutreach, useAllTpoOutreach, OUTREACH_STATUSES } from '../lib/useTpoOutreach'
@@ -71,13 +71,25 @@ function normaliseCohorts(e) {
   return []
 }
 
-function OutreachForm({ initial, batches, onSave, onCancel, busy }) {
+function OutreachForm({ initial, batches, onSave, onCancel, onDirtyChange, busy }) {
   const initCohorts = initial ? normaliseCohorts(initial) : []
   const initCampus  = initial?.campus || []
   const [form, setForm] = useState({ ...EMPTY_FORM, ...initial, cohorts: initCohorts, campus: initCampus })
   const [err, setErr] = useState('')
+  const originalRef = useRef(null)
+
+  useEffect(() => {
+    originalRef.current = JSON.stringify({ ...EMPTY_FORM, ...initial, cohorts: initCohorts, campus: initCampus })
+  }, [initial, initCohorts, initCampus])
+
+  const currentSnapshot = JSON.stringify(form)
+  const isDirty = originalRef.current !== null && currentSnapshot !== originalRef.current
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+
+  useEffect(() => {
+    if (typeof onDirtyChange === 'function') onDirtyChange(isDirty)
+  }, [isDirty, onDirtyChange])
 
   const toggleCohort = (batchId) => {
     setForm(f => {
@@ -257,19 +269,32 @@ function MyOutreachView() {
   const { activeBatches } = useBatch()
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState(null)
+  const [confirmClose, setConfirmClose] = useState(null)
+  const [addDirty, setAddDirty] = useState(false)
+  const [editDirty, setEditDirty] = useState(false)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
 
+  const requestClose = (mode) => {
+    const dirty = mode === 'edit' ? editDirty : addDirty
+    if (dirty) {
+      setConfirmClose(mode)
+      return
+    }
+    if (mode === 'edit') setEditing(null)
+    else setFormOpen(false)
+  }
+
   const handleAdd = async (data) => {
     setBusy(true); setMsg('')
-    try { await addEntry(data); setFormOpen(false) }
+    try { await addEntry(data); setAddDirty(false); setFormOpen(false) }
     catch (e) { setMsg('Error: ' + e.message) }
     setBusy(false)
   }
 
   const handleUpdate = async (data) => {
     setBusy(true); setMsg('')
-    try { await updateEntry(editing.id, data); setEditing(null) }
+    try { await updateEntry(editing.id, data); setEditDirty(false); setEditing(null) }
     catch (e) { setMsg('Error: ' + e.message) }
     setBusy(false)
   }
@@ -287,7 +312,7 @@ function MyOutreachView() {
       <PageHeader
         title="My Outreach"
         subtitle="Log companies you have reached out to and track outcomes"
-        actions={<Btn variant="primary" size="sm" onClick={() => setFormOpen(true)}><Plus size={14} style={{ marginRight: 4 }} />Add Entry</Btn>}
+        actions={<Btn variant="primary" size="sm" onClick={() => { setAddDirty(false); setFormOpen(true) }}><Plus size={14} style={{ marginRight: 4 }} />Add Entry</Btn>}
       />
 
       {msg && <p style={{ padding: '8px 24px', color: 'var(--red, #dc2626)', fontSize: 13 }}>{msg}</p>}
@@ -322,7 +347,7 @@ function MyOutreachView() {
                   </td>
                   <td style={tdStyle}>{normaliseCohorts(e).map(c => cohortLabel(c)).join(', ') || '—'}</td>
                   <td style={{ ...tdStyle, whiteSpace: 'nowrap' }}>
-                    <Btn variant="ghost" size="sm" onClick={() => setEditing(e)} style={{ padding: '2px 6px' }}><Pencil size={13} /></Btn>
+                    <Btn variant="ghost" size="sm" onClick={() => { setEditDirty(false); setEditing(e) }} style={{ padding: '2px 6px' }}><Pencil size={13} /></Btn>
                     <Btn variant="ghost" size="sm" onClick={() => handleDelete(e.id)} style={{ padding: '2px 6px', marginLeft: 4, color: 'var(--red, #dc2626)' }}><Trash2 size={13} /></Btn>
                   </td>
                 </tr>
@@ -332,20 +357,48 @@ function MyOutreachView() {
         </div>
       )}
 
-      <Modal open={formOpen} onClose={() => setFormOpen(false)} title="Add Outreach Entry">
-        <OutreachForm batches={activeBatches} onSave={handleAdd} onCancel={() => setFormOpen(false)} busy={busy} />
+      <Modal open={formOpen} onClose={() => requestClose('add')} title="Add Outreach Entry">
+        <OutreachForm batches={activeBatches} onSave={handleAdd} onCancel={() => requestClose('add')} busy={busy} onDirtyChange={setAddDirty} />
       </Modal>
 
-      <Modal open={!!editing} onClose={() => setEditing(null)} title="Edit Outreach Entry">
+      <Modal open={!!editing} onClose={() => requestClose('edit')} title="Edit Outreach Entry">
         {editing && (
           <OutreachForm
             initial={editing}
             batches={activeBatches}
             onSave={handleUpdate}
-            onCancel={() => setEditing(null)}
+            onCancel={() => requestClose('edit')}
             busy={busy}
+            onDirtyChange={setEditDirty}
           />
         )}
+      </Modal>
+
+      <Modal
+        open={!!confirmClose}
+        onClose={() => setConfirmClose(null)}
+        title="Unsaved changes"
+        width={420}
+        closeOnBackdropClick={false}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <p style={{ margin: 0, fontSize: 13, color: 'var(--text-2)', lineHeight: 1.6 }}>
+            You have unsaved edits. Do you want to discard them or keep editing?
+          </p>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <Btn variant="ghost" onClick={() => setConfirmClose(null)}>Keep editing</Btn>
+            <Btn variant="danger" onClick={() => {
+              if (confirmClose === 'edit') {
+                setEditing(null)
+                setEditDirty(false)
+              } else {
+                setFormOpen(false)
+                setAddDirty(false)
+              }
+              setConfirmClose(null)
+            }}>Discard</Btn>
+          </div>
+        </div>
       </Modal>
     </div>
   )
