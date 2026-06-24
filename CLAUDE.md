@@ -123,7 +123,6 @@ src/
     useStudents.js           # Student data hook
     useOpportunities.js      # Opportunities/pipeline hook
     useTpoOutreach.js        # TPO outreach hooks (own + all)
-    usePermissions.js        # Permission hook with Firestore config overrides
     useSearch.js             # Full-text search across student columns
   config/
     activityTaxonomy.js      # Activity/opportunity type taxonomy
@@ -178,6 +177,99 @@ All shared UI primitives are in `src/components/UI.jsx`:
 
 ---
 
+# Engineering Operating System
+
+This project prioritizes:
+
+1. Data Integrity
+2. Security
+3. Auditability
+4. Reliability
+5. Maintainability
+6. Performance
+7. UX
+8. Developer Convenience
+
+When tradeoffs exist, always favor the higher priority item.
+
+---
+
+## Architecture Principles
+
+Before implementing any change:
+
+1. Understand existing implementation.
+2. Reuse existing patterns.
+3. Extend before replacing.
+4. Reuse hooks before creating hooks.
+5. Reuse components before creating components.
+6. Minimize surface area of changes.
+7. Preserve backwards compatibility.
+8. Avoid unnecessary dependencies.
+
+Always ask:
+
+- Does this already exist?
+- Is there a simpler solution?
+- Does this affect permissions?
+- Does this affect Firestore rules?
+- Does this affect auditability?
+- Does this affect production behavior?
+
+---
+
+## Architecture Hierarchy
+
+Always prefer:
+
+1. Existing utility
+2. Existing hook
+3. Existing component
+4. Existing page pattern
+5. New hook
+6. New utility
+7. New component
+8. New dependency
+
+Never skip levels without justification.
+
+---
+
+## Change Risk Classification
+
+### Low Risk
+
+- Styling
+- Labels
+- Icons
+- Documentation
+
+### Medium Risk
+
+- New pages
+- New hooks
+- Analytics changes
+- New collections
+
+### High Risk
+
+- Authentication
+- Roles
+- Permissions
+- Firestore Rules
+- Approval Flow
+- Batch Logic
+- Placement Status Logic
+- Data Import Logic
+
+For High Risk changes:
+
+1. Explain impact.
+2. Identify affected files.
+3. Explain rollback strategy.
+4. Verify security implications.
+5. Verify staging before production.
+
 ## Pending Changes Flow
 
 1. Committee or admin **proposes** a change (place/unplace/delete/import) → written to `/pendingChanges` with status `pending`
@@ -208,6 +300,247 @@ All shared UI primitives are in `src/components/UI.jsx`:
 When the user types `/graphify`, invoke the Skill tool with `skill: "graphify"` before doing anything else. This skill converts any input (code, docs, data) into a knowledge graph. If a `graphify-out/` directory exists in the project, treat any codebase questions as a `/graphify` query against that graph.
 
 ---
+
+# Skill Operating System
+
+Claude should proactively select skills before implementation.
+
+---
+
+## find-skills
+
+Use when:
+
+- Unsure which skill applies.
+- Complex feature requests.
+- Architecture discussions.
+- Large debugging sessions.
+
+Purpose:
+
+Discover relevant skills before starting work.
+
+---
+
+## context-canary
+
+Use before:
+
+- Large refactors.
+- Data model changes.
+- Permission changes.
+- Ambiguous requirements.
+
+Purpose:
+
+Identify hidden assumptions, conflicting requirements, and missing context.
+
+Typical workflow:
+
+find-skills
+→ context-canary
+→ implementation
+
+---
+
+## grill-me
+
+Use for:
+
+- Architecture reviews
+- Security reviews
+- Permission reviews
+- Firestore reviews
+- Scalability reviews
+
+Purpose:
+
+Act as principal engineer and challenge the proposed design.
+
+Typical workflow:
+
+context-canary
+→ grill-me
+→ implementation
+
+---
+
+## junior-to-senior
+
+Use for:
+
+- React reviews
+- Hook reviews
+- Firebase integration reviews
+- Refactoring
+
+Purpose:
+
+Upgrade implementation quality to production-grade standards.
+
+Typical workflow:
+
+implementation
+→ junior-to-senior
+→ final implementation
+
+---
+
+## caveman
+
+Use when:
+
+- Architecture feels overengineered
+- Too many abstractions exist
+- Multiple hooks are being introduced
+- Refactors are becoming complex
+
+Purpose:
+
+Find the simplest possible solution.
+
+Typical workflow:
+
+grill-me
+→ caveman
+→ implementation
+
+---
+
+## loop-factory
+
+Use when:
+
+- New modules
+- Analytics systems
+- Workflow redesigns
+- Multi-step migrations
+- Major feature development
+
+Purpose:
+
+Create implementation roadmap before coding.
+
+Typical workflow:
+
+context-canary
+→ loop-factory
+→ implementation
+
+---
+
+## interface-kit
+
+Use when:
+
+- New pages
+- New modals
+- New dashboards
+- New tables
+- New admin screens
+
+Purpose:
+
+Maintain UI consistency with PlacementOS patterns.
+
+Typical workflow:
+
+interface-kit
+→ implementation
+
+---
+
+## fuck-slop
+
+Use when:
+
+- Documentation
+- User-facing copy
+- Admin instructions
+- Error messages
+- Empty states
+
+Purpose:
+
+Remove AI-generated language and improve clarity.
+
+Typical workflow:
+
+draft
+→ fuck-slop
+→ final content
+
+---
+
+# Recommended Skill Chains
+
+## New Feature
+
+context-canary
+→ loop-factory
+→ interface-kit
+→ junior-to-senior
+
+---
+
+## Security-Sensitive Change
+
+context-canary
+→ grill-me
+→ implementation
+→ junior-to-senior
+
+---
+
+## Firestore Schema Change
+
+context-canary
+→ grill-me
+→ caveman
+→ implementation
+
+---
+
+## Dashboard Development
+
+context-canary
+→ loop-factory
+→ interface-kit
+→ junior-to-senior
+
+---
+
+## Refactor
+
+grill-me
+→ caveman
+→ junior-to-senior
+
+---
+
+## Documentation
+
+draft
+→ fuck-slop
+
+---
+
+# Self Review Process
+
+Before completing any implementation:
+
+1. Review for simpler solutions.
+2. Review security implications.
+3. Review role impacts.
+4. Review Firestore impacts.
+5. Review mobile responsiveness.
+6. Review auditability.
+7. Remove unused imports.
+8. Verify backwards compatibility.
+9. Verify staging behavior.
+10. Verify consistency with existing patterns.
+
+Never complete medium or high-risk work without a self-review.
 
 ## Git / Commit Conventions
 
