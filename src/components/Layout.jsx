@@ -128,6 +128,10 @@ export default function Layout() {
         flexDirection: 'column',
         padding: isCompactSidebar ? '16px 0' : '20px 0',
         backdropFilter: 'blur(20px)',
+        height: isNarrowViewport ? 'auto' : '100vh',
+        position: isNarrowViewport ? 'static' : 'sticky',
+        top: 0,
+        alignSelf: 'flex-start',
       }}>
         <div style={{ padding: isCompactSidebar ? '0 12px 16px' : '0 20px 24px', borderBottom: '1px solid var(--border)', marginBottom: 8 }}>
           <div style={{ display: 'flex', flexDirection: isCompactSidebar ? 'column' : 'row', alignItems: 'center', gap: isCompactSidebar ? 8 : 10, justifyContent: 'center' }}>

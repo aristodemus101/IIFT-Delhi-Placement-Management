@@ -13,17 +13,11 @@ export function useRosterPrefs({ user, allColumnDefs, selectedCohort }) {
   const [visibleCols, setVisibleCols] = useState([])
   const [prefsReady, setPrefsReady]   = useState(false)
 
-  // Reset visible cols when column schema changes
+  // Always show all columns when the column set changes
   useEffect(() => {
     setPrefsReady(false)
-    setVisibleCols(prev => {
-      const allKeys = allColumnDefs.map(c => c.key)
-      if (!allKeys.length) return []
-      if (!prev.length) return allKeys
-      const prevSet = new Set(prev)
-      const filtered = allKeys.filter(k => prevSet.has(k))
-      return filtered.length ? filtered : allKeys
-    })
+    const allKeys = allColumnDefs.map(c => c.key)
+    setVisibleCols(allKeys.length ? allKeys : [])
   }, [allColumnDefs])
 
   // Load prefs from Firestore on mount / cohort change
@@ -46,13 +40,7 @@ export function useRosterPrefs({ user, allColumnDefs, selectedCohort }) {
         else
           setFilters(DEFAULT_FILTERS)
 
-        if (Array.isArray(roster.visibleCols) && roster.visibleCols.length) {
-          const valid = new Set(allColumnDefs.map(c => c.key))
-          const next = roster.visibleCols.filter(k => valid.has(k))
-          // If saved prefs cover less than 50% of current schema, treat as stale — show all
-          const coverageOk = next.length >= allColumnDefs.length * 0.5
-          if (next.length && coverageOk) setVisibleCols(next)
-        }
+        // visibleCols intentionally not restored — always show all columns from the data
       } catch (e) {
         console.error('Failed to load roster preferences:', e)
       } finally {
@@ -70,12 +58,12 @@ export function useRosterPrefs({ user, allColumnDefs, selectedCohort }) {
     const t = setTimeout(() => {
       setDoc(doc(db, 'userPrefs', user.uid), {
         roster: {
-          [selectedCohort]: { sortCol, sortDir, visibleCols, filters, updatedAt: serverTimestamp() },
+          [selectedCohort]: { sortCol, sortDir, filters, updatedAt: serverTimestamp() },
         },
       }, { merge: true }).catch(e => console.error('Failed to save roster preferences:', e))
     }, 250)
     return () => clearTimeout(t)
-  }, [user?.uid, prefsReady, sortCol, sortDir, visibleCols, filters, selectedCohort])
+  }, [user?.uid, prefsReady, sortCol, sortDir, filters, selectedCohort])
 
   const toggleColumn = key => {
     setVisibleCols(prev => {

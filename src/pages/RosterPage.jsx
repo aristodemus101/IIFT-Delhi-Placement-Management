@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react'
 import { useOutletContext } from 'react-router-dom'
-import { useStudents, useColumnSchema } from '../lib/useStudents'
+import { useStudents } from '../lib/useStudents'
 import { usePendingChanges } from '../lib/PendingChangesContext'
 import { useAuth } from '../lib/AuthContext'
 import { usePermissions } from '../lib/usePermissions'
@@ -34,7 +34,6 @@ function studentCohort(s) { return s.cohort || 'unknown' }
 export default function RosterPage() {
   const { students, loading } = useStudents()
   const { scopedCohorts, selectedCohort, selectedCohortCycle, selectedYearCode, selectedCampuses, selectedProgramme, batchesLoading, activeBatches } = useBatch()
-  const { schemaHeaders } = useColumnSchema(selectedCohort || 'final')
   const { propose, changes } = usePendingChanges()
   const { isAdmin, user } = useAuth()
   const { canDo } = usePermissions()
@@ -92,26 +91,25 @@ export default function RosterPage() {
   const { searchTerm, setSearchTerm, match: searchMatch } = useSearch(scopedStudents)
   const hasStudents     = scopedStudents.length > 0
   const hasActiveCohorts = activeBatches.length > 0
-  const schemaCols  = useMemo(() => (schemaHeaders || []).filter(Boolean), [schemaHeaders])
-  const usingSchema = schemaCols.length > 0
-
-  const fallbackColumnDefs = useMemo(() => [
-    { key: 'roll',   label: 'Roll No.',  sortKey: 'roll' },
-    { key: 'name',   label: 'Name',      sortKey: 'name' },
-    { key: 'gender', label: 'Gender',    sortKey: 'gender' },
-    { key: 'cat',    label: 'CAT %ile',  sortKey: 'cat' },
-    { key: 'category', label: 'Category', sortKey: 'category' },
-    { key: 'wx',     label: 'Work Ex',   sortKey: 'wx' },
-    { key: 'ug',     label: 'UG Degree', sortKey: 'ug' },
-    { key: 'ugpct',  label: 'UG %',      sortKey: 'ugpct' },
-    { key: 'x12pct', label: 'XII %',     sortKey: 'x12pct' },
-    { key: 'x10pct', label: 'X %',       sortKey: 'x10pct' },
-  ], [])
-
+  // Derive columns from actual student docs — union of all non-internal keys
   const allColumnDefs = useMemo(() => {
-    if (usingSchema) return schemaCols.map(h => ({ key: h, label: h, sortKey: h }))
-    return fallbackColumnDefs
-  }, [usingSchema, schemaCols, fallbackColumnDefs])
+    const seen = new Set()
+    const cols = []
+    for (const s of scopedStudents) {
+      for (const k of Object.keys(s)) {
+        if (!seen.has(k) && !k.startsWith('_') && k !== 'cohort') {
+          seen.add(k)
+          cols.push({ key: k, label: k, sortKey: k })
+        }
+      }
+    }
+    if (cols.length) return cols
+    // fallback when no students loaded yet
+    return [
+      { key: 'name', label: 'Name', sortKey: 'name' },
+      { key: 'roll', label: 'Roll No.', sortKey: 'roll' },
+    ]
+  }, [scopedStudents])
 
   const {
     sortCol, setSortCol, sortDir, setSortDir,
@@ -320,20 +318,6 @@ export default function RosterPage() {
 
   // ── Table rows ─────────────────────────────────────────────────────────────
 
-  const renderFallbackCell = (student, key) => {
-    if (key === 'roll')    return <span style={{ fontSize: 12, color: 'var(--text-3)', fontFamily: 'var(--font-mono)' }}>{getVal(student, 'roll')}</span>
-    if (key === 'name')    return <span style={{ fontWeight: 500 }}>{getVal(student, 'name')}</span>
-    if (key === 'gender')  return <span style={{ color: 'var(--text-2)' }}>{getVal(student, 'gender')}</span>
-    if (key === 'cat')     return <strong style={{ fontSize: 13 }}>{parseFloat(getVal(student, 'cat')).toFixed(2) || '—'}</strong>
-    if (key === 'category') return <CategoryBadge category={getVal(student, 'category')} />
-    if (key === 'wx')      return <span>{getVal(student, 'wx') || '0'} mo</span>
-    if (key === 'ug')      return <span style={{ fontSize: 12 }}>{getVal(student, 'ug')}</span>
-    if (key === 'ugpct')   return <span>{parseFloat(getVal(student, 'ugpct')).toFixed(1) || '—'}%</span>
-    if (key === 'x12pct')  return <span>{parseFloat(getVal(student, 'x12pct')).toFixed(1) || '—'}%</span>
-    if (key === 'x10pct')  return <span>{parseFloat(getVal(student, 'x10pct')).toFixed(1) || '—'}%</span>
-    return <span>{getCellValue(student, key) || '—'}</span>
-  }
-
   const dynamicHeaders = [
     ...visibleDefs.map(def => ({ label: def.label, onClick: () => handleSort(def.sortKey), sorted: sortCol === def.sortKey ? sortDir : 0 })),
     { label: 'Actions', onClick: null },
@@ -354,7 +338,7 @@ export default function RosterPage() {
       </div>
     )
     return [
-      ...visibleDefs.map(def => usingSchema ? <span key={def.key}>{getCellValue(s, def.sortKey) || '—'}</span> : renderFallbackCell(s, def.key)),
+      ...visibleDefs.map(def => <span key={def.key}>{getCellValue(s, def.key) || '—'}</span>),
       actionCell,
     ]
   })
@@ -489,7 +473,7 @@ export default function RosterPage() {
       <Modal open={!!viewModal} onClose={() => setViewModal(null)} title={viewModal ? getVal(viewModal, 'name') : ''} width={640}>
         {viewModal && (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 20px' }}>
-            {(usingSchema ? schemaCols : OUR_COLS.slice(0, 60).map(c => c.label)).map(label => {
+            {allColumnDefs.map(({ key: label }) => {
               const val = getCellValue(viewModal, label)
               if (!val || val === 'NA' || val === '0') return null
               return (

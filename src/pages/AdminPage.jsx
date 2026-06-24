@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useRoles } from '../lib/useRoles'
 import { useAuth } from '../lib/AuthContext'
-import { useStudents, useColumnSchema } from '../lib/useStudents'
+import { useStudents } from '../lib/useStudents'
 import { useSheetsSync } from '../lib/SheetsSyncContext'
 import { useBatch } from '../lib/BatchContext'
 import { usePendingChanges } from '../lib/PendingChangesContext'
@@ -13,7 +13,7 @@ import { ROLES, ROLE_LABELS, CONFIGURABLE_FIELDS, CONFIGURABLE_PAGES, CONFIGURAB
 import { usePermissions } from '../lib/usePermissions'
 import {
   ShieldCheck, User, AlertTriangle, Sheet, RefreshCw, ExternalLink, CheckCircle,
-  Database, Columns3, Plus, Archive, RotateCcw, Crown, Trash2, Briefcase, GraduationCap,
+  Database, Plus, Archive, RotateCcw, Crown, Trash2, Briefcase, GraduationCap,
   UserPlus, UserMinus, Mail
 } from 'lucide-react'
 import {
@@ -33,7 +33,6 @@ export default function AdminPage() {
   const { pageConfig, actionConfig } = usePermissions()
   const { students } = useStudents()
   const { selectedCohort, batches, activeBatches, archivedBatches, getCohortCycle, setCohortCycle } = useBatch()
-  const { schemaHeaders, setSchemaHeaders } = useColumnSchema(selectedCohort || 'default')
   const { connected, sheetUrl, lastSync, syncing, authorize, syncNow } = useSheetsSync()
   const { propose } = usePendingChanges()
   const [busy, setBusy] = useState(null)
@@ -42,9 +41,6 @@ export default function AdminPage() {
   const [syncMsg, setSyncMsg] = useState('')
   const [authBusy, setAuthBusy] = useState(false)
   const [authErr, setAuthErr] = useState('')
-  const [schemaOpen, setSchemaOpen] = useState(false)
-  const [schemaDraft, setSchemaDraft] = useState('')
-  const [schemaMsg, setSchemaMsg] = useState('')
 
   // Cohort management state
   const [createCohortOpen, setCreateCohortOpen] = useState(false)
@@ -268,27 +264,6 @@ export default function AdminPage() {
     setMasterAdminBusy(member.uid)
     try { await toggleMasterAdmin(member.uid, newVal) } catch (e) { alert(e.message) }
     setMasterAdminBusy(null)
-  }
-
-  const openSchemaEditor = () => {
-    const base = (schemaHeaders && schemaHeaders.length ? schemaHeaders : []).join('\n')
-    setSchemaDraft(base)
-    setSchemaOpen(true)
-  }
-
-  const saveSchema = async () => {
-    const parsed = schemaDraft.split('\n').map(s => s.trim()).filter(Boolean)
-    const seen = new Set()
-    const headers = parsed.filter(h => {
-      if (seen.has(h)) return false
-      seen.add(h)
-      return true
-    })
-    if (!headers.length) return
-    await setSchemaHeaders(headers, user)
-    setSchemaMsg(`Column structure saved (${headers.length} columns).`)
-    setSchemaOpen(false)
-    setTimeout(() => setSchemaMsg(''), 4000)
   }
 
   const handleCreateCohort = async () => {
@@ -908,23 +883,6 @@ export default function AdminPage() {
           )}
         </div>
 
-        <div style={{ marginTop: 28 }}>
-          <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>Column Structure</h2>
-          <p style={{ fontSize: 13, color: 'var(--text-2)', marginBottom: 12 }}>
-            Control visible headers for roster UI and imports for <strong>{selectedCohort ? cohortLabel(selectedCohort) : 'selected cohort'}</strong>. You can add, remove, rename, and reorder columns.
-          </p>
-          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '16px 18px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, marginBottom: 10 }}>
-              <Columns3 size={14} />
-              Active columns: <strong>{schemaHeaders?.length || 0}</strong>
-            </div>
-            {schemaMsg && <div style={{ fontSize: 13, color: 'var(--green-text)', marginBottom: 8 }}>{schemaMsg}</div>}
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <Btn size="sm" onClick={openSchemaEditor}>Edit Column Structure</Btn>
-            </div>
-          </div>
-        </div>
-
         {/* ── Google Sheets Backup ─────────────────────────────────────── */}
         {isMasterAdmin && (
           <div style={{ marginTop: 32 }}>
@@ -1034,33 +992,6 @@ export default function AdminPage() {
         )}
       </div>
 
-      <Modal open={schemaOpen} onClose={() => setSchemaOpen(false)} title="Edit column structure" width={680}>
-        <p style={{ fontSize: 13, color: 'var(--text-2)', marginBottom: 10 }}>
-          One column header per line. Order here is the order shown in the UI.
-        </p>
-        <textarea
-          value={schemaDraft}
-          onChange={e => setSchemaDraft(e.target.value)}
-          style={{
-            width: '100%',
-            minHeight: 280,
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-sm)',
-            background: 'var(--surface2)',
-            color: 'var(--text)',
-            padding: 10,
-            fontSize: 13,
-            lineHeight: 1.55,
-            resize: 'vertical',
-            fontFamily: 'var(--font-sans)',
-            marginBottom: 12,
-          }}
-        />
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-          <Btn onClick={() => setSchemaOpen(false)}>Cancel</Btn>
-          <Btn variant="primary" onClick={saveSchema}>Save Structure</Btn>
-        </div>
-      </Modal>
 
       {/* Create Cohort Modal */}
       <Modal open={createCohortOpen} onClose={() => { setCreateCohortOpen(false); setNewCohortId(''); setNewCohortCycle('summer') }} title="Create New Cohort" width={480}>

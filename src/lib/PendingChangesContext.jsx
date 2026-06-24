@@ -424,7 +424,7 @@ function parseSipColumns(row) {
     role:      get('SIP Role'),
     sector:    get('SIP Company Sector', 'SIP Company Domain'),
     location:  get('Location'),
-    package:   get('SIP Stipend (In Lakhs/month)', 'SIP Stipend'),
+    package:   get('Summer Stipend', 'SIP Stipend (In Lakhs/month)', 'SIP Stipend'),
     ctcNotes:  get('SIP Roles and Responsibilities'),
     via:       get('Placed Via'),
     placedAtIso: date ? new Date(`${date}T00:00:00`).toISOString() : new Date().toISOString(),
@@ -437,7 +437,7 @@ function parseSipColumns(row) {
 const SIP_COLUMNS = [
   'SIP Status', 'SIP Company', 'SIP Role', 'SIP Company Sector',
   'SIP Company Domain', 'SIP Roles and Responsibilities', 'Location',
-  'DOP', 'Placed Via', 'SIP Stipend (In Lakhs/month)', 'SIP Stipend',
+  'DOP', 'Placed Via', 'Summer Stipend', 'SIP Stipend (In Lakhs/month)', 'SIP Stipend',
 ]
 
 function normalizePlacementDetails(change) {

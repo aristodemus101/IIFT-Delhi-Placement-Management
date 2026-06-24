@@ -108,19 +108,30 @@ export default function PlacedPage() {
   const stats = useMemo(() => {
     const placements = placed.map(s => getPlacement(s))
     const withPackage = placements.filter(p => p.package && /[\d]/.test(p.package))
+
+    // Summer: package stored as rupees/month (e.g. "60,000") → parse to number
+    // Final: package stored as LPA (e.g. "10" or "10 LPA") → parse to number
     const parsePackage = (pkg) => {
-      // Strip commas (Indian number formatting: 1,00,000 or 60,000)
       const cleaned = String(pkg).replace(/,/g, '')
       const m = cleaned.match(/[\d.]+/)
       if (!m) return null
-      const val = parseFloat(m[0])
-      // If value > 1000, it's in rupees — convert to LPA (rupees/month * 12 / 100000)
-      if (val > 1000) return parseFloat((val * 12 / 100000).toFixed(2))
-      return val
+      return parseFloat(m[0])
     }
-    const ctcValues = withPackage.map(p => parsePackage(p.package)).filter(v => v !== null)
-    const avgCtc = ctcValues.length ? (ctcValues.reduce((a, b) => a + b, 0) / ctcValues.length).toFixed(1) : null
-    const maxCtc = ctcValues.length ? Math.max(...ctcValues).toFixed(1) : null
+
+    const rawValues = withPackage.map(p => parsePackage(p.package)).filter(v => v !== null && v > 0)
+    const avgRaw = rawValues.length ? rawValues.reduce((a, b) => a + b, 0) / rawValues.length : null
+    const maxRaw = rawValues.length ? Math.max(...rawValues) : null
+
+    // Format for display: summers = ₹/mo, finals = LPA
+    const isSummer = selectedSeason === 'summer'
+    const fmtVal = (v) => {
+      if (v === null) return null
+      if (isSummer) return `₹${Math.round(v).toLocaleString('en-IN')}/mo`
+      return `${v.toFixed(1)} LPA`
+    }
+
+    const avgCtc = fmtVal(avgRaw)
+    const maxCtc = fmtVal(maxRaw)
 
     const sectorCounts = {}
     placements.forEach(p => { if (p.sector) sectorCounts[p.sector] = (sectorCounts[p.sector] || 0) + 1 })
@@ -216,7 +227,7 @@ export default function PlacedPage() {
       canSeeCtc || canSeeStipend ? (
         <span style={{ fontSize: 12, color: 'var(--text-2)' }}>
           {selectedSeason === 'summer'
-            ? (canSeeStipend ? placement.stipend || '—' : '—')
+            ? (canSeeStipend ? (placement.package ? `₹${placement.package}/mo` : '—') : '—')
             : (canSeeCtc ? placement.package || '—' : '—')
           }
         </span>
@@ -289,8 +300,8 @@ export default function PlacedPage() {
           {stats.avgCtc && (selectedSeason === 'summer' ? canSeeStipend : canSeeCtc) && (
             <StatCard
               label={selectedSeason === 'summer' ? 'Avg Stipend' : 'Avg CTC'}
-              value={`${stats.avgCtc} LPA`}
-              sub={stats.maxCtc ? `Max ${stats.maxCtc} LPA` : undefined}
+              value={stats.avgCtc}
+              sub={stats.maxCtc ? `Max ${stats.maxCtc}` : undefined}
             />
           )}
           {stats.topSector && (
@@ -366,7 +377,7 @@ export default function PlacedPage() {
                 ['Sector', pl.sector],
                 ['Location', pl.location],
                 ['Placed via', pl.via],
-                canSeeCtc || canSeeStipend ? [selectedSeason === 'summer' ? 'Stipend' : 'Package', selectedSeason === 'summer' ? pl.stipend : pl.package] : null,
+                canSeeCtc || canSeeStipend ? [selectedSeason === 'summer' ? 'Stipend' : 'Package', selectedSeason === 'summer' ? (pl.package ? `₹${pl.package}/mo` : null) : pl.package] : null,
                 (canSeeCtc || canSeeStipend) && pl.ctcNotes ? ['CTC Notes', pl.ctcNotes] : null,
                 ['Placed On', pl.placedAtIso ? new Date(pl.placedAtIso).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }) : null],
               ].filter(Boolean).map(([k, v]) => (

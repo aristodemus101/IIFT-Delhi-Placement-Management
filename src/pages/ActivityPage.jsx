@@ -50,17 +50,17 @@ export default function ActivityPage() {
       />
 
       <div style={{ padding: '10px 28px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', flexShrink: 0 }}>
-        <Select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} style={{ height: 32, fontSize: 12 }}>
+        <Select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} style={{ height: 32, fontSize: 12, width: 'auto' }}>
           <option value="all">All types</option>
           {ACTIVITY_TYPE_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
         </Select>
-        <Select value={applicabilityFilter} onChange={e => setApplicabilityFilter(e.target.value)} style={{ height: 32, fontSize: 12 }}>
+        <Select value={applicabilityFilter} onChange={e => setApplicabilityFilter(e.target.value)} style={{ height: 32, fontSize: 12, width: 'auto' }}>
           <option value="all">All cycles</option>
           <option value="summer">Summer only</option>
           <option value="final">Final only</option>
           <option value="both">Both cycles</option>
         </Select>
-        <Select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ height: 32, fontSize: 12 }}>
+        <Select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ height: 32, fontSize: 12, width: 'auto' }}>
           <option value="all">All statuses</option>
           <option value="open">Open</option>
           <option value="shortlisted">Shortlisted</option>
