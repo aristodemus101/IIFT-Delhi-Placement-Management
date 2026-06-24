@@ -136,8 +136,8 @@ function OutreachForm({ initial, batches, onSave, onCancel, onDirtyChange, busy 
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12 }}>
         <label style={labelStyle}>
           Company Name *
           <Input value={form.companyName} onChange={e => set('companyName', e.target.value)} placeholder="e.g. McKinsey & Company" />
@@ -188,9 +188,15 @@ function OutreachForm({ initial, batches, onSave, onCancel, onDirtyChange, busy 
         </div>
       </div>
       {/* KPI Classification */}
-      <div style={{ border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px', background: 'var(--surface2)', display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>KPI Classification</div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+      <div style={{ border: '1px solid color-mix(in srgb, var(--accent) 18%, var(--border))', borderRadius: 16, padding: 16, background: 'linear-gradient(180deg, color-mix(in srgb, var(--accent-bg) 55%, var(--surface2)) 0%, var(--surface2) 100%)', display: 'flex', flexDirection: 'column', gap: 14, boxShadow: 'var(--shadow-sm)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--accent-text)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>KPI Classification</div>
+            <div style={{ fontSize: 12, color: 'var(--text-3)' }}>Track the outreach flags and placement context in one place.</div>
+          </div>
+          <Badge color="blue">Required for reporting</Badge>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12 }}>
           <label style={labelStyle}>
             Season *
             <Select value={form.season} onChange={e => set('season', e.target.value)}>
@@ -208,7 +214,7 @@ function OutreachForm({ initial, batches, onSave, onCancel, onDirtyChange, busy 
         </div>
         <div style={labelStyle}>
           Campus(es)
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 20px', padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--surface)' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 14px', padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 12, background: 'var(--surface)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.35)' }}>
             {CAMPUSES.map(c => (
               <label key={c} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 400, cursor: 'pointer' }}>
                 <input
@@ -222,7 +228,7 @@ function OutreachForm({ initial, batches, onSave, onCancel, onDirtyChange, busy 
             ))}
           </div>
         </div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 24px' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px 16px', paddingTop: 2 }}>
           {[
             { key: 'isNew',           label: 'New recruiting organisation' },
             { key: 'isMultiCampus',   label: 'Multi-campus recruiter' },
@@ -254,7 +260,7 @@ function OutreachForm({ initial, batches, onSave, onCancel, onDirtyChange, busy 
         />
       </label>
       {err && <p style={{ color: 'var(--red, #dc2626)', fontSize: 13, margin: 0 }}>{err}</p>}
-      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', paddingTop: 4, borderTop: '1px solid var(--border)', position: 'sticky', bottom: 0, background: 'linear-gradient(180deg, color-mix(in srgb, var(--surface) 65%, transparent) 0%, var(--surface) 40%)', backdropFilter: 'blur(10px)', marginInline: -20, paddingInline: 20, paddingBottom: 4 }}>
         <Btn variant="ghost" onClick={onCancel} disabled={busy}>Cancel</Btn>
         <Btn variant="primary" onClick={handleSave} disabled={busy}>{busy ? 'Saving…' : 'Save'}</Btn>
       </div>
@@ -357,11 +363,11 @@ function MyOutreachView() {
         </div>
       )}
 
-      <Modal open={formOpen} onClose={() => requestClose('add')} title="Add Outreach Entry">
+      <Modal open={formOpen} onClose={() => requestClose('add')} title="Add Outreach Entry" width={760}>
         <OutreachForm batches={activeBatches} onSave={handleAdd} onCancel={() => requestClose('add')} busy={busy} onDirtyChange={setAddDirty} />
       </Modal>
 
-      <Modal open={!!editing} onClose={() => requestClose('edit')} title="Edit Outreach Entry">
+      <Modal open={!!editing} onClose={() => requestClose('edit')} title="Edit Outreach Entry" width={760}>
         {editing && (
           <OutreachForm
             initial={editing}

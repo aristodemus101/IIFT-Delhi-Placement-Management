@@ -194,7 +194,7 @@ export function Modal({ open, onClose, title, children, width = 520, closeOnBack
     }}>
       <div onClick={e => e.stopPropagation()} style={{
         background: 'var(--surface)', borderRadius: 20,
-        width, maxWidth: '100%', maxHeight: '85vh', overflow: 'auto',
+        width, maxWidth: '100%', maxHeight: '85vh', overflowX: 'hidden', overflowY: 'auto',
         boxShadow: 'var(--shadow)', border: '1px solid var(--border)'
       }}>
         <div style={{ padding: '18px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
