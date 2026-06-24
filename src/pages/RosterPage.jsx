@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react'
 import { useOutletContext } from 'react-router-dom'
-import { useStudents } from '../lib/useStudents'
+import { useStudents, useColumnSchema } from '../lib/useStudents'
 import { usePendingChanges } from '../lib/PendingChangesContext'
 import { useAuth } from '../lib/AuthContext'
 import { usePermissions } from '../lib/usePermissions'
@@ -34,6 +34,7 @@ function studentCohort(s) { return s.cohort || 'unknown' }
 export default function RosterPage() {
   const { students, loading } = useStudents()
   const { scopedCohorts, selectedCohort, selectedCohortCycle, selectedYearCode, selectedCampuses, selectedProgramme, batchesLoading, activeBatches } = useBatch()
+  const { schemaHeaders } = useColumnSchema(selectedCohort || 'default')
   const { propose, changes } = usePendingChanges()
   const { isAdmin, user } = useAuth()
   const { canDo } = usePermissions()
@@ -91,25 +92,38 @@ export default function RosterPage() {
   const { searchTerm, setSearchTerm, match: searchMatch } = useSearch(scopedStudents)
   const hasStudents     = scopedStudents.length > 0
   const hasActiveCohorts = activeBatches.length > 0
-  // Derive columns from actual student docs — union of all non-internal keys
+  // Derive columns: use schema order if available, then append any extra keys from docs
   const allColumnDefs = useMemo(() => {
-    const seen = new Set()
-    const cols = []
+    // Collect all data keys from student docs
+    const docKeys = new Set()
     for (const s of scopedStudents) {
       for (const k of Object.keys(s)) {
-        if (!seen.has(k) && !k.startsWith('_') && k !== 'cohort') {
-          seen.add(k)
-          cols.push({ key: k, label: k, sortKey: k })
-        }
+        if (!k.startsWith('_') && k !== 'cohort') docKeys.add(k)
       }
     }
-    if (cols.length) return cols
-    // fallback when no students loaded yet
-    return [
-      { key: 'name', label: 'Name', sortKey: 'name' },
-      { key: 'roll', label: 'Roll No.', sortKey: 'roll' },
-    ]
-  }, [scopedStudents])
+
+    if (docKeys.size === 0) {
+      return [
+        { key: 'name', label: 'Name', sortKey: 'name' },
+        { key: 'roll', label: 'Roll No.', sortKey: 'roll' },
+      ]
+    }
+
+    // Start with schema order (original Excel column order), then append any new keys
+    const ordered = []
+    const seen = new Set()
+    for (const h of (schemaHeaders || [])) {
+      if (docKeys.has(h) && !seen.has(h)) {
+        seen.add(h)
+        ordered.push({ key: h, label: h, sortKey: h })
+      }
+    }
+    // Append any keys present in docs but not in schema (e.g. after a partial re-import)
+    for (const k of docKeys) {
+      if (!seen.has(k)) ordered.push({ key: k, label: k, sortKey: k })
+    }
+    return ordered
+  }, [scopedStudents, schemaHeaders])
 
   const {
     sortCol, setSortCol, sortDir, setSortDir,
