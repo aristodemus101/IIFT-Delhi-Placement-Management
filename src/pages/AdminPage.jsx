@@ -390,7 +390,7 @@ export default function AdminPage() {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <PageHeader
         title="Team Access"
-        subtitle="Manage team roles: Admin · Committee · TPO · Faculty Coordinator"
+        subtitle="Manage team roles: Admin · Committee · TPO · Faculty Incharge"
       />
 
       <div style={{ padding: '20px 28px', overflow: 'auto' }}>
@@ -404,7 +404,7 @@ export default function AdminPage() {
             <strong>Admin</strong> — full access, propose + approve changes, see all financial data.&nbsp;
             <strong>Committee Member</strong> — Dashboard, Roster, Placed, Activity, Analytics (heatmap), Remapper, and can propose placement changes. No financial figures.&nbsp;
             <strong>TPO</strong> — TPO Outreach only (own entries).&nbsp;
-            <strong>Faculty Coordinator</strong> — TPO Outreach read-only + Analytics TPO tab (no financial figures).&nbsp;
+            <strong>Faculty Incharge</strong> — TPO Outreach read-only + Analytics TPO tab (no financial figures).&nbsp;
             No admin can approve their own change.&nbsp;
             <strong>Master Admin</strong> status can be toggled per admin using the crown icon.
           </div>
@@ -484,7 +484,7 @@ export default function AdminPage() {
                     {m.role === 'admin'               ? <><ShieldCheck size={10} /> Admin</>
                      : m.role === 'committee'         ? <><User size={10} /> Committee</>
                      : m.role === 'tpo'               ? <><Briefcase size={10} /> TPO</>
-                     : m.role === 'faculty_coordinator' ? <><GraduationCap size={10} /> Faculty Coord</>
+                     : m.role === 'faculty_coordinator' ? <><GraduationCap size={10} /> Faculty Incharge</>
                      : <><User size={10} /> {ROLE_LABELS[m.role] || m.role || 'Unknown'}</>}
                   </Badge>
                 </div>

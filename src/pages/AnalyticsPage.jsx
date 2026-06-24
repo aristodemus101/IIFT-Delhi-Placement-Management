@@ -180,7 +180,7 @@ export default function AnalyticsPage() {
         subtitle={activeTab === 'heatmap' ? `${cohortLabel_} · Student × Company pipeline heatmap` : 'TPO Performance'}
       />
 
-      {/* Tab bar — faculty_coordinator only sees the TPO tab */}
+      {/* Tab bar — faculty_incharge only sees the TPO tab */}
       <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--border)', background: 'var(--surface)', paddingLeft: 24 }}>
         {[
           !isFacultyCoordinator && { key: 'heatmap', label: 'Pipeline Heatmap' },

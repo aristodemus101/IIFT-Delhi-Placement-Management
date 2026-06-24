@@ -81,7 +81,7 @@ export function useMyTpoOutreach() {
   return { entries, loading, addEntry, updateEntry, deleteEntry }
 }
 
-// Hook: all TPO outreach entries across all TPOs (used by admin / faculty_coordinator)
+// Hook: all TPO outreach entries across all TPOs (used by admin / faculty_incharge)
 export function useAllTpoOutreach() {
   const [entries, setEntries] = useState([])
   const [profiles, setProfiles] = useState({})  // tpoUid → profile data

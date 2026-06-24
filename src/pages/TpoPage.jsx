@@ -410,7 +410,7 @@ function MyOutreachView() {
   )
 }
 
-// ── Admin / Faculty Coordinator read-only view ────────────────────────────────
+// ── Admin / Faculty Incharge read-only view ───────────────────────────────────
 
 function TpoSummaryCards({ entries, profiles, canSeeFinancials }) {
   // Build per-TPO stats

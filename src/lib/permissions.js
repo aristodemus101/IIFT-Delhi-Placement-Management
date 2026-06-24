@@ -57,7 +57,7 @@ export const ROLE_LABELS = {
   admin:               'Admin',
   committee:           'Committee Member',
   tpo:                 'TPO',
-  faculty_coordinator: 'Faculty Coordinator',
+  faculty_coordinator: 'Faculty Incharge',
 }
 
 export const ROLES = ['admin', 'committee', 'tpo', 'faculty_coordinator']

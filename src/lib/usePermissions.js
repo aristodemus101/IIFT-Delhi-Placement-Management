@@ -13,7 +13,7 @@ import { PAGE_ACCESS, ACTION_ACCESS, FIELD_DEFAULTS } from './permissions'
 //   - Hardcoded values in permissions.js are the FLOOR — Firestore config can only
 //     grant access UP TO but never BEYOND what the Firestore security rules allow.
 //   - 'admin' always has full access regardless of config (enforced here AND in rules).
-//   - Config can expand access for committee/tpo/faculty_coordinator within the bounds
+//   - Config can expand access for committee/tpo/faculty_incharge within the bounds
 //     that Firestore rules permit for those roles.
 export function usePermissions() {
   const { role } = useAuth()
