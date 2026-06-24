@@ -174,6 +174,37 @@ All shared UI primitives are in `src/components/UI.jsx`:
 4. **`localhost` always hits staging** — firebase.js detects by hostname.
 5. **`FIELD_DEFAULTS`** are hardcoded minimums — Firestore config can only restrict further, never grant more than admin.
 6. **Firestore rules are the authoritative security layer** — UI permission checks are UX only.
+7. **SIP columns must never be stored on the student doc** — `parseSipColumns()` strips them; they live only in `_placement_summer`.
+8. **`config/authorizedUsers` must always exist** — master admins bypass it in code but all other users are blocked without it. Never delete this doc.
+
+---
+
+## Authorised Users (as of last sync)
+
+All 20 users are in `config/authorizedUsers` on both staging and production:
+
+| Email | Role |
+|---|---|
+| divyaanshmehta513@gmail.com | admin (master) |
+| divyaansh_d27@iift.edu | admin (master) |
+| jay_d27@iift.edu | admin |
+| adityasingh_d27@iift.edu | admin |
+| basil_d27@iift.edu | admin |
+| lakshyc_d27@iift.edu | committee |
+| ranishka_d27@iift.edu | committee |
+| rahulm_d27@iift.edu | committee |
+| arnav_d27@iift.edu | committee |
+| shibanee_ba27@iift.edu | committee |
+| sidhant_d27@iift.edu | committee |
+| jatin_d27@iift.edu | committee |
+| mohamed_d27@iift.edu | committee |
+| khushi_d27@iift.edu | committee |
+| dev_ba27@iift.edu | committee |
+| vaibhav_ba27@iift.edu | committee |
+| preeti.tak@iift.edu | faculty_coordinator |
+| preetitak@iift.edu | faculty_coordinator |
+| sonali@iift.edu | tpo |
+| monikatiwari@iift.edu | tpo |
 
 ---
 
@@ -275,6 +306,66 @@ For High Risk changes:
 1. Committee or admin **proposes** a change (place/unplace/delete/import) → written to `/pendingChanges` with status `pending`
 2. A **different** admin approves or rejects
 3. Approved changes are applied to `/students`; all steps logged in `/auditLog`
+
+---
+
+## Placement Data Schema
+
+Every student doc in `/students/{id}` carries two independent placement slots:
+
+```js
+{
+  // ... all roster columns ...
+  cohort: '27-Delhi-IB',
+
+  _placed_summer: true,          // boolean
+  _placement_summer: {
+    date:        '2025-04-10',   // YYYY-MM-DD
+    company:     'KPMG',
+    role:        'Analyst',
+    sector:      'Consulting & Professional Services',
+    location:    'Domestic',     // or 'International'
+    package:     '10 LPA',       // stipend for summer
+    ctcNotes:    '',
+    via:         'Summer PPO',   // see VIA_OPTIONS in PlaceModal
+    placedAtIso: '2025-04-10T00:00:00.000Z',
+  },
+
+  _placed_final: false,
+  _placement_final: null,        // same shape as above when filled
+}
+```
+
+Both slots are independent — a student can have both true simultaneously.
+
+### Cohort active cycle
+`/batches/{cohortId}.activeCycle` — `'summer'` or `'final'` (default `'final'`). Controls:
+- Which placement filter Roster shows by default
+- Which cycle PlaceModal locks to
+- Which tab Placed page defaults to
+
+---
+
+## SIP Import (Summer data pre-loaded)
+
+When importing a cohort that has already completed Summers, use the **"Summer (SIP) data already in file"** toggle in the Import modal. The file must include these columns alongside all bio columns:
+
+| Column | Maps to |
+|---|---|
+| `SIP Status` | `_placed_summer = true` if value is `Placed` |
+| `SIP Company` | `_placement_summer.company` |
+| `SIP Role` | `_placement_summer.role` |
+| `SIP Company Sector` | `_placement_summer.sector` |
+| `SIP Company Domain` | `_placement_summer.sector` (fallback) |
+| `SIP Roles and Responsibilities` | `_placement_summer.ctcNotes` |
+| `Location` | `_placement_summer.location` |
+| `DOP` | `_placement_summer.date` |
+| `Placed Via` | `_placement_summer.via` |
+| `SIP Stipend (In Lakhs/month)` | `_placement_summer.package` |
+
+On approval: SIP columns are stripped from the student doc, `_placed_summer` is set per row, and cohort `activeCycle` is forced to `'final'` automatically.
+
+Logic in `src/lib/PendingChangesContext.jsx` → `parseSipColumns()` and `approveImport()`.
 
 ---
 
