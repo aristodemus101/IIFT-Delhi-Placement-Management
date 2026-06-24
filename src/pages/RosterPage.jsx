@@ -59,9 +59,16 @@ export default function RosterPage() {
   const [importFile, setImportFile]           = useState(null)
   const [importParsed, setImportParsed]       = useState(null)
   const [importStep, setImportStep]           = useState(1)
-  const [importCycle, setImportCycle]         = useState('summer')
+  const [importCycle, setImportCycleRaw]       = useState('summer')
+  const [includeSipData, setIncludeSipDataRaw] = useState(false)
   const [lastImportSummary, setLastImportSummary] = useState(null)
   const [replaceOnImport, setReplaceOnImport] = useState(false)
+
+  const setImportCycle = (c) => { setImportCycleRaw(c) }
+  const setIncludeSipData = (val) => {
+    setIncludeSipDataRaw(val)
+    if (val) setImportCycleRaw('final')
+  }
 
   // Feedback state
   const [busy, setBusy]                   = useState(false)
@@ -278,7 +285,7 @@ export default function RosterPage() {
     const rowCount = importParsed.rows.length
     let succeeded = false
     try {
-      await propose({ type: 'import', file: importFile, rowCount, headers: importParsed.headers, cohort: cohortId, activeCycle: importCycle, replaceExisting: replaceOnImport, updateSchema: true })
+      await propose({ type: 'import', file: importFile, rowCount, headers: importParsed.headers, cohort: cohortId, activeCycle: importCycle, replaceExisting: replaceOnImport, updateSchema: true, includeSipData })
       succeeded = true
     } catch (err) {
       setImportMsg('Upload failed: ' + (err.message || err.code || 'Unknown error'))
@@ -552,18 +559,19 @@ export default function RosterPage() {
 
       <ImportModal
         open={importModalOpen}
-        onClose={() => { setImportModalOpen(false); setImportFile(null); setImportParsed(null); setImportStep(1); setImportCohort(''); setImportCycle(selectedCohortCycle || 'final'); setLastImportSummary(null); if (fileRef.current) fileRef.current.value = '' }}
+        onClose={() => { setImportModalOpen(false); setImportFile(null); setImportParsed(null); setImportStep(1); setImportCohort(''); setImportCycleRaw(selectedCohortCycle || 'final'); setIncludeSipDataRaw(false); setLastImportSummary(null); if (fileRef.current) fileRef.current.value = '' }}
         step={importStep}
         importCohort={importCohort} setImportCohort={setImportCohort}
         importCycle={importCycle} setImportCycle={setImportCycle}
         importFile={importFile} importParsed={importParsed}
         importing={importing} importMsg={importMsg}
         replaceOnImport={replaceOnImport} setReplaceOnImport={setReplaceOnImport}
+        includeSipData={includeSipData} setIncludeSipData={setIncludeSipData}
         students={students} selectedCohort={selectedCohort} changes={changes}
         onChooseFile={() => fileRef.current.click()}
         onProposeImport={handleProposeImport}
         lastImportSummary={lastImportSummary}
-        onReset={step => { setImportStep(step); setImportFile(null); setImportParsed(null); setImportCohort(''); setReplaceOnImport(false); setLastImportSummary(null); if (fileRef.current) fileRef.current.value = '' }}
+        onReset={step => { setImportStep(step); setImportFile(null); setImportParsed(null); setImportCohort(''); setReplaceOnImport(false); setIncludeSipDataRaw(false); setLastImportSummary(null); if (fileRef.current) fileRef.current.value = '' }}
       />
     </div>
   )

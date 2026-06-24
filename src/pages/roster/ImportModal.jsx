@@ -23,6 +23,7 @@ export default function ImportModal({
   importFile, importParsed,
   importing, importMsg,
   replaceOnImport, setReplaceOnImport,
+  includeSipData, setIncludeSipData,
   students, selectedCohort, changes,
   onChooseFile, onProposeImport,
   lastImportSummary,
@@ -56,16 +57,27 @@ export default function ImportModal({
             <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 8 }}>Current placement cycle</div>
             <div style={{ display: 'flex', gap: 6 }}>
               {[{ value: 'summer', label: 'Summer Internship (SIP)' }, { value: 'final', label: 'Final Placement' }].map(opt => (
-                <button key={opt.value} onClick={() => setImportCycle(opt.value)} style={{
-                  flex: 1, padding: '8px 0', borderRadius: 'var(--radius-sm)', cursor: 'pointer',
+                <button key={opt.value} onClick={() => setImportCycle(opt.value)} disabled={includeSipData} style={{
+                  flex: 1, padding: '8px 0', borderRadius: 'var(--radius-sm)', cursor: includeSipData ? 'default' : 'pointer',
                   fontWeight: 700, fontSize: 13, fontFamily: 'var(--font-sans)',
                   border: `1px solid ${importCycle === opt.value ? (opt.value === 'summer' ? 'var(--amber)' : 'var(--accent)') : 'var(--border)'}`,
                   background: importCycle === opt.value ? (opt.value === 'summer' ? 'var(--amber-bg)' : 'var(--accent-bg)') : 'var(--surface)',
                   color: importCycle === opt.value ? (opt.value === 'summer' ? 'var(--amber-text)' : 'var(--accent-dark)') : 'var(--text-2)',
+                  opacity: includeSipData && opt.value === 'summer' ? 0.4 : 1,
                 }}>{opt.label}</button>
               ))}
             </div>
           </div>
+
+          <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', padding: '10px 12px', border: `1px solid ${includeSipData ? 'var(--amber)' : 'var(--border)'}`, borderRadius: 'var(--radius-sm)', background: includeSipData ? 'var(--amber-bg)' : 'var(--surface2)' }}>
+            <input type="checkbox" checked={includeSipData} onChange={e => setIncludeSipData(e.target.checked)} style={{ marginTop: 2, flexShrink: 0 }} />
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: includeSipData ? 'var(--amber-text)' : 'var(--text-2)' }}>Summer (SIP) data already in file</div>
+              <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 2, lineHeight: 1.5 }}>
+                File includes SIP Status, SIP Company, SIP Role, DOP etc. Students with <em>SIP Status = Placed</em> will be marked as Summer placed. Cycle will be set to <strong>Final</strong>.
+              </div>
+            </div>
+          </label>
 
           <ImportCohortNote cohortId={importCohort || selectedCohort} students={students} />
 
@@ -102,6 +114,7 @@ export default function ImportModal({
                 <div style={{ color: 'var(--text-3)', marginTop: 4 }}>
                   Target cohort: <strong>{cohortLabel(importCohort || selectedCohort)}</strong>
                   {replaceOnImport && <span style={{ color: 'var(--amber-text)', marginLeft: 8 }}>(replacing existing)</span>}
+                  {includeSipData && <span style={{ color: 'var(--amber-text)', marginLeft: 8 }}>· Summer SIP data included → cycle set to Final</span>}
                 </div>
               </div>
               {importMsg && <p style={{ fontSize: 13, color: 'var(--red-text)', margin: 0 }}>{importMsg}</p>}

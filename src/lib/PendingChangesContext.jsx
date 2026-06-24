@@ -85,6 +85,7 @@ export function PendingChangesProvider({ children }) {
         headers: Array.isArray(changeData.headers) ? changeData.headers.slice(0, 50) : [],
         updateSchema: !!changeData.updateSchema,
         replaceExisting: !!changeData.replaceExisting,
+        includeSipData: !!changeData.includeSipData,
         storagePath,
         importId,
         proposedBy: user.uid,
@@ -266,17 +267,34 @@ export function PendingChangesProvider({ children }) {
       }
     }
 
+    const includeSipData = !!change.includeSipData
+
     for (let i = 0; i < rows.length; i += 400) {
       const chunk = rows.slice(i, i + 400)
       const batch = writeBatch(db)
       chunk.forEach(row => {
+        let placedSummer = false
+        let placementSummer = null
+
+        if (includeSipData) {
+          const sip = parseSipColumns(row)
+          placedSummer = sip.placed
+          placementSummer = sip.placed ? sip.placement : null
+        }
+
+        // Strip SIP columns from the student doc — they live in _placement_summer now
+        const studentRow = { ...row }
+        if (includeSipData) {
+          SIP_COLUMNS.forEach(col => { delete studentRow[col] })
+        }
+
         const ref = doc(collection(db, 'students'))
         batch.set(ref, {
-          ...row,
+          ...studentRow,
           cohort: cohortId,
-          _placed_summer: false,
+          _placed_summer: placedSummer,
           _placed_final: false,
-          _placement_summer: null,
+          _placement_summer: placementSummer,
           _placement_final: null,
           _createdAt: serverTimestamp(),
         })
@@ -285,16 +303,28 @@ export function PendingChangesProvider({ children }) {
     }
 
     if (Array.isArray(headers) && headers.length) {
+      // Strip SIP column names from the schema so they don't appear as roster columns
+      const schemaHeaders = includeSipData
+        ? headers.filter(h => !SIP_COLUMNS.includes(h))
+        : headers
       const schemaSnap = await getDoc(schemaRef)
       if (!schemaSnap.exists() || change.updateSchema === true) {
         await setDoc(schemaRef, {
-          headers,
+          headers: schemaHeaders,
           updatedAt: serverTimestamp(),
           updatedBy: user.uid,
           updatedByName: user.displayName,
           source: 'import',
         }, { merge: true })
       }
+    }
+
+    // When SIP data was included, force the cohort into Finals cycle
+    if (includeSipData) {
+      await updateDoc(doc(db, 'batches', cohortId), {
+        activeCycle: 'final',
+        updatedAt: serverTimestamp(),
+      })
     }
 
     await updateDoc(doc(db, 'pendingChanges', changeId), {
@@ -360,6 +390,55 @@ function describeChange(c) {
     default:         return `Action: ${c.type}`
   }
 }
+
+// Reads SIP placement columns from a raw imported row.
+// Returns { placed: bool, placement: object } where placement matches _placement_summer shape.
+function parseSipColumns(row) {
+  const get = (...keys) => {
+    for (const k of keys) {
+      const val = row[k]
+      if (val !== undefined && val !== null && String(val).trim() !== '') return String(val).trim()
+    }
+    return ''
+  }
+
+  const status = get('SIP Status').toLowerCase()
+  const placed = status === 'placed'
+
+  // Parse date — supports "February 21, 2025", "21/02/2025", "2025-02-21"
+  const rawDate = get('DOP')
+  let date = ''
+  if (rawDate) {
+    const parsed = new Date(rawDate)
+    if (!isNaN(parsed.getTime())) {
+      date = parsed.toISOString().slice(0, 10)
+    } else {
+      date = rawDate
+    }
+  }
+  if (!date) date = new Date().toISOString().slice(0, 10)
+
+  const placement = {
+    date,
+    company:   get('SIP Company'),
+    role:      get('SIP Role'),
+    sector:    get('SIP Company Sector', 'SIP Company Domain'),
+    location:  get('Location'),
+    package:   get('SIP Stipend (In Lakhs/month)', 'SIP Stipend'),
+    ctcNotes:  get('SIP Roles and Responsibilities'),
+    via:       get('Placed Via'),
+    placedAtIso: date ? new Date(`${date}T00:00:00`).toISOString() : new Date().toISOString(),
+  }
+
+  return { placed, placement, sipStatus: get('SIP Status') }
+}
+
+// SIP column names to strip from the student doc (they're moved into _placement_summer)
+const SIP_COLUMNS = [
+  'SIP Status', 'SIP Company', 'SIP Role', 'SIP Company Sector',
+  'SIP Company Domain', 'SIP Roles and Responsibilities', 'Location',
+  'DOP', 'Placed Via', 'SIP Stipend (In Lakhs/month)', 'SIP Stipend',
+]
 
 function normalizePlacementDetails(change) {
   const raw = change?.placementDetails || {}
