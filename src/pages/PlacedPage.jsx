@@ -53,19 +53,38 @@ export default function PlacedPage() {
   const [viewModal, setViewModal] = useState(null)
   const [successMsg, setSuccessMsg] = useState('')
 
-  const placed = useMemo(() => {
+  const scopedStudents = useMemo(() => {
     const ids = new Set(scopedCohorts)
-    return students.filter(s => {
-      if (!ids.has(studentCohort(s))) return false
+    return students.filter(s => ids.has(studentCohort(s)))
+  }, [students, scopedCohorts])
+
+  const totalInCohort = scopedStudents.length
+
+  // Which cycles actually have placed students in this cohort
+  const hasSummerData = useMemo(() => scopedStudents.some(s => s._placed_summer === true), [scopedStudents])
+  const hasFinalData  = useMemo(() => scopedStudents.some(s => s._placed_final  === true), [scopedStudents])
+  const availableCycles = useMemo(() => {
+    const cycles = []
+    if (hasSummerData) cycles.push('summer')
+    if (hasFinalData)  cycles.push('final')
+    // Always show at least the cohort's active cycle so you can record new placements
+    if (!cycles.includes(selectedCohortCycle)) cycles.push(selectedCohortCycle)
+    return cycles
+  }, [hasSummerData, hasFinalData, selectedCohortCycle])
+
+  // Auto-correct selectedSeason if it's not available for this cohort
+  useEffect(() => {
+    if (availableCycles.length > 0 && !availableCycles.includes(selectedSeason)) {
+      setSelectedSeasonLocal(availableCycles[availableCycles.length - 1])
+    }
+  }, [availableCycles, selectedSeason])
+
+  const placed = useMemo(() => {
+    return scopedStudents.filter(s => {
       if (selectedSeason === 'summer') return s._placed_summer === true
       return s._placed_final === true
     })
-  }, [students, scopedCohorts, selectedSeason])
-
-  const totalInCohort = useMemo(() => {
-    const ids = new Set(scopedCohorts)
-    return students.filter(s => ids.has(studentCohort(s))).length
-  }, [students, scopedCohorts])
+  }, [scopedStudents, selectedSeason])
 
   const getPlacement = (s) => {
     if (selectedSeason === 'summer') return s._placement_summer || {}
@@ -231,22 +250,25 @@ export default function PlacedPage() {
         }
       />
 
-      {/* Season tabs */}
+      {/* Season tabs — only show cycles that exist for this cohort */}
       <div style={{ padding: '0 28px', borderBottom: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', gap: 4 }}>
-        {['summer', 'final'].map(s => (
-          <button key={s} onClick={() => setSelectedSeason(s)} style={{
-            padding: '10px 14px', border: 'none', background: 'none', cursor: 'pointer',
-            fontSize: 13, fontWeight: selectedSeason === s ? 600 : 400,
-            color: selectedSeason === s ? (s === 'summer' ? 'var(--amber-text)' : 'var(--accent-dark)') : 'var(--text-2)',
-            borderBottom: selectedSeason === s ? `2px solid ${s === 'summer' ? 'var(--amber)' : 'var(--accent)'}` : '2px solid transparent',
-            fontFamily: 'var(--font-sans)',
-          }}>
-            {s === 'summer' ? 'Summer Internship' : 'Final Placement'}
-            <span style={{ marginLeft: 6, fontSize: 11, fontWeight: 600, opacity: 0.7 }}>
-              ({(() => { const ids = new Set(scopedCohorts); return students.filter(st => ids.has(studentCohort(st)) && (s === 'summer' ? st._placed_summer : st._placed_final)).length })()} )
-            </span>
-          </button>
-        ))}
+        {availableCycles.map(s => {
+          const count = scopedStudents.filter(st => s === 'summer' ? st._placed_summer : st._placed_final).length
+          const isActive = selectedCohortCycle === s
+          return (
+            <button key={s} onClick={() => setSelectedSeason(s)} style={{
+              padding: '10px 14px', border: 'none', background: 'none', cursor: 'pointer',
+              fontSize: 13, fontWeight: selectedSeason === s ? 600 : 400,
+              color: selectedSeason === s ? (s === 'summer' ? 'var(--amber-text)' : 'var(--accent-dark)') : 'var(--text-2)',
+              borderBottom: selectedSeason === s ? `2px solid ${s === 'summer' ? 'var(--amber)' : 'var(--accent)'}` : '2px solid transparent',
+              fontFamily: 'var(--font-sans)',
+            }}>
+              {s === 'summer' ? 'Summer Internship' : 'Final Placement'}
+              <span style={{ marginLeft: 6, fontSize: 11, fontWeight: 600, opacity: 0.7 }}>({count})</span>
+              {isActive && <span style={{ marginLeft: 5, fontSize: 10, fontWeight: 700, padding: '1px 5px', borderRadius: 20, background: s === 'summer' ? 'var(--amber-bg)' : 'var(--accent-bg)', color: s === 'summer' ? 'var(--amber-text)' : 'var(--accent-dark)', border: `1px solid ${s === 'summer' ? 'var(--amber)' : 'var(--accent-border)'}` }}>active</span>}
+            </button>
+          )
+        })}
       </div>
 
       {/* Stats bar */}
