@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useRoles } from '../lib/useRoles'
 import { useAuth } from '../lib/AuthContext'
 import { useStudents } from '../lib/useStudents'
 import { useSheetsSync } from '../lib/SheetsSyncContext'
 import { useBatch } from '../lib/BatchContext'
 import { usePendingChanges } from '../lib/PendingChangesContext'
-import { cohortLabel, cohortYear, parseCohortId } from '../lib/batch'
+import { cohortLabel, cohortYear } from '../lib/batch'
 import { MASTER_ADMIN_EMAILS } from '../lib/roleConfig'
 import { PageHeader, Btn, Badge, Spinner, Modal, Input } from '../components/UI'
-import CohortPicker from '../components/CohortPicker'
 import { ROLES, ROLE_LABELS, CONFIGURABLE_FIELDS, CONFIGURABLE_PAGES, CONFIGURABLE_ACTIONS, CONFIGURABLE_ROLES, PAGE_ACCESS, ACTION_ACCESS, PAGE_LABELS, ACTION_LABELS } from '../lib/permissions'
 import { usePermissions } from '../lib/usePermissions'
 import {
@@ -28,6 +28,7 @@ function studentCohort(s) {
 }
 
 export default function AdminPage() {
+  const navigate = useNavigate()
   const { roles, loading, setRole, adminCount, adminUsers } = useRoles()
   const { user, isMasterAdmin, isAdmin, toggleMasterAdmin } = useAuth()
   const { pageConfig, actionConfig } = usePermissions()
@@ -42,10 +43,7 @@ export default function AdminPage() {
   const [authBusy, setAuthBusy] = useState(false)
   const [authErr, setAuthErr] = useState('')
 
-  // Cohort management state
-  const [createCohortOpen, setCreateCohortOpen] = useState(false)
-  const [newCohortId, setNewCohortId] = useState('')
-  const [newCohortCycle, setNewCohortCycle] = useState('summer')
+  // Cohort management state (no creation — use Roster → Import File)
   const [cohortBusy, setCohortBusy] = useState(false)
   const [cohortMsg, setCohortMsg] = useState('')
 
@@ -264,35 +262,6 @@ export default function AdminPage() {
     setMasterAdminBusy(member.uid)
     try { await toggleMasterAdmin(member.uid, newVal) } catch (e) { alert(e.message) }
     setMasterAdminBusy(null)
-  }
-
-  const handleCreateCohort = async () => {
-    if (!newCohortId) { setCohortMsg('Please select year, campus, and programme.'); return }
-    const { yearCode, campus, programme } = parseCohortId(newCohortId)
-    if (!yearCode || !campus || !programme) { setCohortMsg('Please select year, campus, and programme.'); return }
-    setCohortBusy(true); setCohortMsg('')
-    try {
-      const year = cohortYear(newCohortId)
-      await setDoc(doc(db, 'batches', newCohortId), {
-        id: newCohortId,
-        label: cohortLabel(newCohortId),
-        year: year || new Date().getFullYear(),
-        campus,
-        programme,
-        activeCycle: newCohortCycle,
-        status: 'active',
-        createdAt: serverTimestamp(),
-        createdBy: { uid: user.uid, name: user.displayName },
-      }, { merge: true })
-      setCohortMsg(`Cohort "${cohortLabel(newCohortId)}" created.`)
-      setCreateCohortOpen(false)
-      setNewCohortId('')
-      setNewCohortCycle('summer')
-      setTimeout(() => setCohortMsg(''), 4000)
-    } catch (e) {
-      setCohortMsg('Error: ' + e.message)
-    }
-    setCohortBusy(false)
   }
 
   const handleToggleArchiveCohort = async (cohortId, currentlyActive) => {
@@ -784,8 +753,8 @@ export default function AdminPage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 4 }}>
             <h2 style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>Cohort Management</h2>
             {isAdmin && (
-              <Btn size="sm" variant="primary" onClick={() => { setNewCohortId(''); setCreateCohortOpen(true) }}>
-                <Plus size={13} /> Create Cohort
+              <Btn size="sm" variant="primary" onClick={() => navigate('/roster')}>
+                <Plus size={13} /> Import File
               </Btn>
             )}
           </div>
@@ -801,7 +770,7 @@ export default function AdminPage() {
 
           {batches.length === 0 ? (
             <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '20px 22px', fontSize: 13, color: 'var(--text-3)', textAlign: 'center' }}>
-              No cohorts yet. Create a cohort or import students to get started.
+              No cohorts yet. Go to Roster → Import File to add your first cohort.
             </div>
           ) : (
             <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
@@ -993,41 +962,6 @@ export default function AdminPage() {
       </div>
 
 
-      {/* Create Cohort Modal */}
-      <Modal open={createCohortOpen} onClose={() => { setCreateCohortOpen(false); setNewCohortId(''); setNewCohortCycle('summer') }} title="Create New Cohort" width={480}>
-        <div style={{ display: 'grid', gap: 16 }}>
-          <p style={{ fontSize: 13, color: 'var(--text-2)', margin: 0, lineHeight: 1.6 }}>
-            Select the graduating year, campus, and programme. Then set which placement cycle this cohort is currently in.
-          </p>
-          <CohortPicker value={newCohortId} onChange={setNewCohortId} />
-          <div>
-            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 8 }}>Current placement cycle</div>
-            <div style={{ display: 'flex', gap: 6 }}>
-              {[{ value: 'summer', label: 'Summer Internship (SIP)' }, { value: 'final', label: 'Final Placement' }].map(opt => (
-                <button key={opt.value} onClick={() => setNewCohortCycle(opt.value)} style={{
-                  flex: 1, padding: '8px 0', borderRadius: 'var(--radius-sm)', cursor: 'pointer',
-                  fontWeight: 700, fontSize: 13, fontFamily: 'var(--font-sans)',
-                  border: `1px solid ${newCohortCycle === opt.value ? (opt.value === 'summer' ? 'var(--amber)' : 'var(--accent)') : 'var(--border)'}`,
-                  background: newCohortCycle === opt.value ? (opt.value === 'summer' ? 'var(--amber-bg)' : 'var(--accent-bg)') : 'var(--surface)',
-                  color: newCohortCycle === opt.value ? (opt.value === 'summer' ? 'var(--amber-text)' : 'var(--accent-dark)') : 'var(--text-2)',
-                }}>{opt.label}</button>
-              ))}
-            </div>
-            <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 6 }}>You can change this later in the cohort list.</div>
-          </div>
-          {cohortMsg && (
-            <div style={{ fontSize: 13, color: cohortMsg.startsWith('Error') ? 'var(--red-text)' : 'var(--green-text)' }}>
-              {cohortMsg}
-            </div>
-          )}
-          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-            <Btn onClick={() => { setCreateCohortOpen(false); setNewCohortId(''); setNewCohortCycle('summer') }}>Cancel</Btn>
-            <Btn variant="primary" onClick={handleCreateCohort} disabled={cohortBusy || !newCohortId}>
-              <Plus size={13} /> Create Cohort
-            </Btn>
-          </div>
-        </div>
-      </Modal>
 
     </div>
   )
