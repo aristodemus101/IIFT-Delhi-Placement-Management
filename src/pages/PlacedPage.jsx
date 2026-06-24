@@ -107,12 +107,18 @@ export default function PlacedPage() {
   // Stats computed from all placed (not just filtered)
   const stats = useMemo(() => {
     const placements = placed.map(s => getPlacement(s))
-    const withPackage = placements.filter(p => p.package && /[\d.]/.test(p.package))
-    const parseCtc = (pkg) => {
-      const m = String(pkg).match(/[\d.]+/)
-      return m ? parseFloat(m[0]) : null
+    const withPackage = placements.filter(p => p.package && /[\d]/.test(p.package))
+    const parsePackage = (pkg) => {
+      // Strip commas (Indian number formatting: 1,00,000 or 60,000)
+      const cleaned = String(pkg).replace(/,/g, '')
+      const m = cleaned.match(/[\d.]+/)
+      if (!m) return null
+      const val = parseFloat(m[0])
+      // If value > 1000, it's in rupees — convert to LPA (rupees/month * 12 / 100000)
+      if (val > 1000) return parseFloat((val * 12 / 100000).toFixed(2))
+      return val
     }
-    const ctcValues = withPackage.map(p => parseCtc(p.package)).filter(v => v !== null)
+    const ctcValues = withPackage.map(p => parsePackage(p.package)).filter(v => v !== null)
     const avgCtc = ctcValues.length ? (ctcValues.reduce((a, b) => a + b, 0) / ctcValues.length).toFixed(1) : null
     const maxCtc = ctcValues.length ? Math.max(...ctcValues).toFixed(1) : null
 
@@ -280,7 +286,7 @@ export default function PlacedPage() {
             sub={totalInCohort ? `${stats.placementPct}% of cohort` : undefined}
             color="var(--green-text)"
           />
-          {stats.avgCtc && canSeeCtc && (
+          {stats.avgCtc && (selectedSeason === 'summer' ? canSeeStipend : canSeeCtc) && (
             <StatCard
               label={selectedSeason === 'summer' ? 'Avg Stipend' : 'Avg CTC'}
               value={`${stats.avgCtc} LPA`}

@@ -49,7 +49,9 @@ export function useRosterPrefs({ user, allColumnDefs, selectedCohort }) {
         if (Array.isArray(roster.visibleCols) && roster.visibleCols.length) {
           const valid = new Set(allColumnDefs.map(c => c.key))
           const next = roster.visibleCols.filter(k => valid.has(k))
-          if (next.length) setVisibleCols(next)
+          // If saved prefs cover less than 50% of current schema, treat as stale — show all
+          const coverageOk = next.length >= allColumnDefs.length * 0.5
+          if (next.length && coverageOk) setVisibleCols(next)
         }
       } catch (e) {
         console.error('Failed to load roster preferences:', e)
