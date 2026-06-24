@@ -115,6 +115,7 @@ export function Select({ style = {}, children, ...props }) {
       height: 40, padding: '0 38px 0 12px', borderRadius: 14,
       border: '1px solid var(--border)', background: 'var(--surface2)',
       color: 'var(--text)', fontSize: 13, outline: 'none', cursor: 'pointer',
+      width: '100%', minWidth: 0, boxSizing: 'border-box', display: 'block',
       appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none',
       backgroundImage: arrow,
       backgroundRepeat: 'no-repeat',
