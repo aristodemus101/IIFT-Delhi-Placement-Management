@@ -37,7 +37,13 @@ const T = {
 }
 
 const GCKK_CAMPUSES = ['Gift City', 'Kakinada']
-const HIGH_VALUE_SECTORS = ['Consulting', 'BFSI', 'FMCG', 'Technology', 'GLP']
+const HIGH_VALUE_SECTORS = [
+  'Market Research & Consulting',
+  'Banking',
+  'FSI (Financial Services & Insurance)',
+  'FMCG',
+  'IT & ITES',
+]
 
 // ── KPI computation ───────────────────────────────────────────────────────────
 
@@ -336,7 +342,7 @@ function KpiDetailSection({ kpis, canSeeFinancials }) {
         number={4} title="High Value Offers"
         summerContent={
           <SeasonCol title="Summer Internship" color="amber">
-            <KpiRow label="Offers from Consulting / BFSI / FMCG / Tech / GLP" actual={s.kpi4.highValue} target={T.summer.kpi4_highValue} />
+            <KpiRow label="Offers from Market Research & Consulting / Banking / FSI / FMCG / IT & ITES" actual={s.kpi4.highValue} target={T.summer.kpi4_highValue} />
           </SeasonCol>
         }
         finalContent={
