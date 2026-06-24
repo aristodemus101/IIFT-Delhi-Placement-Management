@@ -29,8 +29,20 @@ Dev server runs on `localhost` → always hits **staging** Firebase. Never test 
 
 ## Deploy Flow
 
-1. **Always staging first.** `npm run build` + deploy to staging host. Verify there.
-2. **Production only when user explicitly says so.** Do not push to production without confirmation.
+### GitHub Actions (primary — use this)
+- **Push to `main`** → GitHub Actions auto-builds and deploys to **production** (`iiftd-pc.web.app`) + creates a versioned GitHub Release (`v1.0.N`)
+- **Push to `staging` branch** → auto-deploys to staging Firebase project
+- **Pull request** → deploys a temporary Firebase preview channel (expires 7 days)
+
+**VITE_GEMINI_KEY** is stored as a GitHub secret — do not add it to the build command manually.
+
+### Workflow
+1. Make changes, build locally (`npm run build`) to verify no errors
+2. Commit with co-author line, push to `main`
+3. Pipeline runs automatically — check with `gh run list --limit 5`
+4. Production is live once the run shows `✓ completed success`
+
+Do **not** run `firebase deploy --only hosting` manually — the pipeline handles it. Never push to production without user confirmation.
 
 ---
 
