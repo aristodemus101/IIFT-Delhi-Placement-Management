@@ -403,15 +403,24 @@ function parseSipColumns(row) {
   const status = get('SIP Status').toLowerCase()
   const placed = status === 'placed'
 
-  // Parse date — supports "February 21, 2025", "21/02/2025", "2025-02-21"
+  // Parse date — supports "February 21, 2025", "2025-02-21", Excel serial numbers.
+  // Use local date parts to avoid UTC offset shifting the day.
   const rawDate = get('DOP')
   let date = ''
   if (rawDate) {
-    const parsed = new Date(rawDate)
-    if (!isNaN(parsed.getTime())) {
-      date = parsed.toISOString().slice(0, 10)
+    // If already YYYY-MM-DD, use as-is
+    if (/^\d{4}-\d{2}-\d{2}$/.test(rawDate.trim())) {
+      date = rawDate.trim()
     } else {
-      date = rawDate
+      const parsed = new Date(rawDate)
+      if (!isNaN(parsed.getTime())) {
+        const y = parsed.getFullYear()
+        const m = String(parsed.getMonth() + 1).padStart(2, '0')
+        const d = String(parsed.getDate()).padStart(2, '0')
+        date = `${y}-${m}-${d}`
+      } else {
+        date = rawDate
+      }
     }
   }
   if (!date) date = new Date().toISOString().slice(0, 10)

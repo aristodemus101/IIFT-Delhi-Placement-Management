@@ -142,7 +142,7 @@ export const SYNONYMS = {
   mobile:      ['mobile', 'phone', 'contact', 'whatsapp', 'number', 'contact number', 'mobile no', 'phone number'],
   father:      ['father', 'father name', "father's name", 'dad', "fathers name"],
   mother:      ['mother', 'mother name', "mother's name", 'mom', "mothers name"],
-  x10pct:      ['10th', 'class 10', 'class x', 'x %', '10th %', '10th percent', 'secondary', 'ssc', 'matric', '10th marks', 'class 10 marks', 'x marks'],
+  x10pct:      ['10th', 'class 10', 'class x', 'class x %', '10th %', '10th percent', 'secondary', 'ssc', 'matric', '10th marks', 'class 10 marks', 'x marks'],
   x10board:    ['10th board', 'class 10 board', 'secondary board', 'x board'],
   x10school:   ['10th school', 'class 10 school', 'secondary school'],
   x12pct:      ['12th', 'class 12', 'class xii', 'xii %', '12th %', '12th percent', 'higher secondary', 'hsc', 'intermediate', '12th marks', 'xii marks'],
