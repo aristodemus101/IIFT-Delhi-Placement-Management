@@ -92,9 +92,8 @@ export default function RosterPage() {
   const { searchTerm, setSearchTerm, match: searchMatch } = useSearch(scopedStudents)
   const hasStudents     = scopedStudents.length > 0
   const hasActiveCohorts = activeBatches.length > 0
-  // Derive columns: use schema order if available, then append any extra keys from docs
+  // Derive columns: schema order (stipend stripped), then any extra keys from docs
   const allColumnDefs = useMemo(() => {
-    // Collect all data keys from student docs
     const docKeys = new Set()
     for (const s of scopedStudents) {
       for (const k of Object.keys(s)) {
@@ -109,7 +108,6 @@ export default function RosterPage() {
       ]
     }
 
-    // Start with schema order (original Excel column order), then append any new keys
     const ordered = []
     const seen = new Set()
     for (const h of (schemaHeaders || [])) {
@@ -118,7 +116,6 @@ export default function RosterPage() {
         ordered.push({ key: h, label: h, sortKey: h })
       }
     }
-    // Append any keys present in docs but not in schema (e.g. after a partial re-import)
     for (const k of docKeys) {
       if (!seen.has(k)) ordered.push({ key: k, label: k, sortKey: k })
     }

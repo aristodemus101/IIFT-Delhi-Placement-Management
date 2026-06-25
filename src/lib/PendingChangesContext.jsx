@@ -303,10 +303,8 @@ export function PendingChangesProvider({ children }) {
     }
 
     if (Array.isArray(headers) && headers.length) {
-      // Strip SIP column names from the schema so they don't appear as roster columns
-      const schemaHeaders = includeSipData
-        ? headers.filter(h => !SIP_COLUMNS.includes(h))
-        : headers
+      // Strip only stipend from schema — all other columns (including SIP bio fields) stay visible
+      const schemaHeaders = headers.filter(h => !SIP_COLUMNS.includes(h))
       const schemaSnap = await getDoc(schemaRef)
       if (!schemaSnap.exists() || change.updateSchema === true) {
         await setDoc(schemaRef, {
@@ -433,11 +431,10 @@ function parseSipColumns(row) {
   return { placed, placement, sipStatus: get('SIP Status') }
 }
 
-// SIP column names to strip from the student doc (they're moved into _placement_summer)
+// Only strip stipend from student doc — it's monetary and permission-gated (Placed tab only).
+// All other SIP columns stay on the student doc as regular bio fields for roster/export use.
 const SIP_COLUMNS = [
-  'SIP Status', 'SIP Company', 'SIP Role', 'SIP Company Sector',
-  'SIP Company Domain', 'SIP Roles and Responsibilities', 'Location',
-  'DOP', 'Placed Via', 'Summer Stipend', 'SIP Stipend (In Lakhs/month)', 'SIP Stipend',
+  'Summer Stipend', 'SIP Stipend (In Lakhs/month)', 'SIP Stipend',
 ]
 
 function normalizePlacementDetails(change) {
