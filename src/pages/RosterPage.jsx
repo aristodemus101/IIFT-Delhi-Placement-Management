@@ -26,7 +26,7 @@ const NUMERIC = ['cat', 'wx', 'ugpct', 'x10pct', 'x12pct', 'age', 'cat_score']
 
 const newPlacementForm = () => ({
   date: new Date().toISOString().slice(0, 10),
-  company: '', role: '', sector: '', package: '', ctcNotes: '', via: '', location: '',
+  company: '', role: '', domain: '', sector: '', package: '', ctcNotes: '', via: '', location: '', finalStatus: '',
 })
 
 function studentCohort(s) { return s.cohort || 'unknown' }
@@ -313,7 +313,7 @@ export default function RosterPage() {
       await propose({
         type: 'place', cohort: studentCohort(placeModal), season: placeSeason,
         studentId: placeModal._id, studentName: getVal(placeModal, 'name'), studentRoll: getVal(placeModal, 'roll'),
-        company, placementDetails: { date: placementDate, company, role: placementForm.role.trim(), sector: placementForm.sector.trim(), location: placementForm.location.trim(), package: placementForm.package.trim(), ctcNotes: placementForm.ctcNotes.trim(), via: placementForm.via.trim(), placedAtIso },
+        company, placementDetails: { date: placementDate, company, role: placementForm.role.trim(), domain: placementForm.domain.trim(), sector: placementForm.sector.trim(), location: placementForm.location.trim(), package: placementForm.package.trim(), ctcNotes: placementForm.ctcNotes.trim(), via: placementForm.via.trim(), finalStatus: placementForm.finalStatus.trim(), placedAtIso },
       })
       flash(`Placement proposal for ${getVal(placeModal, 'name')} submitted — awaiting approval.`)
       setPlaceModal(null); setPlacementForm(newPlacementForm())

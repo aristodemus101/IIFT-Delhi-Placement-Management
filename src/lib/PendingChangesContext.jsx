@@ -450,11 +450,13 @@ function normalizePlacementDetails(change) {
     date,
     company: String(raw.company || change?.company || '').trim(),
     role: String(raw.role || '').trim(),
+    domain: String(raw.domain || '').trim(),
     sector: String(raw.sector || '').trim(),
     location: String(raw.location || '').trim(),
     package: String(raw.package || '').trim(),
     ctcNotes: String(raw.ctcNotes || '').trim(),
     via: String(raw.via || '').trim(),
+    finalStatus: String(raw.finalStatus || '').trim(),
     placedAtIso,
   }
 }

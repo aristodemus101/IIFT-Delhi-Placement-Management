@@ -3,12 +3,27 @@ import { getVal } from '../../lib/columns'
 import { Btn, Input, Select, Modal } from '../../components/UI'
 import { CheckCircle } from 'lucide-react'
 
-const VIA_OPTIONS = [
+const VIA_OPTIONS_FINAL = [
+  'Summer PPO',
+  'Summer PPI',
   'Finals Cycle',
-  'Summer Internship Cycle',
-  'PPO',
   'Case Competition',
   'Lateral / Direct',
+  'Other',
+]
+
+const VIA_OPTIONS_SUMMER = [
+  'Campus Placement',
+  'Case Competition',
+  'Lateral / Direct',
+  'Other',
+]
+
+const FINAL_STATUS_OPTIONS = [
+  'Convert',
+  'PPI',
+  'PPO',
+  'Direct',
   'Other',
 ]
 
@@ -78,7 +93,7 @@ export default function PlaceModal({ student, season, setSeason, cohortCycle, fo
               <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Placed via</label>
               <Select value={form.via} onChange={e => setForm(f => ({ ...f, via: e.target.value }))} style={{ width: '100%' }}>
                 <option value="">Select…</option>
-                {VIA_OPTIONS.map(v => <option key={v} value={v}>{v}</option>)}
+                {(season === 'final' ? VIA_OPTIONS_FINAL : VIA_OPTIONS_SUMMER).map(v => <option key={v} value={v}>{v}</option>)}
               </Select>
             </div>
           </div>
@@ -94,12 +109,28 @@ export default function PlaceModal({ student, season, setSeason, cohortCycle, fo
               <Input value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))} placeholder="Analyst / Consultant" style={{ width: '100%' }} />
             </div>
             <div>
+              <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Domain</label>
+              <Input value={form.domain} onChange={e => setForm(f => ({ ...f, domain: e.target.value }))} placeholder="Finance / Marketing" style={{ width: '100%' }} />
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: season === 'final' ? '1fr 1fr' : '1fr', gap: 10 }}>
+            <div>
               <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Company sector</label>
               <Select value={form.sector} onChange={e => setForm(f => ({ ...f, sector: e.target.value }))} style={{ width: '100%' }}>
                 <option value="">Select sector…</option>
                 {SECTOR_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
               </Select>
             </div>
+            {season === 'final' && (
+              <div>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Final Status</label>
+                <Select value={form.finalStatus} onChange={e => setForm(f => ({ ...f, finalStatus: e.target.value }))} style={{ width: '100%' }}>
+                  <option value="">Select…</option>
+                  {FINAL_STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                </Select>
+              </div>
+            )}
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
