@@ -8,7 +8,7 @@ import { getVal } from '../lib/columns'
 import { exportToCSV } from '../lib/csv'
 import { usePermissions } from '../lib/usePermissions'
 import { PageHeader, Btn, Badge, CategoryBadge, Input, Spinner, Table, Modal } from '../components/UI'
-import { Download, RotateCcw, Search, Eye, CheckCircle, Lock, ExternalLink, BarChart2 } from 'lucide-react'
+import { Download, RotateCcw, Search, Eye, CheckCircle, Lock, ExternalLink, Columns } from 'lucide-react'
 
 const PLACEMENT_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1uOzTID4iVhwjXuKynSICQmFDygYoQJC1N_q6QlumF68/edit'
 
@@ -52,6 +52,8 @@ export default function PlacedPage() {
   const [search, setSearch] = useState('')
   const [viewModal, setViewModal] = useState(null)
   const [successMsg, setSuccessMsg] = useState('')
+  const [showColPicker, setShowColPicker] = useState(false)
+  const [hiddenCols, setHiddenCols] = useState(new Set())
 
   const scopedStudents = useMemo(() => {
     const ids = new Set(scopedCohorts)
@@ -200,65 +202,74 @@ export default function PlacedPage() {
     return `${val} LPA`
   }
 
-  const headers = [
-    { label: 'Roll No.' },
-    { label: 'Name' },
-    { label: 'Gender' },
-    { label: 'CAT %ile' },
-    { label: 'Category' },
-    { label: 'Work Ex' },
-    { label: 'Company' },
-    { label: 'Role' },
-    { label: 'Sector' },
-    { label: 'Location' },
-    ...(fieldVisible('ctc') || fieldVisible('stipend') ? [{ label: selectedSeason === 'summer' ? 'Stipend' : 'CTC' }] : []),
-    { label: 'Placed On' },
-    { label: 'Actions' },
+  // All possible columns — key used to toggle visibility
+  const allColDefs = [
+    { key: 'roll',     label: 'Roll No.',  alwaysShow: true },
+    { key: 'name',     label: 'Name',      alwaysShow: true },
+    { key: 'gender',   label: 'Gender' },
+    { key: 'cat',      label: 'CAT %ile' },
+    { key: 'category', label: 'Category' },
+    { key: 'wx',       label: 'Work Ex' },
+    { key: 'company',  label: 'Company',   alwaysShow: true },
+    { key: 'role',     label: 'Role' },
+    { key: 'domain',   label: 'Domain' },
+    { key: 'sector',   label: 'Sector' },
+    { key: 'location', label: 'Location' },
+    ...((canSeeCtc || canSeeStipend) ? [{ key: 'package', label: selectedSeason === 'summer' ? 'Stipend' : 'CTC' }] : []),
+    { key: 'via',      label: 'Via' },
+    ...(selectedSeason === 'final' ? [{ key: 'finalStatus', label: 'Final Status' }] : []),
+    { key: 'placedOn', label: 'Placed On' },
+    { key: 'actions',  label: 'Actions',   alwaysShow: true },
   ]
+
+  const visibleColDefs = allColDefs.filter(c => c.alwaysShow || !hiddenCols.has(c.key))
+  const visibleKeys = new Set(visibleColDefs.map(c => c.key))
+
+  const headers = visibleColDefs.map(c => ({ label: c.label }))
 
   const rows = filtered.map(s => {
     const placement = getPlacement(s)
     const company = canSeePlacement ? getPlacedCompany(s) : '—'
     const placedAt = getPlacedAt(s)
-    return [
-      <span style={{ fontSize: 12, color: 'var(--text-3)', fontFamily: 'var(--font-mono)' }}>{getVal(s, 'roll')}</span>,
-      <span style={{ fontWeight: 500 }}>{getVal(s, 'name')}</span>,
-      <span style={{ color: 'var(--text-2)' }}>{getVal(s, 'gender')}</span>,
-      <strong>{parseFloat(getVal(s, 'cat')).toFixed(2) || '—'}</strong>,
-      <CategoryBadge category={getVal(s, 'category')} />,
-      <span>{getVal(s, 'wx') || '0'} mo</span>,
-      canSeePlacement ? (
+
+    const cellMap = {
+      roll:     <span style={{ fontSize: 12, color: 'var(--text-3)', fontFamily: 'var(--font-mono)' }}>{getVal(s, 'roll')}</span>,
+      name:     <span style={{ fontWeight: 500 }}>{getVal(s, 'name')}</span>,
+      gender:   <span style={{ color: 'var(--text-2)' }}>{getVal(s, 'gender')}</span>,
+      cat:      <strong>{parseFloat(getVal(s, 'cat')).toFixed(2) || '—'}</strong>,
+      category: <CategoryBadge category={getVal(s, 'category')} />,
+      wx:       <span>{getVal(s, 'wx') || '0'} mo</span>,
+      company:  canSeePlacement ? (
         <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 20, fontSize: 12, background: selectedSeason === 'summer' ? 'var(--amber-bg)' : 'var(--green-bg)', color: selectedSeason === 'summer' ? 'var(--amber-text)' : 'var(--green-text)', border: `1px solid ${selectedSeason === 'summer' ? 'var(--amber)' : 'var(--green-border)'}`, fontWeight: 500 }}>
           {company}
         </span>
       ) : <span style={{ color: 'var(--text-3)', fontSize: 12 }}>Hidden</span>,
-      <span style={{ fontSize: 12, color: 'var(--text-2)' }}>{placement.role || '—'}</span>,
-      <span style={{ fontSize: 12, color: 'var(--text-2)' }}>{placement.sector || '—'}</span>,
-      placement.location ? (
+      role:     <span style={{ fontSize: 12, color: 'var(--text-2)' }}>{placement.role || '—'}</span>,
+      domain:   <span style={{ fontSize: 12, color: 'var(--text-2)' }}>{placement.domain || '—'}</span>,
+      sector:   <span style={{ fontSize: 12, color: 'var(--text-2)' }}>{placement.sector || '—'}</span>,
+      location: placement.location ? (
         <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 6px', borderRadius: 20, background: placement.location === 'International' ? 'var(--accent-bg)' : 'var(--surface2)', color: placement.location === 'International' ? 'var(--accent-dark)' : 'var(--text-2)', border: `1px solid ${placement.location === 'International' ? '#BFDBFE' : 'var(--border)'}` }}>
           {placement.location}
         </span>
       ) : <span style={{ color: 'var(--text-3)', fontSize: 12 }}>—</span>,
-      canSeeCtc || canSeeStipend ? (
-        <span style={{ fontSize: 12, color: 'var(--text-2)' }}>
-          {selectedSeason === 'summer'
-            ? (canSeeStipend ? fmtPackage(placement.package) : '—')
-            : (canSeeCtc ? fmtPackage(placement.package) : '—')
-          }
-        </span>
-      ) : null,
-      <span style={{ fontSize: 12, color: 'var(--text-3)' }}>
+      package:  <span style={{ fontSize: 12, color: 'var(--text-2)' }}>
+        {selectedSeason === 'summer' ? (canSeeStipend ? fmtPackage(placement.package) : '—') : (canSeeCtc ? fmtPackage(placement.package) : '—')}
+      </span>,
+      via:      <span style={{ fontSize: 12, color: 'var(--text-2)' }}>{placement.via || '—'}</span>,
+      finalStatus: <span style={{ fontSize: 12, color: 'var(--text-2)' }}>{placement.finalStatus || '—'}</span>,
+      placedOn: <span style={{ fontSize: 12, color: 'var(--text-3)' }}>
         {placedAt ? new Date(placedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}
       </span>,
-      <div style={{ display: 'flex', gap: 6 }}>
+      actions: <div style={{ display: 'flex', gap: 6 }}>
         {canSeePlacement && <Btn size="sm" variant="ghost" onClick={() => setViewModal(s)}><Eye size={13} /></Btn>}
         {canDo('proposeUnplace') && (
           <Btn size="sm" variant="ghost" onClick={() => proposeUnplace(s)} title="Propose unplace">
             <RotateCcw size={13} /> Unplace
           </Btn>
         )}
-      </div>
-    ].filter(cell => cell !== null)
+      </div>,
+    }
+    return visibleColDefs.map(c => cellMap[c.key] ?? null)
   })
 
   if (loading || batchesLoading) return <Spinner />
@@ -349,16 +360,44 @@ export default function PlacedPage() {
         </div>
       )}
 
-      <div style={{ padding: '14px 28px', borderBottom: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', gap: 10 }}>
+      <div style={{ padding: '14px 28px', borderBottom: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', gap: 10, alignItems: 'center' }}>
         <div style={{ position: 'relative' }}>
           <Search size={13} style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-3)' }} />
           <Input placeholder="Name, Roll No., or Company" value={search} onChange={e => setSearch(e.target.value)} style={{ paddingLeft: 28, width: 260 }} />
         </div>
+        <Btn size="sm" variant="ghost" onClick={() => setShowColPicker(true)}>
+          <Columns size={13} /> Columns {hiddenCols.size > 0 && `(${allColDefs.filter(c => !c.alwaysShow).length - hiddenCols.size}/${allColDefs.filter(c => !c.alwaysShow).length})`}
+        </Btn>
       </div>
 
       <div style={{ flex: 1, overflow: 'auto' }}>
         <Table headers={headers} rows={rows} emptyMessage={placed.length ? 'No matches' : `No ${seasonLabel(selectedSeason).toLowerCase()} placements recorded yet`} />
       </div>
+
+      <Modal open={showColPicker} onClose={() => setShowColPicker(false)} title="Show or hide columns" width={560}>
+        <p style={{ fontSize: 13, color: 'var(--text-2)', marginBottom: 12 }}>
+          Choose which columns appear in the table. Roll No., Name, Company and Actions are always shown.
+        </p>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+          <Btn size="sm" variant="ghost" onClick={() => setHiddenCols(new Set())}>Show all</Btn>
+          <Btn size="sm" variant="ghost" onClick={() => setHiddenCols(new Set(allColDefs.filter(c => !c.alwaysShow).map(c => c.key)))}>Hide all</Btn>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px', maxHeight: 320, overflow: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: 12, background: 'var(--surface2)' }}>
+          {allColDefs.filter(c => !c.alwaysShow).map(c => (
+            <label key={c.key} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text)', cursor: 'pointer' }}>
+              <input type="checkbox" checked={!hiddenCols.has(c.key)} onChange={() => setHiddenCols(prev => {
+                const next = new Set(prev)
+                next.has(c.key) ? next.delete(c.key) : next.add(c.key)
+                return next
+              })} style={{ accentColor: 'var(--accent)' }} />
+              <span>{c.label}</span>
+            </label>
+          ))}
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 14 }}>
+          <Btn variant="primary" onClick={() => setShowColPicker(false)}>Done</Btn>
+        </div>
+      </Modal>
 
       <Modal open={!!viewModal} onClose={() => setViewModal(null)} title={viewModal ? `${getVal(viewModal, 'name')} — ${getPlacedCompany(viewModal)}` : ''} width={520}>
         {viewModal && (() => {

@@ -337,7 +337,7 @@ export default function AdminPage() {
         subtitle="Manage team roles: Admin · Committee · TPO · Faculty Incharge"
       />
 
-      <div style={{ padding: '20px 28px', overflow: 'auto' }}>
+      <div style={{ padding: '20px 28px', overflow: 'auto', flex: 1, minHeight: 0 }}>
         {/* Info banner */}
         <div style={{
           display: 'flex', gap: 10, background: 'var(--accent-bg)', border: '1px solid #BFDBFE',

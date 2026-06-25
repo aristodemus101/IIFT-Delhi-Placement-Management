@@ -117,7 +117,7 @@ export default function Layout() {
   ].filter(n => canAccessPage(n.page))
 
   return (
-    <div style={{ display: 'flex', flexDirection: isNarrowViewport ? 'column' : 'row', minHeight: '100vh', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: isNarrowViewport ? 'column' : 'row', height: '100vh', overflow: 'hidden' }}>
       <aside style={{
         width: isCompactSidebar ? 80 : 236,
         flexShrink: 0,
@@ -129,9 +129,7 @@ export default function Layout() {
         padding: isCompactSidebar ? '16px 0' : '20px 0',
         backdropFilter: 'blur(20px)',
         height: isNarrowViewport ? 'auto' : '100vh',
-        position: isNarrowViewport ? 'static' : 'sticky',
-        top: 0,
-        alignSelf: 'flex-start',
+        overflow: 'hidden',
       }}>
         <div style={{ padding: isCompactSidebar ? '0 12px 16px' : '0 20px 24px', borderBottom: '1px solid var(--border)', marginBottom: 8 }}>
           <div style={{ display: 'flex', flexDirection: isCompactSidebar ? 'column' : 'row', alignItems: 'center', gap: isCompactSidebar ? 8 : 10, justifyContent: 'center' }}>
@@ -363,7 +361,7 @@ export default function Layout() {
         </div>
       </aside>
 
-      <main style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', background: 'transparent', borderTop: '2px solid var(--workspace-border)' }}>
+      <main style={{ flex: 1, minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', background: 'transparent', borderTop: '2px solid var(--workspace-border)' }}>
         {hasActiveCohorts && (
           <div style={{
             padding: '6px 12px',

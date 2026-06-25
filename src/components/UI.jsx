@@ -145,8 +145,8 @@ export function Select({ style = {}, children, ...props }) {
 
 export function Table({ headers, rows, emptyMessage = 'No data', onRowContextMenu }) {
   return (
-    <div style={{ overflowX: 'auto' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+    <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+      <table style={{ minWidth: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
         <thead>
           <tr>
             {headers.map((h, i) => (
@@ -172,7 +172,7 @@ export function Table({ headers, rows, emptyMessage = 'No data', onRowContextMen
               onMouseEnter={e => { Array.from(e.currentTarget.cells).forEach(c => c.style.background = 'color-mix(in srgb, var(--surface2) 75%, transparent)') }}
               onMouseLeave={e => { Array.from(e.currentTarget.cells).forEach(c => c.style.background = '') }}>
               {row.map((cell, j) => (
-                <td key={j} style={{ padding: '9px 14px', whiteSpace: 'nowrap', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                <td key={j} style={{ padding: '9px 14px', whiteSpace: 'nowrap' }}>
                   {cell}
                 </td>
               ))}
