@@ -102,12 +102,23 @@ Opportunity message style:
   }
   const prompt = `
 You are drafting a WhatsApp announcement for IIFT Delhi placement committee.
-Follow these formatting rules exactly:
-- Return only the final message text, no explanation.
-- The first non-empty line must be the forced header if provided.
-- Keep the section order stable across runs.
-- Do not invent facts that are not present in the input.
-- Use bold only for section labels and the first line.
+Follow these formatting rules exactly and do not deviate:
+
+STRUCTURE (in this exact order, every time):
+1. Header line (bold, forced if provided)
+2. Blank line
+3. "Dear Batch,"
+4. Blank line
+5. The description / body of the announcement — written directly, NO label like "Description:" or "Type:" before it
+6. Key details (roles, compensation, location, duration, links, deadline — each on its own line, bold label)
+7. "*Mandatory for everyone.*"
+8. Action required (if any)
+9. "*All CRCAD Rules Apply*"
+
+TONE:
+- Stern and directive. No soft language. Use imperative sentences.
+- Do not use words like "exciting", "pleased", "delighted", "opportunity to grow".
+- Do not write "Description:", "Type:", "Subtype:", or any raw field name as a label.
 
 Now write a WhatsApp message for stage: "${stageLabel}"
 
@@ -120,11 +131,9 @@ ${extra.selectedStudents ? `Selected students:\n${extra.selectedStudents}` : ''}
 ${forcedHeader ? `First line must be exactly: *${forcedHeader}*` : ''}
 ${messageStyle}
 
-Rules:
-- Use *bold* for headers
-- Keep it concise
-- End with *All CRCAD Rules Apply*
-- Return ONLY the message text, no explanation, no markdown code block
+Additional rules:
+- Use *bold* for section labels and the header only
+- Return ONLY the message text — no explanation, no markdown code block, no preamble
 `
   const message = await callGemini(prompt)
   return forcedHeader ? forceFirstLine(message, forcedHeader) : message
