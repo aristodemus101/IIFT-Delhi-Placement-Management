@@ -11,7 +11,7 @@ import { BATCH_LABEL, STATUS_LABEL, typeColor, TypeIcon, normalizeOpportunityTyp
 import { PasteStep, MessageStep, MessageBox, PreviewStep } from './PostModal'
 import { serverTimestamp } from 'firebase/firestore'
 import { blankOpportunity } from '../../lib/useOpportunities'
-import { getActivityDisplayLabel } from '../../config/activityTaxonomy'
+import { getActivityDisplayLabel, typeHasVia, typeHasSubtype } from '../../config/activityTaxonomy'
 
 import {
   MessageSquare, Users, Award, Bell, FileText, XCircle, Plus,
@@ -243,6 +243,9 @@ function EditModal({ opp, onClose }) {
     setBusy(true); setErr('')
     try {
       const { id, createdAt, postedBy, _whatsappMessage, ...fields } = parsed
+      // Strip fields that don't apply to this opportunity type
+      if (!typeHasVia(fields.type))     fields.via = ''
+      if (!typeHasSubtype(fields.type)) fields.subtype = ''
       await updateDoc(doc(db, 'opportunities', opp.id), { ...fields, updatedAt: serverTimestamp() })
       onClose()
     } catch (e) { setErr(e.message) }
