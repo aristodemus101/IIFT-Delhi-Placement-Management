@@ -60,10 +60,10 @@ export default function DashboardPage() {
     const avgCat = cats.length ? (cats.reduce((a, b) => a + b, 0) / cats.length).toFixed(1) : '—'
     const avgWx  = wxs.length  ? Math.round(wxs.reduce((a, b) => a + b, 0) / wxs.length)    : '—'
 
-    // Experienced = wx >= 12 months
+    // Freshers = wx < 12 months; Experienced = wx >= 12 months
     const expWxs    = wxs.filter(v => v >= 12)
     const avgWxExp  = expWxs.length ? Math.round(expWxs.reduce((a, b) => a + b, 0) / expWxs.length) : '—'
-    const freshers  = wxs.filter(v => v === 0).length
+    const freshers  = wxs.filter(v => v < 12).length
     const experienced = expWxs.length
 
     // Gender breakdown
@@ -310,7 +310,7 @@ export default function DashboardPage() {
         {/* stat cards — row 2: cohort profile */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(140px, 1fr))', gap: 10, marginBottom: 14, textAlign: 'center' }}>
           <StatCard label="Avg WX (Experienced)" value={stats.avgWxExp ? `${stats.avgWxExp}mo` : '—'} sub={`${stats.experienced || 0} students ≥12 mo`} />
-          <StatCard label="Freshers"         value={stats.freshers ?? '—'} sub="0 months work ex" />
+          <StatCard label="Freshers"         value={stats.freshers ?? '—'} sub="< 12 months work ex" />
           <StatCard label="Female"           value={stats.females  || 0}   sub={`${stats.femalePct || 0}% of cohort`} />
           <StatCard label="CAT %ile — Placed" value={stats.avgCatPlaced || '—'} sub={`vs YTP: ${stats.avgCatYtp || '—'}`} color="var(--green)" />
           <StatCard label="PWD"              value={stats.pwdCount ?? 0}  sub="persons with disability" />
@@ -385,7 +385,7 @@ export default function DashboardPage() {
                   {stats.workEx && Object.values(stats.workEx).map(b => (
                     <div key={b.key} style={divider}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
-                        <span style={{ fontSize: 11, fontWeight: 600, color: b.key === '0-6' ? 'var(--text-3)' : 'var(--text-2)' }}>{b.label}{b.key === '0-6' ? ' (freshers)' : ''}</span>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: (b.key === '0-6' || b.key === '6-12') ? 'var(--text-3)' : 'var(--text-2)' }}>{b.label}</span>
                         <span style={countPill}>{b.total}</span>
                       </div>
                       {ytpBar(b.placed, b.ytp, b.total)}
