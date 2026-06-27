@@ -5,6 +5,7 @@ import { useStudents } from '../lib/useStudents'
 import { useBatch } from '../lib/BatchContext'
 import { cohortLabel } from '../lib/batch'
 import { getVal } from '../lib/columns'
+import { normalizeActivityType } from '../config/activityTaxonomy'
 import { PageHeader, Spinner, Badge, Input } from '../components/UI'
 import { useAuth } from '../lib/AuthContext'
 import { Search } from 'lucide-react'
@@ -97,10 +98,12 @@ export default function AnalyticsPage() {
     return students.filter(s => ids.has(studentCohort(s)))
   }, [students, scopedCohorts])
 
-  // Build oppId → company map
+  // Build oppId → company map — heatmap only tracks Hiring opportunities
   const oppMap = useMemo(() => {
     const m = {}
-    opps.forEach(o => { m[o.id] = o })
+    opps.forEach(o => {
+      if (normalizeActivityType(o.type) === 'Hiring') m[o.id] = o
+    })
     return m
   }, [opps])
 

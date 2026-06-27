@@ -4,6 +4,25 @@ import { doc, getDoc, setDoc, updateDoc, onSnapshot, serverTimestamp } from 'fir
 import { auth, googleProvider, db } from './firebase'
 import { MASTER_ADMIN_EMAILS } from './roleConfig'
 
+// Creates the tpoProfile doc on first TPO login so the admin All-TPOs view
+// can show the TPO's name even before they visit their own page.
+async function ensureTpoProfileOnLogin(u) {
+  try {
+    const ref = doc(db, 'tpoProfiles', u.uid)
+    const snap = await getDoc(ref)
+    if (!snap.exists()) {
+      await setDoc(ref, {
+        displayName: u.displayName || '',
+        email:       u.email || '',
+        photoURL:    u.photoURL || '',
+        addedAt:     serverTimestamp(),
+      })
+    }
+  } catch (_) {
+    // Non-critical — profile will be created when they visit TpoPage
+  }
+}
+
 const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
@@ -104,6 +123,9 @@ export function AuthProvider({ children }) {
             setRole(data.role || null)
             setIsMasterAdmin(data.isMasterAdmin === true)
             setAuthStatus('authenticated')
+            // Ensure TPO profile doc exists so the admin All-TPOs analytics view
+            // can display the TPO name even before they visit their own page.
+            if (data.role === 'tpo') ensureTpoProfileOnLogin(u)
           }, err => {
             // Role listener error — fail closed: treat as unauthorized
             console.error('Role listener error:', err)

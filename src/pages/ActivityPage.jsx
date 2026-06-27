@@ -6,11 +6,40 @@ import { usePendingChanges } from '../lib/PendingChangesContext'
 import { useBatch } from '../lib/BatchContext'
 import { useOpportunities, deleteOpportunity } from '../lib/useOpportunities'
 import { PageHeader, Btn, Select, Spinner, Badge } from '../components/UI'
-import { Plus, LayoutGrid, List, ChevronRight, Trash2 } from 'lucide-react'
+import { Plus, LayoutGrid, List, ChevronRight, Trash2, Download } from 'lucide-react'
 import OppCard, { normalizeOpportunityType, typeColor, TypeIcon, BATCH_COLOR, BATCH_LABEL, STATUS_COLOR, STATUS_LABEL } from './activity/OppCard'
 import PostModal from './activity/PostModal'
 import DetailModal from './activity/DetailModal'
 import { ACTIVITY_TYPE_OPTIONS } from '../config/activityTaxonomy'
+import { exportToCSV, exportToExcel } from '../lib/csv'
+
+function oppToRow(opp) {
+  const date = (ts) => ts?.toDate ? ts.toDate().toISOString().slice(0, 10) : (ts || '')
+  return {
+    'Opportunity ID':  opp.id || '',
+    'Title':           opp.title || '',
+    'Type':            opp.type || '',
+    'Subtype':         opp.subtype || '',
+    'Via':             opp.via || '',
+    'Organisation':    opp.organization || '',
+    'Cycle':           BATCH_LABEL[opp.applicability || 'both'] || opp.applicability || '',
+    'Status':          STATUS_LABEL[opp.status] || opp.status || '',
+    'Roles':           Array.isArray(opp.roles) ? opp.roles.join(', ') : (opp.roles || ''),
+    'Stipend':         opp.stipend || '',
+    'CTC':             opp.ctc || '',
+    'Duration':        opp.duration || '',
+    'Location':        opp.location || '',
+    'Deadline':        opp.deadline || '',
+    'Eligibility':     opp.eligibility || '',
+    'EOI Link':        opp.eoi_link || '',
+    'Apply Link':      opp.apply_link || '',
+    'Tracker Link':    opp.tracker_link || '',
+    'Description':     opp.description || '',
+    'Notes':           opp.notes || '',
+    'Posted At':       date(opp.createdAt),
+    'Updated At':      date(opp.updatedAt),
+  }
+}
 
 const thStyle = {
   textAlign: 'left', padding: '9px 14px', fontSize: 11, fontWeight: 600,
@@ -115,6 +144,7 @@ export default function ActivityPage() {
   const [detailOpp, setDetailOpp]       = useState(null)
   const [postOpen, setPostOpen]         = useState(false)
   const [viewMode, setViewMode]         = useState('card') // 'card' | 'table'
+  const [exportOpen, setExportOpen]     = useState(false)
 
   const filtered = useMemo(() => opportunities.filter(o => {
     if (typeFilter !== 'all' && normalizeOpportunityType(o.type) !== typeFilter) return false
@@ -159,6 +189,31 @@ export default function ActivityPage() {
         <span style={{ fontSize: 12, color: 'var(--text-3)', marginLeft: 'auto' }}>
           {filtered.length} result{filtered.length !== 1 ? 's' : ''}
         </span>
+        {/* Export */}
+        <div style={{ position: 'relative' }}>
+          <Btn size="sm" variant="ghost" onClick={() => setExportOpen(v => !v)} disabled={!filtered.length} title="Export filtered opportunities">
+            <Download size={13} /> Export
+          </Btn>
+          {exportOpen && (
+            <>
+              <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setExportOpen(false)} />
+              <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 4, zIndex: 100, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', boxShadow: '0 4px 16px rgba(0,0,0,.12)', minWidth: 140, overflow: 'hidden' }}>
+                <button style={{ display: 'block', width: '100%', textAlign: 'left', padding: '9px 14px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text)' }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                  onClick={() => { exportToExcel(filtered.map(oppToRow), 'opportunities.xlsx'); setExportOpen(false) }}>
+                  Excel (.xlsx)
+                </button>
+                <button style={{ display: 'block', width: '100%', textAlign: 'left', padding: '9px 14px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text)' }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                  onClick={() => { exportToCSV(filtered.map(oppToRow), 'opportunities.csv'); setExportOpen(false) }}>
+                  CSV (.csv)
+                </button>
+              </div>
+            </>
+          )}
+        </div>
         {/* View toggle */}
         <div style={{ display: 'flex', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}>
           {[['card', LayoutGrid], ['table', List]].map(([mode, Icon]) => (

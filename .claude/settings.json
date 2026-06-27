@@ -51,7 +51,32 @@
       "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); [print\\(k,':',v\\) for k,v in d.get\\('scripts',{}\\).items\\(\\)]\")",
       "Bash(curl -s https://iam.googleapis.com/v1/projects/placement-mgmt-staging/serviceAccounts -H 'Authorization: Bearer __CMDSUB_OUTPUT__')",
       "Bash(curl -s https://logging.googleapis.com/v2/entries:list -H 'Authorization: Bearer __CMDSUB_OUTPUT__' -H 'Content-Type: application/json' -d '{ *)",
-      "Bash(curl -s https://run.googleapis.com/v1/projects/placement-mgmt-staging/locations/asia-south1/services/pushfilteredtosheet:getIamPolicy -H 'Authorization: Bearer __CMDSUB_OUTPUT__')"
+      "Bash(curl -s https://run.googleapis.com/v1/projects/placement-mgmt-staging/locations/asia-south1/services/pushfilteredtosheet:getIamPolicy -H 'Authorization: Bearer __CMDSUB_OUTPUT__')",
+      "Bash(node -e ' *)",
+      "Bash(node seedMyTpo.cjs)",
+      "Bash(node patchCohorts.cjs)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); tokens=d.get\\('tokens',{}\\); print\\(tokens.get\\('access_token',''\\)[:40]\\)\")",
+      "Bash(python3 -c \"import json,sys; print\\('ok'\\)\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(d.get\\('tokens',{}\\).get\\('access_token',''\\)\\)\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d, indent=2\\)\\)\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('OK' if 'updateTime' in d else json.dumps\\(d,indent=2\\)\\)\")",
+      "Bash(gh run *)",
+      "Bash(firebase firestore:export --help)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); tokens=d.get\\('tokens',{}\\); print\\(tokens.get\\('access_token',''\\)[:40] if tokens.get\\('access_token'\\) else 'no token'\\)\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d.get\\('fields',{}\\), indent=2\\)\\)\")",
+      "Bash(git -C /Users/aristodemus/Downloads/placement-mgmt diff --stat)",
+      "Bash(git -C /Users/aristodemus/Downloads/placement-mgmt add firestore.rules src/components/Layout.jsx src/lib/permissions.js src/lib/usePermissions.js src/lib/useTpoOutreach.js src/pages/AdminPage.jsx src/pages/AnalyticsPage.jsx src/pages/TpoPage.jsx)",
+      "Bash(git -C /Users/aristodemus/Downloads/placement-mgmt commit -m ' *)",
+      "Bash(git -C /Users/aristodemus/Downloads/placement-mgmt add src/pages/RosterPage.jsx)",
+      "Bash(git -C /Users/aristodemus/Downloads/placement-mgmt status)",
+      "Bash(git -C /Users/aristodemus/Downloads/placement-mgmt log --oneline -5)",
+      "Bash(git -C /Users/aristodemus/Downloads/placement-mgmt push)",
+      "Bash(cat /Users/aristodemus/.claude/CLAUDE.md)",
+      "Read(//Users/aristodemus/.claude/**)",
+      "Bash(git -C /Users/aristodemus/Downloads/placement-mgmt add CLAUDE.md)",
+      "Bash(npx skills *)",
+      "Bash(git -C /Users/aristodemus/Downloads/placement-mgmt add src/pages/roster/ImportModal.jsx src/pages/RosterPage.jsx src/lib/PendingChangesContext.jsx)",
+      "Bash(git -C /Users/aristodemus/Downloads/placement-mgmt add src/pages/PlacedPage.jsx)"
     ]
   }
 }

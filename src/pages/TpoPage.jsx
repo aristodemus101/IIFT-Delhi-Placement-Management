@@ -480,7 +480,7 @@ function FlagChips({ entry }) {
 }
 
 function AllOutreachView() {
-  const { entries, profiles, loading } = useAllTpoOutreach()
+  const { entries, profiles, loading, error } = useAllTpoOutreach()
   const { activeBatches } = useBatch()
   const { canSeeFinancials } = usePermissions()
   const [cohortFilter, setCohortFilter] = useState('')
@@ -499,6 +499,15 @@ function AllOutreachView() {
   })
 
   if (loading) return <Spinner />
+
+  if (error) return (
+    <div style={{ padding: 32, color: 'var(--red-text)', fontSize: 13, lineHeight: 1.6 }}>
+      <strong>Could not load TPO outreach data.</strong><br />
+      {error.includes('index') || error.includes('Index')
+        ? 'A Firestore collection group index is missing. Deploy firestore.indexes.json to fix this.'
+        : error}
+    </div>
+  )
 
   const headers = [
     'TPO', 'Company', 'Role',

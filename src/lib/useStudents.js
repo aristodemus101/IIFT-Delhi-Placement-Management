@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import {
   collection, onSnapshot, addDoc, deleteDoc,
-  doc, query, orderBy, serverTimestamp, setDoc, getDoc
+  doc, serverTimestamp, setDoc, getDoc
 } from 'firebase/firestore'
 import { db, auth } from './firebase'
 import { schemaDocIdForBatch } from './batch'
@@ -22,10 +22,20 @@ export function useStudents() {
     if (uid === undefined) return
     if (uid === null) { setStudents([]); setLoading(false); return }
 
-    const q = query(collection(db, 'students'), orderBy('_createdAt', 'desc'))
+    // No orderBy — Firestore skips docs missing the ordered field, which drops legacy
+    // student records. Sort client-side by _createdAt so all docs are always returned.
     const unsub = onSnapshot(
-      q,
-      snap => { setStudents(snap.docs.map(d => ({ _id: d.id, ...d.data() }))); setLoading(false) },
+      collection(db, 'students'),
+      snap => {
+        const rows = snap.docs.map(d => ({ _id: d.id, ...d.data() }))
+        rows.sort((a, b) => {
+          const ta = a._createdAt?.toMillis?.() ?? 0
+          const tb = b._createdAt?.toMillis?.() ?? 0
+          return tb - ta
+        })
+        setStudents(rows)
+        setLoading(false)
+      },
       err => { console.error('Firestore error:', err); setLoading(false) }
     )
     return unsub

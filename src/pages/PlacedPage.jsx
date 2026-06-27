@@ -195,9 +195,17 @@ export default function PlacedPage() {
   // Format a raw package value for display
   const fmtPackage = (pkg) => {
     if (!pkg) return '—'
-    if (selectedSeason === 'summer') return `₹${pkg}/mo`
-    const val = parseFloat(String(pkg).replace(/,/g, ''))
-    if (isNaN(val)) return pkg
+    const s = String(pkg).trim()
+    if (selectedSeason === 'summer') {
+      // If already contains a recognised unit, display as-is (e.g. "2.5 LPA", "₹25,000")
+      if (/lpa|lakh|₹|rs\.|inr/i.test(s)) return s
+      const val = parseFloat(s.replace(/,/g, ''))
+      // Bare number: if > 1000 treat as rupees/month, otherwise as LPA/month
+      if (!isNaN(val)) return val > 1000 ? `₹${val.toLocaleString('en-IN')}/mo` : `${val} LPA/mo`
+      return s
+    }
+    const val = parseFloat(s.replace(/,/g, ''))
+    if (isNaN(val)) return s
     if (val > 1000) return `${(val / 100000).toFixed(2)} LPA`
     return `${val} LPA`
   }

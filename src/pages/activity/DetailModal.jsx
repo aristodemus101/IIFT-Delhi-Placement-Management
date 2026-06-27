@@ -16,6 +16,7 @@ import { getActivityDisplayLabel, typeHasVia, typeHasSubtype } from '../../confi
 import {
   MessageSquare, Users, Award, Bell, FileText, XCircle, Plus,
 } from 'lucide-react'
+import { getVal } from '../../lib/columns'
 
 const ICON_MAP = { MessageSquare, Users, Award, Sheet, Bell, FileText, XCircle, Plus }
 
@@ -365,11 +366,11 @@ function StageFlowModal({ opp, flow, user, students, sheetsConnected, createTrac
           { merge: true }
         )
         if (actionKey === 'post_final_selection') {
-          const dbStudent = students.find(st =>
-            (st['Roll No.'] && st['Roll No.'] === s.roll) ||
-            (st['Official Email ID (d27/ba27)'] && st['Official Email ID (d27/ba27)'] === s.email) ||
-            (st['Personal Email ID'] && st['Personal Email ID'] === s.email)
-          )
+          const dbStudent = students.find(st => {
+            const roll  = getVal(st, 'roll')
+            const email = getVal(st, 'official_email')
+            return (roll && roll === s.roll) || (email && email === s.email)
+          })
           if (!dbStudent) continue
           // Derive cohort and its active cycle from student doc
           const cohortId = dbStudent.cohort || null
@@ -377,8 +378,8 @@ function StageFlowModal({ opp, flow, user, students, sheetsConnected, createTrac
           await propose({
             type: 'place_from_activity',
             studentId: dbStudent._id,
-            studentName: s.name || dbStudent['Full Name'] || `${dbStudent['First Name'] || ''} ${dbStudent['Last Name'] || ''}`.trim(),
-            studentRoll: s.roll || dbStudent['Roll No.'] || '',
+            studentName: s.name || getVal(dbStudent, 'name') || `${getVal(dbStudent, 'firstName') || ''} ${getVal(dbStudent, 'lastName') || ''}`.trim(),
+            studentRoll: s.roll || getVal(dbStudent, 'roll') || '',
             company: opp.organization || '',
             cohort: cohortId,
             season,

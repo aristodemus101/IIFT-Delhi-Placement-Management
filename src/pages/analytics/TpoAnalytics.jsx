@@ -438,7 +438,7 @@ function TpoAnalyticsAll() {
   const { activeBatches } = useBatch()
   const [cohortFilter, setCohortFilter] = useState('')
   const [tpoFilter, setTpoFilter] = useState('')
-  const { entries, profiles, loading } = useAllTpoOutreach()
+  const { entries, profiles, loading, error } = useAllTpoOutreach()
   const { canSeeFinancials } = usePermissions()
 
   const tpoList = useMemo(() =>
@@ -459,6 +459,15 @@ function TpoAnalyticsAll() {
   const selectedTpoName = tpoFilter ? (profiles[tpoFilter]?.displayName || tpoFilter) : null
 
   if (loading) return <Spinner />
+
+  if (error) return (
+    <div style={{ padding: 32, color: 'var(--red-text)', fontSize: 13, lineHeight: 1.6 }}>
+      <strong>Could not load TPO outreach data.</strong><br />
+      {error.includes('index') || error.includes('Index')
+        ? 'A Firestore collection group index is missing. Deploy firestore.indexes.json to fix this.'
+        : error}
+    </div>
+  )
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column' }}>

@@ -86,6 +86,7 @@ export function useAllTpoOutreach() {
   const [entries, setEntries] = useState([])
   const [profiles, setProfiles] = useState({})  // tpoUid → profile data
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
   useEffect(() => {
     let unsubEntries = null
@@ -101,7 +102,7 @@ export function useAllTpoOutreach() {
         const map = {}
         snap.docs.forEach(d => { map[d.id] = d.data() })
         setProfiles(map)
-      }, () => {})
+      }, err => console.error('tpoProfiles listener error:', err))
 
       // collectionGroup query reads every outreach subcollection at once
       unsubEntries = onSnapshot(
@@ -113,13 +114,18 @@ export function useAllTpoOutreach() {
             ...d.data(),
           })))
           setLoading(false)
+          setError(null)
         },
-        () => setLoading(false),
+        err => {
+          console.error('outreach collectionGroup error:', err)
+          setError(err.message)
+          setLoading(false)
+        },
       )
     })
 
     return () => { unsubAuth(); if (unsubEntries) unsubEntries(); if (unsubProfiles) unsubProfiles() }
   }, [])
 
-  return { entries, profiles, loading }
+  return { entries, profiles, loading, error }
 }
