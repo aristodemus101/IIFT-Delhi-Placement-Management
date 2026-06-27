@@ -16,6 +16,7 @@ export const CAMPUS_ENGAGEMENT_SUBTYPE_OPTIONS = [
   'Other',
 ]
 
+// Via only applies to Hiring and Live Project, not Campus Engagement
 export const VIA_OPTIONS = ['Case Comp', 'PPO', 'Hackathon', 'Referral', 'Direct']
 
 export const ACTIVITY_TYPE_META = {
@@ -71,6 +72,16 @@ export function normalizeActivityType(type) {
 
   if (raw.toLowerCase().includes('live project')) return 'Live Project'
   return 'Hiring'
+}
+
+// Via is only meaningful for Hiring and Live Project
+export function typeHasVia(type) {
+  return normalizeActivityType(type) !== 'Campus Engagement'
+}
+
+// Subtype is only meaningful for Campus Engagement
+export function typeHasSubtype(type) {
+  return normalizeActivityType(type) === 'Campus Engagement'
 }
 
 export function normalizeCampusEngagementSubtype(value) {

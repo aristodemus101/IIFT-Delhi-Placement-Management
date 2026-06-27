@@ -95,10 +95,22 @@ export function useApplicants(oppId) {
 
 // ── Write helpers ─────────────────────────────────────────────────────────────
 
+function sanitizeOpportunityFields(data) {
+  const isCampusEngagement = String(data.type || '').trim() === 'Campus Engagement'
+  const clean = { ...data }
+  // via is meaningless for Campus Engagement
+  if (isCampusEngagement) clean.via = ''
+  // subtype is meaningless for Hiring / Live Project
+  if (!isCampusEngagement) clean.subtype = ''
+  // never persist the internal whatsapp draft key
+  delete clean._whatsappMessage
+  return clean
+}
+
 export async function postOpportunity(data, user) {
   const opp = {
     ...blankOpportunity(),
-    ...data,
+    ...sanitizeOpportunityFields(data),
     postedBy: { uid: user.uid, name: user.displayName, email: user.email },
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),

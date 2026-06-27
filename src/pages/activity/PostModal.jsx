@@ -10,6 +10,8 @@ import {
   VIA_OPTIONS,
   normalizeActivityType,
   normalizeCampusEngagementSubtype,
+  typeHasVia,
+  typeHasSubtype,
 } from '../../config/activityTaxonomy'
 
 const VALID_APPLICABILITY = new Set(['summer', 'final', 'both'])
@@ -31,8 +33,9 @@ function normalizeParsedOpportunity(result) {
 
   if (parsed.type === 'Campus Engagement') {
     parsed.subtype = normalizeCampusEngagementSubtype(parsed.subtype || parsed.engagementType || inferCampusEngagementSubtype(rawType))
+    parsed.via = '' // via is irrelevant for Campus Engagement
   } else {
-    parsed.subtype = ''
+    parsed.subtype = '' // subtype is irrelevant for Hiring / Live Project
   }
 
   if (rawType && !TYPES.includes(rawType)) {
@@ -127,11 +130,12 @@ export function PasteStep({ rawText, setRawText, busy, err, placeholder, onNext,
   )
 }
 
-const FIELD_DEFS = [
+// Base fields always shown
+const BASE_FIELD_DEFS = [
   { key: 'title',         label: 'Title',         type: 'text' },
   { key: 'type',          label: 'Type',          type: 'select', options: TYPES },
-  { key: 'subtype',       label: 'Subtype',       type: 'select', options: ['', ...CAMPUS_ENGAGEMENT_SUBTYPE_OPTIONS] },
-  { key: 'via',           label: 'Via',           type: 'select', options: VIA_OPTIONS },
+  // subtype shown only for Campus Engagement (injected dynamically)
+  // via shown only for Hiring / Live Project (injected dynamically)
   { key: 'organization',  label: 'Organization',  type: 'text' },
   { key: 'applicability', label: 'Applicability', type: 'select', options: [{ value: 'summer', label: 'Summer' }, { value: 'final', label: 'Final' }, { value: 'both', label: 'Both' }] },
   { key: 'roles',         label: 'Roles',         type: 'text', hint: 'comma separated', transform: v => Array.isArray(v) ? v.join(', ') : v, parse: v => v.split(',').map(s => s.trim()).filter(Boolean) },
@@ -148,6 +152,17 @@ const FIELD_DEFS = [
   { key: 'notes',         label: 'Internal Notes', type: 'textarea' },
 ]
 
+const SUBTYPE_DEF = { key: 'subtype', label: 'Subtype', type: 'select', options: ['', ...CAMPUS_ENGAGEMENT_SUBTYPE_OPTIONS] }
+const VIA_DEF     = { key: 'via',     label: 'Via',     type: 'select', options: ['', ...VIA_OPTIONS] }
+
+function getFieldDefs(type) {
+  const defs = [...BASE_FIELD_DEFS]
+  const typeIdx = defs.findIndex(f => f.key === 'type')
+  if (typeHasSubtype(type)) defs.splice(typeIdx + 1, 0, SUBTYPE_DEF)
+  if (typeHasVia(type))     defs.splice(typeIdx + 1, 0, VIA_DEF)
+  return defs
+}
+
 export function PreviewStep({ parsed, setParsed, busy, err, onBack, onNext, nextLabel = 'Generate WhatsApp Message →', backLabel = '← Edit Text' }) {
   const set = (key, val, fieldDef) => {
     const v = fieldDef?.parse ? fieldDef.parse(val) : val
@@ -155,21 +170,27 @@ export function PreviewStep({ parsed, setParsed, busy, err, onBack, onNext, next
       const next = { ...p, [key]: v }
       if (key === 'type') {
         next.type = normalizeActivityType(v)
-        if (next.type === 'Campus Engagement' && !next.subtype) next.subtype = 'Guest Lecture'
-        if (next.type !== 'Campus Engagement') next.subtype = ''
+        // Campus Engagement: clear via (irrelevant); default subtype
+        if (next.type === 'Campus Engagement') {
+          next.via = ''
+          if (!next.subtype) next.subtype = 'Guest Lecture'
+        } else {
+          // Hiring / Live Project: clear subtype (irrelevant)
+          next.subtype = ''
+        }
       }
-      if (key === 'subtype') {
-        next.subtype = normalizeCampusEngagementSubtype(v)
-      }
+      if (key === 'subtype') next.subtype = normalizeCampusEngagementSubtype(v)
       return next
     })
   }
+
+  const fieldDefs = getFieldDefs(parsed.type)
 
   return (
     <>
       <p style={{ fontSize: 13, color: 'var(--text-2)', marginBottom: 12 }}>Review and edit before generating the WhatsApp message.</p>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14, maxHeight: 400, overflowY: 'auto', paddingRight: 4 }}>
-        {FIELD_DEFS.map(f => {
+        {fieldDefs.map(f => {
           const raw = parsed[f.key]
           const display = f.transform ? f.transform(raw) : (raw == null ? '' : String(raw))
           return (
