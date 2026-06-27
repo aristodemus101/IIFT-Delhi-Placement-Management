@@ -196,13 +196,14 @@ export default function RemapperPage() {
               </div>
             )}
 
-            <div style={{ display: 'flex', gap: 8, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
-              <Btn variant="primary" onClick={() => exportRemapped(activeStudents, mappings, `company_format_${scopeLabel.toLowerCase().replace(/\s+/g, '_')}_active.csv`)} disabled={!activeStudents.length}>
-                <Download size={13} /> Export Active ({activeStudents.length})
+            <div style={{ display: 'flex', gap: 8, paddingTop: 8, borderTop: '1px solid var(--border)', alignItems: 'center', flexWrap: 'wrap' }}>
+              <Btn variant="primary" onClick={() => exportRemapped(activeStudents, mappings, `company_format_${scopeLabel.toLowerCase().replace(/\s+/g, '_')}_unplaced.csv`)} disabled={!activeStudents.length}>
+                <Download size={13} /> Export Unplaced ({activeStudents.length})
               </Btn>
               <Btn onClick={() => exportRemapped(scopedStudents, mappings, `company_format_${scopeLabel.toLowerCase().replace(/\s+/g, '_')}_all.csv`)} disabled={!scopedStudents.length}>
-                <Download size={13} /> Export All
+                <Download size={13} /> Export All ({scopedStudents.length})
               </Btn>
+              <span style={{ fontSize: 11, color: 'var(--text-3)' }}>Cohort: {scopeLabel}</span>
               <Btn onClick={() => setSaveModalOpen(true)} style={{ marginLeft: 'auto' }}>
                 <Save size={13} /> Save Template
               </Btn>
