@@ -151,8 +151,14 @@ export default function AdminPage() {
     const safeKey = email.replace(/\./g, '_')
     setRoleSavingFor(email)
     try {
-      await setDoc(doc(db, 'config', 'authorizedUsers'), { roleMap: { [safeKey]: newRole } }, { merge: true })
+      // Keep authorizedUsers.emails[] in sync — the allowlist gate checks this on every login.
+      // arrayUnion is a no-op if the email is already present.
+      await setDoc(doc(db, 'config', 'authorizedUsers'), {
+        emails: arrayUnion(email),
+        roleMap: { [safeKey]: newRole },
+      }, { merge: true })
       setSavedRoles(prev => ({ ...prev, [email]: newRole }))
+      if (!authUserEmails.includes(email)) setAuthUserEmails(prev => [...prev, email])
       // If they already have a roles doc, update it live so they don't need to sign out
       const existingRoles = await getDocs(query(collection(db, 'roles'), where('email', '==', email)))
       if (!existingRoles.empty) await updateDoc(existingRoles.docs[0].ref, { role: newRole })
