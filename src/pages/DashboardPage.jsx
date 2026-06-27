@@ -60,6 +60,27 @@ export default function DashboardPage() {
     const avgCat = cats.length ? (cats.reduce((a, b) => a + b, 0) / cats.length).toFixed(1) : '—'
     const avgWx  = wxs.length  ? Math.round(wxs.reduce((a, b) => a + b, 0) / wxs.length)    : '—'
 
+    // Experienced = wx >= 12 months
+    const expWxs    = wxs.filter(v => v >= 12)
+    const avgWxExp  = expWxs.length ? Math.round(expWxs.reduce((a, b) => a + b, 0) / expWxs.length) : '—'
+    const freshers  = wxs.filter(v => v === 0).length
+    const experienced = expWxs.length
+
+    // Gender breakdown
+    const females = scoped.filter(s => String(getVal(s, 'gender') || '').trim().toLowerCase().startsWith('f')).length
+    const femalePct = scoped.length ? Math.round(females / scoped.length * 100) : 0
+
+    // PWD
+    const pwdCount = scoped.filter(s => (getVal(s, 'pwd') || '').toLowerCase() === 'yes').length
+
+    // Avg CAT: placed vs YTP
+    const catOf = (arr) => {
+      const vals = arr.map(s => parseFloat(getVal(s, 'cat'))).filter(v => Number.isFinite(v) && v > 0)
+      return vals.length ? (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1) : '—'
+    }
+    const avgCatPlaced = catOf(placed)
+    const avgCatYtp    = catOf(active)
+
     const genderOf = (s) => {
       const g = String(getVal(s, 'gender') || '').trim().toLowerCase()
       return g.startsWith('m') ? 'male' : g.startsWith('f') ? 'female' : 'other'
@@ -168,7 +189,10 @@ export default function DashboardPage() {
       placed: placed.length,
       summerYtp: summerYtp.length, summerPlaced: summerPlaced.length,
       finalYtp: finalYtp.length, finalPlaced: finalPlaced.length,
-      avgCat, avgWx, placePct, catBreak, workEx, ageGroups, avgAge, companies, statusGender,
+      avgCat, avgWx, avgWxExp, freshers, experienced,
+      females, femalePct, pwdCount,
+      avgCatPlaced, avgCatYtp,
+      placePct, catBreak, workEx, ageGroups, avgAge, companies, statusGender,
     }
   }, [scoped, selectedSeason])
 
@@ -275,13 +299,21 @@ export default function DashboardPage() {
           }
         </div>
 
-        {/* stat cards — scoped to selected season */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(140px, 1fr))', gap: 10, marginBottom: 14, textAlign: 'center' }}>
+        {/* stat cards — row 1: placement overview */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(140px, 1fr))', gap: 10, marginBottom: 10, textAlign: 'center' }}>
           <StatCard label="Total in Cohort"  value={stats.total    || 0}  sub="in database" />
           <StatCard label="YTP"              value={stats.active   || 0}  sub={`not placed (${seasonLabel(selectedSeason)})`} color="var(--accent)" />
           <StatCard label="Placed"           value={stats.placed   || 0}  sub={`${stats.placePct || 0}% of cohort · ${seasonLabel(selectedSeason)}`} color="var(--green)" />
           <StatCard label="Avg CAT %ile"     value={stats.avgCat  || '—'} sub="across cohort" />
-          <StatCard label="Avg Work Ex"      value={stats.avgWx ? `${stats.avgWx}mo` : '—'} sub="months" />
+          <StatCard label="Avg Work Ex"      value={stats.avgWx ? `${stats.avgWx}mo` : '—'} sub="all students incl. freshers" />
+        </div>
+        {/* stat cards — row 2: cohort profile */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(140px, 1fr))', gap: 10, marginBottom: 14, textAlign: 'center' }}>
+          <StatCard label="Avg WX (Experienced)" value={stats.avgWxExp ? `${stats.avgWxExp}mo` : '—'} sub={`${stats.experienced || 0} students ≥12 mo`} />
+          <StatCard label="Freshers"         value={stats.freshers ?? '—'} sub="0 months work ex" />
+          <StatCard label="Female"           value={stats.females  || 0}   sub={`${stats.femalePct || 0}% of cohort`} />
+          <StatCard label="CAT %ile — Placed" value={stats.avgCatPlaced || '—'} sub={`vs YTP: ${stats.avgCatYtp || '—'}`} color="var(--green)" />
+          <StatCard label="PWD"              value={stats.pwdCount ?? 0}  sub="persons with disability" />
         </div>
 
         {/* detail cards grid */}
@@ -337,15 +369,23 @@ export default function DashboardPage() {
             {cardHeader('workex', 'Work Experience', stats.avgWx ? `Avg ${stats.avgWx} mo` : undefined)}
             {!collapsed.workex && (
               <div style={{ marginTop: 12 }}>
-                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 14 }}>
-                  <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-3)' }}>Average months</span>
-                  <span style={{ fontSize: 34, lineHeight: 1, fontWeight: 700, letterSpacing: '-0.03em' }}>{stats.avgWx || '—'}</span>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
+                  <div style={{ background: 'var(--surface2)', borderRadius: 'var(--radius-sm)', padding: '10px 12px' }}>
+                    <div style={{ fontSize: 11, color: 'var(--text-3)', marginBottom: 4 }}>Avg (all)</div>
+                    <div style={{ fontSize: 26, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1 }}>{stats.avgWx || '—'}<span style={{ fontSize: 13, fontWeight: 500, marginLeft: 2 }}>mo</span></div>
+                    <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 3 }}>{stats.freshers || 0} freshers included</div>
+                  </div>
+                  <div style={{ background: 'color-mix(in srgb, var(--accent-bg) 60%, var(--surface2))', borderRadius: 'var(--radius-sm)', padding: '10px 12px', border: '1px solid color-mix(in srgb, var(--accent) 20%, transparent)' }}>
+                    <div style={{ fontSize: 11, color: 'var(--accent-dark)', marginBottom: 4 }}>Avg (experienced)</div>
+                    <div style={{ fontSize: 26, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1, color: 'var(--accent-dark)' }}>{stats.avgWxExp || '—'}<span style={{ fontSize: 13, fontWeight: 500, marginLeft: 2 }}>mo</span></div>
+                    <div style={{ fontSize: 11, color: 'var(--accent-dark)', marginTop: 3, opacity: 0.7 }}>{stats.experienced || 0} students ≥12 mo</div>
+                  </div>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {stats.workEx && Object.values(stats.workEx).map(b => (
                     <div key={b.key} style={divider}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
-                        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-2)' }}>{b.label}</span>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: b.key === '0-6' ? 'var(--text-3)' : 'var(--text-2)' }}>{b.label}{b.key === '0-6' ? ' (freshers)' : ''}</span>
                         <span style={countPill}>{b.total}</span>
                       </div>
                       {ytpBar(b.placed, b.ytp, b.total)}
