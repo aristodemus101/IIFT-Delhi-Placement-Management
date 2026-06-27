@@ -522,7 +522,7 @@ export default function AdminPage() {
               >
                 {ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
               </select>
-              <Btn variant="primary" onClick={addAuthorizedUser} disabled={authUsersBusy}>
+              <Btn variant="primary" onClick={addAuthorizedUser} disabled={authUsersBusy || !newAuthEmail.trim()}>
                 <UserPlus size={13} /> {authUsersBusy ? 'Adding…' : 'Add User'}
               </Btn>
             </div>
