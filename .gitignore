@@ -10,3 +10,8 @@ dist
 .DS_Store
 *.log
 graphify-out/
+
+# Claude Code skills (installed locally, not project code)
+.agents/
+.claude/skills/
+skills-lock.json
