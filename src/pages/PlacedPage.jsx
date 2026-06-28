@@ -8,7 +8,7 @@ import { getVal } from '../lib/columns'
 import { exportToCSV } from '../lib/csv'
 import { usePermissions } from '../lib/usePermissions'
 import { PageHeader, Btn, Badge, CategoryBadge, Input, Spinner, Table, Modal, TabBar } from '../components/UI'
-import { Download, RotateCcw, Search, Eye, CheckCircle, Lock, ExternalLink, Columns } from 'lucide-react'
+import { Download, RotateCcw, Search, Eye, CheckCircle, Lock, ExternalLink, Columns, Building2, Users, ChevronDown } from 'lucide-react'
 
 const PLACEMENT_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1uOzTID4iVhwjXuKynSICQmFDygYoQJC1N_q6QlumF68/edit'
 
@@ -61,6 +61,8 @@ export default function PlacedPage() {
   const [successMsg, setSuccessMsg] = useState('')
   const [showColPicker, setShowColPicker] = useState(false)
   const [hiddenCols, setHiddenCols] = useState(new Set())
+  const [viewMode, setViewMode] = useState('students') // 'students' | 'companies'
+  const [expandedCompany, setExpandedCompany] = useState(null)
 
   const scopedStudents = useMemo(() => {
     const ids = new Set(scopedCohorts)
@@ -154,6 +156,45 @@ export default function PlacedPage() {
 
     return { avgCtc, maxCtc, topSector, international, placementPct }
   }, [placed, selectedSeason, totalInCohort])
+
+  // Company-level grouping
+  const companyGroups = useMemo(() => {
+    const map = {}
+    placed.forEach(s => {
+      const pl = getPlacement(s)
+      const co = pl.company || 'Unknown'
+      if (!map[co]) map[co] = { company: co, students: [], sector: pl.sector || '', roles: {}, packages: [] }
+      map[co].students.push(s)
+      if (pl.role) map[co].roles[pl.role] = (map[co].roles[pl.role] || 0) + 1
+      if (pl.package) {
+        const cleaned = String(pl.package).replace(/,/g, '')
+        const m = cleaned.match(/[\d.]+/)
+        if (m) {
+          const v = parseFloat(m[0])
+          const lpa = selectedSeason === 'summer' ? null : v > 1000 ? parseFloat((v / 100000).toFixed(2)) : v
+          if (lpa) map[co].packages.push(lpa)
+        }
+      }
+    })
+    return Object.values(map)
+      .map(g => {
+        const topRole = Object.entries(g.roles).sort((a, b) => b[1] - a[1])[0]
+        const avgPkg = g.packages.length ? (g.packages.reduce((a, b) => a + b, 0) / g.packages.length).toFixed(1) : null
+        const maxPkg = g.packages.length ? Math.max(...g.packages).toFixed(1) : null
+        return { ...g, topRole: topRole?.[0], avgPkg, maxPkg, count: g.students.length }
+      })
+      .sort((a, b) => b.count - a.count)
+  }, [placed, selectedSeason])
+
+  const filteredCompanies = useMemo(() => {
+    if (!search) return companyGroups
+    const q = search.toLowerCase()
+    return companyGroups.filter(g =>
+      g.company.toLowerCase().includes(q) ||
+      (g.sector || '').toLowerCase().includes(q) ||
+      (g.topRole || '').toLowerCase().includes(q)
+    )
+  }, [companyGroups, search])
 
   // Flat rows: all student fields + placement details merged together
   const exportRows = useMemo(() => filtered.map(s => {
@@ -371,16 +412,162 @@ export default function PlacedPage() {
       <div style={{ padding: '10px 24px', borderBottom: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', gap: 8, alignItems: 'center' }}>
         <div style={{ position: 'relative' }}>
           <Search size={13} style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-3)' }} />
-          <Input placeholder="Name, Roll No., or Company" value={search} onChange={e => setSearch(e.target.value)} style={{ paddingLeft: 28, width: 240 }} />
+          <Input
+            placeholder={viewMode === 'companies' ? 'Company, sector, or role…' : 'Name, Roll No., or Company'}
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={{ paddingLeft: 28, width: 240 }}
+          />
         </div>
-        <Btn size="sm" variant="ghost" onClick={() => setShowColPicker(true)}>
-          <Columns size={13} /> Columns {hiddenCols.size > 0 && `(${allColDefs.filter(c => !c.alwaysShow).length - hiddenCols.size}/${allColDefs.filter(c => !c.alwaysShow).length})`}
-        </Btn>
+        {viewMode === 'students' && (
+          <Btn size="sm" variant="ghost" onClick={() => setShowColPicker(true)}>
+            <Columns size={13} /> Columns {hiddenCols.size > 0 && `(${allColDefs.filter(c => !c.alwaysShow).length - hiddenCols.size}/${allColDefs.filter(c => !c.alwaysShow).length})`}
+          </Btn>
+        )}
+        <div style={{ marginLeft: 'auto', display: 'flex', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+          {[['students', Users, 'Students'], ['companies', Building2, 'Companies']].map(([mode, Icon, label]) => (
+            <button
+              key={mode}
+              onClick={() => { setViewMode(mode); setSearch(''); setExpandedCompany(null) }}
+              title={label}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 5,
+                padding: '5px 11px', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600,
+                background: viewMode === mode ? 'var(--accent-bg)' : 'var(--surface)',
+                color: viewMode === mode ? 'var(--accent-dark)' : 'var(--text-3)',
+                transition: 'background var(--speed-fast) var(--easing-out), color var(--speed-fast) var(--easing-out)',
+                fontFamily: 'var(--font-sans)',
+              }}
+            >
+              <Icon size={13} /> {label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <div style={{ flex: 1, overflow: 'auto' }}>
-        <Table headers={headers} rows={rows} emptyMessage={placed.length ? 'No matches' : `No ${seasonLabel(selectedSeason).toLowerCase()} placements recorded yet`} />
-      </div>
+      {viewMode === 'students' ? (
+        <div style={{ flex: 1, overflow: 'auto' }}>
+          <Table headers={headers} rows={rows} emptyMessage={placed.length ? 'No matches' : `No ${seasonLabel(selectedSeason).toLowerCase()} placements recorded yet`} />
+        </div>
+      ) : (
+        <div style={{ flex: 1, overflow: 'auto', padding: '20px 24px' }}>
+          {filteredCompanies.length === 0 ? (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', minHeight: 200, color: 'var(--text-3)', fontSize: 14 }}>
+              {placed.length === 0 ? `No ${seasonLabel(selectedSeason).toLowerCase()} placements recorded yet.` : 'No companies match the search.'}
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {/* Summary line */}
+              <div style={{ fontSize: 12, color: 'var(--text-3)', marginBottom: 4 }}>
+                <span style={{ fontWeight: 700, color: 'var(--text-2)' }}>{filteredCompanies.length}</span> companies ·{' '}
+                <span style={{ fontWeight: 700, color: 'var(--text-2)' }}>{placed.length}</span> students placed
+              </div>
+              {filteredCompanies.map(g => {
+                const isExpanded = expandedCompany === g.company
+                const isSummer = selectedSeason === 'summer'
+                return (
+                  <div key={g.company} style={{
+                    background: 'var(--surface)', border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius)', overflow: 'hidden',
+                    boxShadow: 'var(--shadow-sm)',
+                    transition: 'box-shadow var(--speed-fast) var(--easing-out)',
+                  }}>
+                    {/* Company row */}
+                    <div
+                      onClick={() => setExpandedCompany(isExpanded ? null : g.company)}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 14,
+                        padding: '13px 18px', cursor: 'pointer',
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                    >
+                      {/* Company initial avatar */}
+                      <div style={{
+                        width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+                        background: isSummer ? 'var(--amber-bg)' : 'var(--accent-bg)',
+                        border: `1px solid ${isSummer ? 'var(--amber)' : 'color-mix(in srgb, var(--accent) 35%, transparent)'}`,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 14, fontWeight: 800,
+                        color: isSummer ? 'var(--amber-text)' : 'var(--accent-dark)',
+                        letterSpacing: '-0.02em',
+                      }}>
+                        {g.company.charAt(0).toUpperCase()}
+                      </div>
+
+                      {/* Name + meta */}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.01em' }}>{g.company}</div>
+                        <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 2, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                          {g.topRole && <span>{g.topRole}</span>}
+                          {g.sector && <><span style={{ opacity: 0.4 }}>·</span><span>{g.sector}</span></>}
+                        </div>
+                      </div>
+
+                      {/* Stats chips */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                        <div style={{
+                          display: 'flex', alignItems: 'center', gap: 5,
+                          padding: '4px 10px', borderRadius: 20,
+                          background: isSummer ? 'var(--amber-bg)' : 'var(--green-bg)',
+                          border: `1px solid ${isSummer ? 'var(--amber)' : 'var(--green-border)'}`,
+                          color: isSummer ? 'var(--amber-text)' : 'var(--green-text)',
+                          fontSize: 12, fontWeight: 700,
+                        }}>
+                          <Users size={11} />
+                          {g.count} student{g.count !== 1 ? 's' : ''}
+                        </div>
+                        {g.avgPkg && (canSeeCtc || canSeeStipend) && !isSummer && (
+                          <div style={{
+                            padding: '4px 10px', borderRadius: 20,
+                            background: 'var(--surface2)', border: '1px solid var(--border)',
+                            fontSize: 12, fontWeight: 600, color: 'var(--text-2)',
+                          }}>
+                            avg {g.avgPkg} LPA
+                            {g.maxPkg && g.maxPkg !== g.avgPkg && <span style={{ color: 'var(--text-3)', fontWeight: 400 }}> · max {g.maxPkg}</span>}
+                          </div>
+                        )}
+                        <div style={{ color: 'var(--text-3)', marginLeft: 4, transition: 'transform 0.15s ease', transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}>
+                          <ChevronDown size={15} />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Expanded student list */}
+                    {isExpanded && (
+                      <div style={{ borderTop: '1px solid var(--border)', background: 'var(--surface2)' }}>
+                        {g.students.map((s, i) => {
+                          const pl = getPlacement(s)
+                          return (
+                            <div key={s._id} style={{
+                              display: 'flex', alignItems: 'center', gap: 12,
+                              padding: '9px 18px 9px 68px',
+                              borderBottom: i < g.students.length - 1 ? '1px solid var(--border)' : 'none',
+                              fontSize: 13,
+                            }}>
+                              <span style={{ fontWeight: 500, flex: 1 }}>{getVal(s, 'name')}</span>
+                              <span style={{ fontSize: 12, color: 'var(--text-3)', fontFamily: 'var(--font-mono)' }}>{getVal(s, 'roll')}</span>
+                              {pl.role && <span style={{ fontSize: 12, color: 'var(--text-2)' }}>{pl.role}</span>}
+                              {(canSeeCtc || canSeeStipend) && pl.package && (
+                                <span style={{ fontSize: 12, color: 'var(--text-2)', fontWeight: 600 }}>{fmtPackage(pl.package)}</span>
+                              )}
+                              {canSeePlacement && (
+                                <Btn size="sm" variant="ghost" onClick={() => setViewModal(s)} style={{ padding: '3px 7px' }}>
+                                  <Eye size={12} />
+                                </Btn>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       <Modal open={showColPicker} onClose={() => setShowColPicker(false)} title="Show or hide columns" width={560}>
         <p style={{ fontSize: 13, color: 'var(--text-2)', marginBottom: 12 }}>
