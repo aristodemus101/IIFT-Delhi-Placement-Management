@@ -360,9 +360,7 @@ export default function RosterPage() {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <PageHeader
         title="Roster"
-        subtitle={hasActiveCohorts
-          ? `Year ${selectedYearCode || 'All'} · Campus ${selectedCampuses.length ? selectedCampuses.join(', ') : 'All'} · Course ${selectedProgramme || 'All'}`
-          : 'No active cohorts yet. Create the first cohort.'}
+        subtitle={hasActiveCohorts ? `${scopedCohorts.length} cohort${scopedCohorts.length !== 1 ? 's' : ''} · ${sortedFiltered.length} students shown` : 'No active cohorts yet — create the first cohort to get started.'}
       />
 
       {isAdmin && <input ref={fileRef} type="file" accept=".csv,.tsv,.txt,.xls,.xlsx" style={{ display: 'none' }} onChange={handleImportFileChosen} />}

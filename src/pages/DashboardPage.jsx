@@ -279,7 +279,7 @@ export default function DashboardPage() {
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
       <PageHeader
         title="Dashboard"
-        subtitle={`${scopedCohorts.length === 1 ? cohortLabel(scopedCohorts[0]) : `${scopedCohorts.length} cohorts`} · ${new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}`}
+        subtitle={new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
       />
 
       {/* Season tab bar */}
@@ -294,16 +294,18 @@ export default function DashboardPage() {
 
       <div style={{ padding: '16px 24px 24px', overflowY: 'auto' }}>
 
-        {/* cohort + season overview badges */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
-          {scopedCohorts.length === 1
-            ? <Badge color="blue">{cohortLabel(scopedCohorts[0])}</Badge>
-            : <Badge color="blue">{scopedCohorts.length} cohorts</Badge>
-          }
-          {selectedSeason === 'summer'
-            ? <Badge color="amber">Summer · YTP {stats.summerYtp ?? 0} · Placed {stats.summerPlaced ?? 0}</Badge>
-            : <Badge color="blue">Final · YTP {stats.finalYtp ?? 0} · Placed {stats.finalPlaced ?? 0}</Badge>
-          }
+        {/* season summary line */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 12, color: 'var(--text-3)', fontWeight: 500 }}>
+            {selectedSeason === 'summer' ? 'Summer · ' : 'Final · '}
+            <span style={{ color: 'var(--text-2)', fontWeight: 600 }}>
+              YTP {selectedSeason === 'summer' ? (stats.summerYtp ?? 0) : (stats.finalYtp ?? 0)}
+            </span>
+            {' · '}
+            <span style={{ color: 'var(--accent)', fontWeight: 700 }}>
+              Placed {selectedSeason === 'summer' ? (stats.summerPlaced ?? 0) : (stats.finalPlaced ?? 0)}
+            </span>
+          </span>
         </div>
 
         {/* stat cards — row 1 */}

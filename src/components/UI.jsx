@@ -2,34 +2,44 @@
 import React from 'react'
 import { ShieldOff, X } from 'lucide-react'
 
-export function PageHeader({ title, subtitle, actions }) {
+export function PageHeader({ title, subtitle, actions, context }) {
   return (
     <div style={{
       position: 'sticky',
       top: 0,
       zIndex: 10,
-      padding: '16px 28px 12px',
+      padding: '14px 24px 12px',
       borderBottom: '1px solid var(--border)',
-      background: 'color-mix(in srgb, var(--surface) 92%, transparent)',
+      background: 'color-mix(in srgb, var(--surface) 94%, transparent)',
       backdropFilter: 'blur(24px)',
       WebkitBackdropFilter: 'blur(24px)',
-      display: 'flex', flexDirection: 'column', gap: 8
     }}>
+      {context && (
+        <div style={{
+          fontSize: 11, fontWeight: 600, color: 'var(--text-3)',
+          letterSpacing: '0.01em', marginBottom: 6,
+          display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap',
+        }}>
+          {context}
+        </div>
+      )}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
         <div>
           <h1 style={{
-            fontSize: 'var(--text-xl)', fontWeight: 'var(--weight-xbold)',
-            letterSpacing: '-0.035em', lineHeight: 'var(--leading-tight)',
-            color: 'var(--text)'
+            fontSize: 22, fontWeight: 800,
+            letterSpacing: '-0.04em', lineHeight: 1.15,
+            color: 'var(--text)', margin: 0,
           }}>{title}</h1>
-          {subtitle && <p style={{ fontSize: 'var(--text-md)', color: 'var(--text-2)', marginTop: 4, lineHeight: 'var(--leading-normal)' }}>{subtitle}</p>}
+          {subtitle && <p style={{ fontSize: 13, color: 'var(--text-2)', marginTop: 3, lineHeight: 1.5 }}>{subtitle}</p>}
         </div>
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
-          gap: 8, flexWrap: 'wrap', marginLeft: 'auto',
-        }}>
-          {actions}
-        </div>
+        {actions && (
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
+            gap: 8, flexWrap: 'wrap', marginLeft: 'auto',
+          }}>
+            {actions}
+          </div>
+        )}
       </div>
     </div>
   )

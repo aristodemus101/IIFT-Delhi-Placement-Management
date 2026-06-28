@@ -408,28 +408,24 @@ export default function Layout() {
       <main style={{ flex: 1, minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', background: 'var(--surface2)' }}>
         {hasActiveCohorts && (
           <div style={{
-            padding: '5px 16px',
-            margin: '10px 16px 0',
-            borderRadius: 10,
-            background: 'var(--workspace-bg)',
-            border: '1px solid var(--workspace-border)',
-            color: 'var(--workspace-text)',
+            padding: '5px 24px',
+            borderBottom: '1px solid var(--border)',
+            background: 'var(--surface)',
+            color: 'var(--text-3)',
             display: 'flex',
             alignItems: 'center',
             gap: 8,
-            fontSize: 11.5,
-            fontWeight: 600,
-            letterSpacing: '0.01em',
+            fontSize: 11,
+            fontWeight: 500,
             justifyContent: 'space-between',
             flexWrap: 'wrap',
             flexShrink: 0,
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-              <span style={{ opacity: 0.7, fontWeight: 500 }}>Viewing:</span>
-              <span>Year {selectedYearCode || 'All'}</span>
-              <span style={{ opacity: 0.4 }}>·</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
+              <span style={{ fontWeight: 600, color: 'var(--text-2)' }}>Year {selectedYearCode || 'All'}</span>
+              <span style={{ opacity: 0.35 }}>·</span>
               <span>Campus {selectedCampuses.length ? selectedCampuses.join(', ') : 'All'}</span>
-              <span style={{ opacity: 0.4 }}>·</span>
+              <span style={{ opacity: 0.35 }}>·</span>
               <span>Course {selectedProgramme || 'All'}</span>
             </div>
             {workspaceActions ? (
