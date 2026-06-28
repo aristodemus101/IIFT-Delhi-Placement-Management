@@ -158,6 +158,7 @@ export default function Layout() {
         transition: 'width 0.2s var(--easing)',
       }}>
         <div style={{ padding: isCompactSidebar ? '0 10px 14px' : '0 16px 16px', borderBottom: '1px solid var(--border)', marginBottom: 6 }}>
+          {/* Logo row */}
           <div style={{ display: 'flex', alignItems: 'center', gap: isCompactSidebar ? 0 : 10, justifyContent: isCompactSidebar ? 'center' : 'flex-start' }}>
             <div style={{
               width: 32, height: 32, borderRadius: 9, flexShrink: 0,
@@ -191,7 +192,10 @@ export default function Layout() {
                 <ChevronLeft size={13} />
               </button>
             )}
-            {!isNarrowViewport && isCompactSidebar && (
+          </div>
+          {/* Expand button — shown below logo when collapsed */}
+          {!isNarrowViewport && isCompactSidebar && (
+            <div style={{ display: 'flex', justifyContent: 'center', marginTop: 8 }}>
               <button
                 onClick={toggleSidebar}
                 title="Expand sidebar"
@@ -203,13 +207,12 @@ export default function Layout() {
                   borderRadius: 8,
                   cursor: 'pointer',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  marginTop: 10,
                 }}
               >
                 <ChevronRight size={13} />
               </button>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
         <nav style={{ flex: 1, padding: '6px 10px', overflowY: 'auto' }}>
