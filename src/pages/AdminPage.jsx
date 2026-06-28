@@ -343,11 +343,11 @@ export default function AdminPage() {
         subtitle="Manage team roles: Admin · Committee · TPO · Faculty Incharge"
       />
 
-      <div style={{ padding: '20px 28px', overflow: 'auto', flex: 1, minHeight: 0 }}>
+      <div style={{ padding: '20px 24px', overflow: 'auto', flex: 1, minHeight: 0 }}>
         {/* Info banner */}
         <div style={{
           display: 'flex', gap: 10, background: 'var(--accent-bg)', border: '1px solid #BFDBFE',
-          borderRadius: 'var(--radius)', padding: '12px 16px', marginBottom: 20,
+          borderRadius: 10, padding: '12px 16px', marginBottom: 20,
         }}>
           <ShieldCheck size={16} color="var(--accent)" style={{ flexShrink: 0, marginTop: 1 }} />
           <div style={{ fontSize: 13, color: 'var(--accent-text)', lineHeight: 1.6 }}>
@@ -367,8 +367,8 @@ export default function AdminPage() {
           <div style={{
             padding: '10px 16px', background: 'var(--surface2)', borderBottom: '1px solid var(--border)',
             display: 'grid', gridTemplateColumns: '1fr 180px 120px 160px',
-            fontSize: 11, fontWeight: 600, color: 'var(--text-3)',
-            textTransform: 'uppercase', letterSpacing: '0.04em',
+            fontSize: 10.5, fontWeight: 700, color: 'var(--text-3)',
+            textTransform: 'uppercase', letterSpacing: '0.06em',
           }}>
             <span>Member</span>
             <span>Email</span>
@@ -531,7 +531,7 @@ export default function AdminPage() {
             <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
               <div style={{
                 padding: '8px 14px', background: 'var(--surface2)', borderBottom: '1px solid var(--border)',
-                fontSize: 11, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.04em',
+                fontSize: 10.5, fontWeight: 700, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.06em',
                 display: 'grid', gridTemplateColumns: '1fr 160px auto',
               }}>
                 <span>Email</span>
@@ -783,8 +783,8 @@ export default function AdminPage() {
               <div style={{
                 padding: '10px 16px', background: 'var(--surface2)', borderBottom: '1px solid var(--border)',
                 display: 'grid', gridTemplateColumns: '1fr 140px 80px 60px 100px',
-                fontSize: 11, fontWeight: 600, color: 'var(--text-3)',
-                textTransform: 'uppercase', letterSpacing: '0.04em',
+                fontSize: 10.5, fontWeight: 700, color: 'var(--text-3)',
+                textTransform: 'uppercase', letterSpacing: '0.06em',
               }}>
                 <span>Cohort</span>
                 <span>Active Cycle</span>

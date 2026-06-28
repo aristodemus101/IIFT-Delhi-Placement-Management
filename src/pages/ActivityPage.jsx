@@ -168,18 +168,18 @@ export default function ActivityPage() {
         )}
       />
 
-      <div style={{ padding: '10px 28px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', flexShrink: 0 }}>
-        <Select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} style={{ height: 32, fontSize: 12, width: 'auto' }}>
+      <div style={{ padding: '10px 24px', borderBottom: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', flexShrink: 0 }}>
+        <Select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} style={{ width: 'auto' }}>
           <option value="all">All types</option>
           {ACTIVITY_TYPE_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
         </Select>
-        <Select value={applicabilityFilter} onChange={e => setApplicabilityFilter(e.target.value)} style={{ height: 32, fontSize: 12, width: 'auto' }}>
+        <Select value={applicabilityFilter} onChange={e => setApplicabilityFilter(e.target.value)} style={{ width: 'auto' }}>
           <option value="all">All cycles</option>
           <option value="summer">Summer only</option>
           <option value="final">Final only</option>
           <option value="both">Both cycles</option>
         </Select>
-        <Select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ height: 32, fontSize: 12, width: 'auto' }}>
+        <Select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ width: 'auto' }}>
           <option value="all">All statuses</option>
           <option value="open">Open</option>
           <option value="shortlisted">Shortlisted</option>
@@ -197,16 +197,16 @@ export default function ActivityPage() {
           {exportOpen && (
             <>
               <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setExportOpen(false)} />
-              <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 4, zIndex: 100, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', boxShadow: '0 4px 16px rgba(0,0,0,.12)', minWidth: 140, overflow: 'hidden' }}>
-                <button style={{ display: 'block', width: '100%', textAlign: 'left', padding: '9px 14px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text)' }}
+              <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 4, zIndex: 100, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, boxShadow: 'var(--shadow)', minWidth: 140, padding: 4 }}>
+                <button style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px', fontSize: 13, border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--text)', borderRadius: 8, transition: 'background 0.12s ease', fontFamily: 'var(--font-sans)' }}
                   onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                   onClick={() => { exportToExcel(filtered.map(oppToRow), 'opportunities.xlsx'); setExportOpen(false) }}>
                   Excel (.xlsx)
                 </button>
-                <button style={{ display: 'block', width: '100%', textAlign: 'left', padding: '9px 14px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text)' }}
+                <button style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px', fontSize: 13, border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--text)', borderRadius: 8, transition: 'background 0.12s ease', fontFamily: 'var(--font-sans)' }}
                   onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                   onClick={() => { exportToCSV(filtered.map(oppToRow), 'opportunities.csv'); setExportOpen(false) }}>
                   CSV (.csv)
                 </button>
@@ -215,13 +215,14 @@ export default function ActivityPage() {
           )}
         </div>
         {/* View toggle */}
-        <div style={{ display: 'flex', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}>
+        <div style={{ display: 'flex', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
           {[['card', LayoutGrid], ['table', List]].map(([mode, Icon]) => (
             <button key={mode} onClick={() => setViewMode(mode)} title={mode === 'card' ? 'Card view' : 'Table view'} style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              width: 30, height: 30, border: 'none', cursor: 'pointer',
+              width: 32, height: 32, border: 'none', cursor: 'pointer',
               background: viewMode === mode ? 'var(--accent-bg)' : 'var(--surface)',
               color: viewMode === mode ? 'var(--accent-dark)' : 'var(--text-3)',
+              transition: 'background var(--speed-fast) var(--easing-out), color var(--speed-fast) var(--easing-out)',
             }}>
               <Icon size={14} />
             </button>
@@ -229,12 +230,14 @@ export default function ActivityPage() {
         </div>
       </div>
 
-      <div style={{ flex: 1, overflow: 'auto', padding: viewMode === 'table' ? 0 : '20px 28px' }}>
+      <div style={{ flex: 1, overflow: 'auto', padding: viewMode === 'table' ? 0 : '20px 24px' }}>
         {loading ? <Spinner /> : filtered.length === 0 ? (
-          <div style={{ textAlign: 'center', color: 'var(--text-3)', padding: 60, fontSize: 13 }}>
-            {opportunities.length === 0
-              ? 'No opportunities yet. Admins can post via the button above.'
-              : 'No results match the current filters.'}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', minHeight: 240 }}>
+            <div style={{ textAlign: 'center', color: 'var(--text-3)', fontSize: 13 }}>
+              {opportunities.length === 0
+                ? 'No opportunities yet. Admins can post via the button above.'
+                : 'No results match the current filters.'}
+            </div>
           </div>
         ) : viewMode === 'card' ? (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 14, alignItems: 'start' }}>

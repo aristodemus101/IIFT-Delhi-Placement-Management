@@ -3,7 +3,7 @@ import { usePendingChanges } from '../lib/PendingChangesContext'
 import { useAuth } from '../lib/AuthContext'
 import { useBatch } from '../lib/BatchContext'
 import { cohortLabel, seasonLabel } from '../lib/batch'
-import { PageHeader, Btn, Badge, Spinner, Modal } from '../components/UI'
+import { PageHeader, Btn, Badge, Spinner, Modal, TabBar } from '../components/UI'
 import {
   CheckCircle, XCircle, Clock, CheckSquare, Trash2,
   Upload, RotateCcw, AlertTriangle, User
@@ -102,40 +102,38 @@ export default function ApprovalsPage() {
         subtitle="Proposed changes that require a second admin to approve before being applied"
       />
 
-      {/* Tabs */}
-      <div style={{ padding: '0 28px', borderBottom: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', gap: 4 }}>
-        {tabs.map(t => (
-          <button key={t.key} onClick={() => setTab(t.key)} style={{
-            padding: '10px 14px', border: 'none', background: 'none', cursor: 'pointer',
-            fontSize: 13, fontWeight: tab === t.key ? 600 : 400,
-            color: tab === t.key ? 'var(--text)' : 'var(--text-2)',
-            borderBottom: tab === t.key ? '2px solid var(--text)' : '2px solid transparent',
-            display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'var(--font-sans)',
-          }}>
-            {t.label}
-            {t.count > 0 && (
-              <span style={{ background: 'var(--text)', color: 'var(--surface)', borderRadius: 10, fontSize: 11, padding: '1px 6px', fontWeight: 600 }}>
-                {t.count}
-              </span>
-            )}
-          </button>
-        ))}
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-          <Btn size="sm" variant={cohortScope === 'all' ? 'default' : 'ghost'} onClick={() => setCohortScope('all')}>
-            All Cohorts
-          </Btn>
-          {activeBatches.map(b => (
-            <Btn key={b.id} size="sm" variant={cohortScope === b.id ? 'default' : 'ghost'} onClick={() => setCohortScope(b.id)}>
-              {b.label || cohortLabel(b.id)}
-            </Btn>
+      {/* Tabs + scope filter */}
+      <div style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', alignItems: 'stretch' }}>
+        <TabBar
+          tabs={tabs.map(t => ({
+            key: t.key,
+            label: t.count > 0
+              ? <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>{t.label}<span style={{ background: 'var(--accent)', color: '#fff', borderRadius: 10, fontSize: 10, padding: '1px 6px', fontWeight: 700 }}>{t.count}</span></span>
+              : t.label,
+          }))}
+          active={tab}
+          onChange={setTab}
+          style={{ borderBottom: 'none', flex: 1 }}
+        />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '0 16px', flexShrink: 0, flexWrap: 'wrap' }}>
+          {[{ id: 'all', label: 'All Cohorts' }, ...activeBatches.map(b => ({ id: b.id, label: b.label || cohortLabel(b.id) }))].map(opt => (
+            <button key={opt.id} onClick={() => setCohortScope(opt.id)} style={{
+              padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, cursor: 'pointer', lineHeight: 1.6,
+              border: `1px solid ${cohortScope === opt.id ? 'var(--accent)' : 'var(--border)'}`,
+              background: cohortScope === opt.id ? 'var(--accent-bg)' : 'var(--surface)',
+              color: cohortScope === opt.id ? 'var(--accent-dark)' : 'var(--text-2)',
+              transition: 'background 0.12s ease, color 0.12s ease, border-color 0.12s ease',
+            }}>{opt.label}</button>
           ))}
         </div>
       </div>
 
-      <div style={{ flex: 1, overflow: 'auto', padding: '20px 28px' }}>
+      <div style={{ flex: 1, overflow: 'auto', padding: '20px 24px' }}>
         {filtered.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: 60, color: 'var(--text-3)', fontSize: 14 }}>
-            {tab === 'pending' ? 'No pending changes — everything is up to date.' : 'Nothing here yet.'}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', minHeight: 200 }}>
+            <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-3)', fontSize: 14 }}>
+              {tab === 'pending' ? 'No pending changes — everything is up to date.' : 'Nothing here yet.'}
+            </div>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -157,6 +155,8 @@ export default function ApprovalsPage() {
                   background: 'var(--surface)', border: '1px solid var(--border)',
                   borderRadius: 'var(--radius)', padding: '16px 20px',
                   borderLeft: `3px solid ${isPending ? 'var(--amber)' : c.status === 'approved' ? 'var(--green)' : 'var(--red-text)'}`,
+                  boxShadow: 'var(--shadow-sm)',
+                  transition: 'box-shadow var(--speed-fast) var(--easing-out)',
                 }}>
                   <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
                     <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', flex: 1 }}>

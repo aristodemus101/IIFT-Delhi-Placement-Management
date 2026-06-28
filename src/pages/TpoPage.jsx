@@ -440,6 +440,7 @@ function TpoSummaryCards({ entries, profiles, canSeeFinancials }) {
             minWidth: 160, flexShrink: 0,
             background: 'var(--surface)', border: '1px solid var(--border)',
             borderRadius: 'var(--radius)', padding: '12px 16px',
+            boxShadow: 'var(--shadow-sm)',
           }}>
             <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8, color: 'var(--text)' }}>
               {profile.displayName || uid}
@@ -521,20 +522,20 @@ function AllOutreachView() {
 
       <TpoSummaryCards entries={tpoFilter ? filtered : entries} profiles={profiles} canSeeFinancials={canSeeFinancials} />
 
-      <div style={{ padding: '10px 24px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', background: 'var(--surface)', marginTop: 14 }}>
-        <Select value={tpoFilter} onChange={e => setTpoFilter(e.target.value)} style={{ width: 170, height: 30, fontSize: 12 }}>
+      <div style={{ padding: '10px 24px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', background: 'var(--surface)', marginTop: 14 }}>
+        <Select value={tpoFilter} onChange={e => setTpoFilter(e.target.value)} style={{ width: 'auto' }}>
           <option value="">All TPOs</option>
           {tpoList.map(t => <option key={t.uid} value={t.uid}>{t.name}</option>)}
         </Select>
-        <Select value={cohortFilter} onChange={e => setCohortFilter(e.target.value)} style={{ width: 160, height: 30, fontSize: 12 }}>
+        <Select value={cohortFilter} onChange={e => setCohortFilter(e.target.value)} style={{ width: 'auto' }}>
           <option value="">All cohorts</option>
           {activeBatches.map(b => <option key={b.id} value={b.id}>{cohortLabel(b.id)}</option>)}
         </Select>
-        <Select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ width: 150, height: 30, fontSize: 12 }}>
+        <Select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ width: 'auto' }}>
           <option value="">All statuses</option>
           {OUTREACH_STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
         </Select>
-        <Badge color="gray">{filtered.length} entries</Badge>
+        <span style={{ fontSize: 12, color: 'var(--text-3)', marginLeft: 4 }}>{filtered.length} entries</span>
       </div>
 
       {filtered.length === 0 ? (
@@ -602,8 +603,8 @@ const labelStyle = {
 }
 
 const thStyle = {
-  padding: '8px 12px', textAlign: 'left', fontWeight: 600, fontSize: 11,
-  color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.04em',
+  padding: '9px 12px', textAlign: 'left', fontWeight: 700, fontSize: 10.5,
+  color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.06em',
   borderBottom: '1px solid var(--border)', background: 'var(--surface)',
   position: 'sticky', top: 0, zIndex: 1,
 }

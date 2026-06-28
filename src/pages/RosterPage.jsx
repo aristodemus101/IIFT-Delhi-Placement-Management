@@ -19,7 +19,7 @@ import {
   Spinner, Modal, Table
 } from '../components/UI'
 import {
-  Upload, Download, CheckCircle, Trash2, Eye, Search, Lock, ExternalLink, Sheet
+  Upload, Download, CheckCircle, Trash2, Eye, Search, Lock, ExternalLink, Sheet, GraduationCap
 } from 'lucide-react'
 
 const NUMERIC = ['cat', 'wx', 'ugpct', 'x10pct', 'x12pct', 'age', 'cat_score']
@@ -368,25 +368,25 @@ export default function RosterPage() {
       {isAdmin && <input ref={fileRef} type="file" accept=".csv,.tsv,.txt,.xls,.xlsx" style={{ display: 'none' }} onChange={handleImportFileChosen} />}
 
       {!isAdmin && (
-        <div style={{ margin: '12px 28px 0', padding: '9px 14px', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: 13, display: 'flex', gap: 8, alignItems: 'center', color: 'var(--text-2)' }}>
+        <div style={{ margin: '12px 24px 0', padding: '9px 14px', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, fontSize: 13, display: 'flex', gap: 8, alignItems: 'center', color: 'var(--text-2)' }}>
           <Lock size={13} /> You have read-only access. Contact an admin to make changes.
         </div>
       )}
 
       {successMsg && (
-        <div style={{ margin: '12px 28px 0', padding: '10px 14px', background: 'var(--green-bg)', color: 'var(--green-text)', border: '1px solid var(--green-border)', borderRadius: 'var(--radius-sm)', fontSize: 13, display: 'flex', gap: 8, alignItems: 'center' }}>
+        <div style={{ margin: '12px 24px 0', padding: '10px 14px', background: 'var(--green-bg)', color: 'var(--green-text)', border: '1px solid var(--green-border)', borderRadius: 10, fontSize: 13, display: 'flex', gap: 8, alignItems: 'center' }}>
           <CheckCircle size={14} /> {successMsg}
         </div>
       )}
 
       {importMsg && (
-        <div style={{ margin: '12px 28px 0', padding: '10px 14px', background: 'var(--red-bg)', color: 'var(--red-text)', border: '1px solid var(--red-border)', borderRadius: 'var(--radius-sm)', fontSize: 13 }}>
+        <div style={{ margin: '12px 24px 0', padding: '10px 14px', background: 'var(--red-bg)', color: 'var(--red-text)', border: '1px solid var(--red-border)', borderRadius: 10, fontSize: 13 }}>
           {importMsg}
         </div>
       )}
 
       {playgroundMsg && (
-        <div style={{ margin: '12px 28px 0', padding: '10px 14px', background: playgroundMsg.startsWith('Error') ? 'var(--red-bg)' : 'var(--accent-bg)', color: playgroundMsg.startsWith('Error') ? 'var(--red-text)' : 'var(--accent-text)', border: `1px solid ${playgroundMsg.startsWith('Error') ? 'var(--red-border)' : '#BFDBFE'}`, borderRadius: 'var(--radius-sm)', fontSize: 13, display: 'flex', gap: 8, alignItems: 'center' }}>
+        <div style={{ margin: '12px 24px 0', padding: '10px 14px', background: playgroundMsg.startsWith('Error') ? 'var(--red-bg)' : 'var(--accent-bg)', color: playgroundMsg.startsWith('Error') ? 'var(--red-text)' : 'var(--accent-text)', border: `1px solid ${playgroundMsg.startsWith('Error') ? 'var(--red-border)' : '#BFDBFE'}`, borderRadius: 10, fontSize: 13, display: 'flex', gap: 8, alignItems: 'center' }}>
           {!playgroundMsg.startsWith('Error') && <ExternalLink size={13} />}
           {playgroundMsg}
           {playgroundUrl && !playgroundMsg.startsWith('Error') && (
@@ -398,7 +398,7 @@ export default function RosterPage() {
       {hasActiveCohorts ? (
         <>
           {/* Filters */}
-          <div style={{ padding: '10px 28px', borderBottom: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <div style={{ padding: '10px 24px', borderBottom: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
             <div style={{ position: 'relative' }}>
               <Search size={13} style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-3)' }} />
               <Input placeholder="Search all columns…" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} style={{ paddingLeft: 28, width: 200 }} />
@@ -449,9 +449,12 @@ export default function RosterPage() {
         </>
       ) : (
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-          <div style={{ maxWidth: 420, width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 24, textAlign: 'center', color: 'var(--text-2)' }}>
-            <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 6 }}>No active cohorts yet.</div>
-            <div style={{ fontSize: 13, color: 'var(--text-3)', lineHeight: 1.6, marginBottom: 14 }}>Create a cohort, then import the file for that season.</div>
+          <div style={{ maxWidth: 400, width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '32px 24px', textAlign: 'center', color: 'var(--text-2)', boxShadow: 'var(--shadow-sm)' }}>
+            <div style={{ width: 44, height: 44, borderRadius: 12, background: 'var(--surface2)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
+              <GraduationCap size={20} color="var(--text-3)" />
+            </div>
+            <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 6, color: 'var(--text)' }}>No active cohorts yet.</div>
+            <div style={{ fontSize: 13, color: 'var(--text-3)', lineHeight: 1.6, marginBottom: 16 }}>Create a cohort, then import the file for that season.</div>
             {isAdmin && <Btn variant="primary" onClick={() => setImportModalOpen(true)}>Import file</Btn>}
           </div>
         </div>
@@ -459,11 +462,17 @@ export default function RosterPage() {
 
       {/* Row context menu */}
       {canDo('proposePlace') && rowMenu && (
-        <div onClick={e => e.stopPropagation()} style={{ position: 'fixed', left: rowMenu.x, top: rowMenu.y, zIndex: 1200, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', boxShadow: 'var(--shadow)', minWidth: 190, padding: 6 }}>
-          <button onClick={() => { openPlaceModal(rowMenu.student); setRowMenu(null) }} style={{ width: '100%', border: 'none', background: 'none', textAlign: 'left', padding: '8px 10px', borderRadius: 8, cursor: 'pointer', fontSize: 13, color: 'var(--text)', fontFamily: 'var(--font-sans)' }}>
+        <div onClick={e => e.stopPropagation()} style={{ position: 'fixed', left: rowMenu.x, top: rowMenu.y, zIndex: 1200, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, boxShadow: 'var(--shadow)', minWidth: 190, padding: 4 }}>
+          <button onClick={() => { openPlaceModal(rowMenu.student); setRowMenu(null) }}
+            onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+            style={{ width: '100%', border: 'none', background: 'transparent', textAlign: 'left', padding: '8px 12px', borderRadius: 8, cursor: 'pointer', fontSize: 13, color: 'var(--text)', fontFamily: 'var(--font-sans)', transition: 'background 0.12s ease' }}>
             Mark candidate as placed
           </button>
-          <button onClick={() => { proposeDelete(rowMenu.student); setRowMenu(null) }} style={{ width: '100%', border: 'none', background: 'none', textAlign: 'left', padding: '8px 10px', borderRadius: 8, cursor: 'pointer', fontSize: 13, color: 'var(--red-text)', fontFamily: 'var(--font-sans)' }}>
+          <button onClick={() => { proposeDelete(rowMenu.student); setRowMenu(null) }}
+            onMouseEnter={e => e.currentTarget.style.background = 'var(--red-bg)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+            style={{ width: '100%', border: 'none', background: 'transparent', textAlign: 'left', padding: '8px 12px', borderRadius: 8, cursor: 'pointer', fontSize: 13, color: 'var(--red-text)', fontFamily: 'var(--font-sans)', transition: 'background 0.12s ease' }}>
             Signed Out
           </button>
         </div>
