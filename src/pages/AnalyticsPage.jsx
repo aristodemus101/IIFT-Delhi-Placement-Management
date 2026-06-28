@@ -6,7 +6,7 @@ import { useBatch } from '../lib/BatchContext'
 import { cohortLabel } from '../lib/batch'
 import { getVal } from '../lib/columns'
 import { normalizeActivityType } from '../config/activityTaxonomy'
-import { PageHeader, Spinner, Badge, Input } from '../components/UI'
+import { PageHeader, Spinner, Badge, Input, TabBar } from '../components/UI'
 import { useAuth } from '../lib/AuthContext'
 import { Search } from 'lucide-react'
 import TpoAnalytics from './analytics/TpoAnalytics'
@@ -184,26 +184,14 @@ export default function AnalyticsPage() {
       />
 
       {/* Tab bar — faculty_incharge only sees the TPO tab */}
-      <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--border)', background: 'var(--surface)', paddingLeft: 24 }}>
-        {[
+      <TabBar
+        tabs={[
           !isFacultyCoordinator && { key: 'heatmap', label: 'Pipeline Heatmap' },
           { key: 'tpo', label: 'TPO Performance' },
-        ].filter(Boolean).map(tab => (
-          <button
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            style={{
-              padding: '10px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer',
-              border: 'none', background: 'transparent',
-              borderBottom: activeTab === tab.key ? '2px solid var(--accent, #6366f1)' : '2px solid transparent',
-              color: activeTab === tab.key ? 'var(--accent, #6366f1)' : 'var(--text-2)',
-              marginBottom: -1,
-            }}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+        ].filter(Boolean)}
+        active={activeTab}
+        onChange={setActiveTab}
+      />
 
       {activeTab === 'tpo' && <TpoAnalytics />}
 
@@ -363,12 +351,14 @@ export default function AnalyticsPage() {
 }
 
 const pillStyle = {
-  padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600,
+  padding: '4px 11px', borderRadius: 20, fontSize: 11, fontWeight: 600,
   cursor: 'pointer', border: '1px solid var(--border)',
   background: 'var(--surface)', color: 'var(--text-2)',
-  display: 'flex', alignItems: 'center',
+  display: 'flex', alignItems: 'center', gap: 4,
+  transition: 'background 0.12s ease, color 0.12s ease, border-color 0.12s ease',
+  lineHeight: 1.6,
 }
 const pillActive = {
   background: 'var(--accent-bg)', color: 'var(--accent-dark)',
-  border: '1px solid var(--accent)',
+  border: '1px solid color-mix(in srgb, var(--accent) 50%, transparent)',
 }

@@ -7,7 +7,7 @@ import { cohortLabel, seasonLabel } from '../lib/batch'
 import { getVal } from '../lib/columns'
 import { exportToCSV } from '../lib/csv'
 import { usePermissions } from '../lib/usePermissions'
-import { PageHeader, Btn, Badge, CategoryBadge, Input, Spinner, Table, Modal } from '../components/UI'
+import { PageHeader, Btn, Badge, CategoryBadge, Input, Spinner, Table, Modal, TabBar } from '../components/UI'
 import { Download, RotateCcw, Search, Eye, CheckCircle, Lock, ExternalLink, Columns } from 'lucide-react'
 
 const PLACEMENT_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1uOzTID4iVhwjXuKynSICQmFDygYoQJC1N_q6QlumF68/edit'
@@ -17,14 +17,21 @@ function studentCohort(s) {
 }
 
 function StatCard({ label, value, sub, color }) {
+  const accentColor = color || 'var(--text)'
   return (
     <div style={{
       background: 'var(--surface)', border: '1px solid var(--border)',
-      borderRadius: 'var(--radius-sm)', padding: '12px 16px', minWidth: 130,
+      borderRadius: 'var(--radius)', padding: '14px 18px', minWidth: 130,
+      position: 'relative', overflow: 'hidden',
+      boxShadow: 'var(--shadow-sm)',
     }}>
-      <div style={{ fontSize: 22, fontWeight: 700, color: color || 'var(--text)', lineHeight: 1.1 }}>{value}</div>
-      <div style={{ fontSize: 12, color: 'var(--text-2)', marginTop: 3 }}>{label}</div>
-      {sub && <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 2 }}>{sub}</div>}
+      <div style={{
+        position: 'absolute', top: 0, left: 0, right: 0, height: 2,
+        background: accentColor, opacity: 0.7, borderRadius: '12px 12px 0 0',
+      }} />
+      <div style={{ fontSize: 10, color: 'var(--text-3)', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: 6 }}>{label}</div>
+      <div style={{ fontSize: 28, fontWeight: 800, color: accentColor, lineHeight: 1, letterSpacing: '-0.02em' }}>{value}</div>
+      {sub && <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 5 }}>{sub}</div>}
     </div>
   )
 }
@@ -302,29 +309,22 @@ export default function PlacedPage() {
       />
 
       {/* Season tabs — only show cycles that exist for this cohort */}
-      <div style={{ padding: '0 28px', borderBottom: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', gap: 4 }}>
-        {availableCycles.map(s => {
+      <TabBar
+        tabs={availableCycles.map(s => {
           const count = scopedStudents.filter(st => s === 'summer' ? st._placed_summer : st._placed_final).length
-          const isActive = selectedCohortCycle === s
-          return (
-            <button key={s} onClick={() => setSelectedSeason(s)} style={{
-              padding: '10px 14px', border: 'none', background: 'none', cursor: 'pointer',
-              fontSize: 13, fontWeight: selectedSeason === s ? 600 : 400,
-              color: selectedSeason === s ? (s === 'summer' ? 'var(--amber-text)' : 'var(--accent-dark)') : 'var(--text-2)',
-              borderBottom: selectedSeason === s ? `2px solid ${s === 'summer' ? 'var(--amber)' : 'var(--accent)'}` : '2px solid transparent',
-              fontFamily: 'var(--font-sans)',
-            }}>
-              {s === 'summer' ? 'Summer Internship' : 'Final Placement'}
-              <span style={{ marginLeft: 6, fontSize: 11, fontWeight: 600, opacity: 0.7 }}>({count})</span>
-              {isActive && <span style={{ marginLeft: 5, fontSize: 10, fontWeight: 700, padding: '1px 5px', borderRadius: 20, background: s === 'summer' ? 'var(--amber-bg)' : 'var(--accent-bg)', color: s === 'summer' ? 'var(--amber-text)' : 'var(--accent-dark)', border: `1px solid ${s === 'summer' ? 'var(--amber)' : 'var(--accent-border)'}` }}>active</span>}
-            </button>
-          )
+          return {
+            key: s,
+            label: `${s === 'summer' ? 'Summer Internship' : 'Final Placement'} (${count})`,
+            color: s === 'summer' ? 'var(--amber-text)' : 'var(--accent)',
+          }
         })}
-      </div>
+        active={selectedSeason}
+        onChange={setSelectedSeason}
+      />
 
       {/* Stats bar */}
       {placed.length > 0 && (
-        <div style={{ padding: '14px 28px', borderBottom: '1px solid var(--border)', background: 'var(--surface2)', display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'stretch' }}>
+        <div style={{ padding: '12px 24px', borderBottom: '1px solid var(--border)', background: 'var(--surface2)', display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'stretch' }}>
           <StatCard
             label="Placed"
             value={placed.length}
@@ -368,10 +368,10 @@ export default function PlacedPage() {
         </div>
       )}
 
-      <div style={{ padding: '14px 28px', borderBottom: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', gap: 10, alignItems: 'center' }}>
+      <div style={{ padding: '10px 24px', borderBottom: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', gap: 8, alignItems: 'center' }}>
         <div style={{ position: 'relative' }}>
           <Search size={13} style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-3)' }} />
-          <Input placeholder="Name, Roll No., or Company" value={search} onChange={e => setSearch(e.target.value)} style={{ paddingLeft: 28, width: 260 }} />
+          <Input placeholder="Name, Roll No., or Company" value={search} onChange={e => setSearch(e.target.value)} style={{ paddingLeft: 28, width: 240 }} />
         </div>
         <Btn size="sm" variant="ghost" onClick={() => setShowColPicker(true)}>
           <Columns size={13} /> Columns {hiddenCols.size > 0 && `(${allColDefs.filter(c => !c.alwaysShow).length - hiddenCols.size}/${allColDefs.filter(c => !c.alwaysShow).length})`}

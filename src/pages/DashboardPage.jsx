@@ -4,7 +4,7 @@ import { useStudents } from '../lib/useStudents'
 import { useBatch } from '../lib/BatchContext'
 import { cohortLabel, seasonLabel } from '../lib/batch'
 import { getVal } from '../lib/columns'
-import { PageHeader, StatCard, Spinner, Badge, Btn } from '../components/UI'
+import { PageHeader, StatCard, Spinner, Badge, Btn, TabBar, SectionCard } from '../components/UI'
 import { Users, CheckSquare, BarChart2, ChevronDown, ChevronRight } from 'lucide-react'
 
 // Helper to derive cohort from a student doc
@@ -227,16 +227,28 @@ export default function DashboardPage() {
   const cardHeader = (id, title, summary) => (
     <div
       onClick={() => toggle(id)}
-      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', userSelect: 'none' }}
+      style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        cursor: 'pointer', userSelect: 'none',
+        paddingBottom: collapsed[id] ? 0 : 10,
+        borderBottom: collapsed[id] ? 'none' : '1px solid var(--border)',
+        marginBottom: collapsed[id] ? 0 : 2,
+      }}
     >
       <h3 style={titleStyle}>{title}</h3>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         {collapsed[id] && summary && (
           <span style={{ fontSize: 11, color: 'var(--text-3)', fontWeight: 500 }}>{summary}</span>
         )}
-        {collapsed[id]
-          ? <ChevronRight size={13} color="var(--text-3)" />
-          : <ChevronDown  size={13} color="var(--text-3)" />}
+        <div style={{
+          width: 20, height: 20, borderRadius: 6,
+          background: 'var(--surface2)', border: '1px solid var(--border)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          {collapsed[id]
+            ? <ChevronRight size={11} color="var(--text-3)" />
+            : <ChevronDown  size={11} color="var(--text-3)" />}
+        </div>
       </div>
     </div>
   )
@@ -257,38 +269,33 @@ export default function DashboardPage() {
   const divider = { borderBottom: '1px solid color-mix(in srgb,var(--border) 40%,transparent)', paddingBottom: 10 }
   const card    = (extra = {}) => ({
     background: 'var(--surface)', border: '1px solid var(--border)',
-    borderRadius: 'var(--radius)', padding: '14px 14px 12px',
+    borderRadius: 'var(--radius)', padding: '14px 16px 12px',
     display: 'flex', flexDirection: 'column', gap: 0, ...extra,
   })
 
   if (loading || batchesLoading) return <Spinner />
 
   return (
-    <div style={{ flex: 1 }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
       <PageHeader
         title="Dashboard"
         subtitle={`${scopedCohorts.length === 1 ? cohortLabel(scopedCohorts[0]) : `${scopedCohorts.length} cohorts`} · ${new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}`}
       />
-      <div style={{ padding: '14px 24px 18px' }}>
 
-        {/* Season tabs */}
-        <div style={{ display: 'flex', gap: 4, marginBottom: 14, borderBottom: '1px solid var(--border)', paddingBottom: 0 }}>
-          {['summer', 'final'].map(s => (
-            <button key={s} onClick={() => setSelectedSeason(s)} style={{
-              padding: '8px 16px', border: 'none', background: 'none', cursor: 'pointer',
-              fontSize: 13, fontWeight: selectedSeason === s ? 700 : 500,
-              color: selectedSeason === s ? (s === 'summer' ? 'var(--amber-text)' : 'var(--accent-dark)') : 'var(--text-2)',
-              borderBottom: selectedSeason === s ? `2px solid ${s === 'summer' ? 'var(--amber)' : 'var(--accent)'}` : '2px solid transparent',
-              marginBottom: -1,
-              fontFamily: 'var(--font-sans)',
-            }}>
-              {s === 'summer' ? 'Summer Internship' : 'Final Placement'}
-            </button>
-          ))}
-        </div>
+      {/* Season tab bar */}
+      <TabBar
+        tabs={[
+          { key: 'summer', label: 'Summer Internship', color: 'var(--amber-text)' },
+          { key: 'final',  label: 'Final Placement',   color: 'var(--accent)' },
+        ]}
+        active={selectedSeason}
+        onChange={setSelectedSeason}
+      />
+
+      <div style={{ padding: '16px 24px 24px', overflowY: 'auto' }}>
 
         {/* cohort + season overview badges */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
           {scopedCohorts.length === 1
             ? <Badge color="blue">{cohortLabel(scopedCohorts[0])}</Badge>
             : <Badge color="blue">{scopedCohorts.length} cohorts</Badge>
@@ -299,21 +306,21 @@ export default function DashboardPage() {
           }
         </div>
 
-        {/* stat cards — row 1: placement overview */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(140px, 1fr))', gap: 10, marginBottom: 10, textAlign: 'center' }}>
-          <StatCard label="Total in Cohort"  value={stats.total    || 0}  sub="in database" />
-          <StatCard label="YTP"              value={stats.active   || 0}  sub={`not placed (${seasonLabel(selectedSeason)})`} color="var(--accent)" />
-          <StatCard label="Placed"           value={stats.placed   || 0}  sub={`${stats.placePct || 0}% of cohort · ${seasonLabel(selectedSeason)}`} color="var(--green)" />
-          <StatCard label="Avg CAT %ile"     value={stats.avgCat  || '—'} sub="across cohort" />
-          <StatCard label="Avg Work Ex"      value={stats.avgWx ? `${stats.avgWx}mo` : '—'} sub="all students incl. freshers" />
+        {/* stat cards — row 1 */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(130px, 1fr))', gap: 10, marginBottom: 10 }}>
+          <StatCard label="Total"       value={stats.total    || 0}  sub="in cohort" />
+          <StatCard label="YTP"         value={stats.active   || 0}  sub={`${seasonLabel(selectedSeason)} · not placed`} color="var(--accent)" />
+          <StatCard label="Placed"      value={stats.placed   || 0}  sub={`${stats.placePct || 0}% · ${seasonLabel(selectedSeason)}`} color="var(--green)" />
+          <StatCard label="Avg CAT"     value={stats.avgCat  || '—'} sub="percentile" />
+          <StatCard label="Avg Work Ex" value={stats.avgWx ? `${stats.avgWx}mo` : '—'} sub="all incl. freshers" />
         </div>
-        {/* stat cards — row 2: cohort profile */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(140px, 1fr))', gap: 10, marginBottom: 14, textAlign: 'center' }}>
-          <StatCard label="Avg WX (Experienced)" value={stats.avgWxExp ? `${stats.avgWxExp}mo` : '—'} sub={`${stats.experienced || 0} students ≥12 mo`} />
-          <StatCard label="Freshers"         value={stats.freshers ?? '—'} sub="< 12 months work ex" />
-          <StatCard label="Female"           value={stats.females  || 0}   sub={`${stats.femalePct || 0}% of cohort`} />
-          <StatCard label="CAT %ile — Placed" value={stats.avgCatPlaced || '—'} sub={`vs YTP: ${stats.avgCatYtp || '—'}`} color="var(--green)" />
-          <StatCard label="PWD"              value={stats.pwdCount ?? 0}  sub="persons with disability" />
+        {/* stat cards — row 2 */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(130px, 1fr))', gap: 10, marginBottom: 20 }}>
+          <StatCard label="Avg WX (Exp)" value={stats.avgWxExp ? `${stats.avgWxExp}mo` : '—'} sub={`${stats.experienced || 0} students ≥12 mo`} color="var(--accent)" />
+          <StatCard label="Freshers"     value={stats.freshers ?? '—'} sub="< 12 mo work ex" />
+          <StatCard label="Female"       value={stats.females  || 0}   sub={`${stats.femalePct || 0}% of cohort`} color="var(--purple)" />
+          <StatCard label="CAT (Placed)" value={stats.avgCatPlaced || '—'} sub={`YTP avg: ${stats.avgCatYtp || '—'}`} color="var(--green)" />
+          <StatCard label="PWD"          value={stats.pwdCount ?? 0}  sub="persons with disability" />
         </div>
 
         {/* detail cards grid */}
@@ -442,12 +449,12 @@ export default function DashboardPage() {
         </div>
 
         {/* quick actions */}
-        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '18px 20px' }}>
-          <h3 style={{ ...titleStyle, marginBottom: 14 }}>Quick Actions</h3>
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-            <Btn onClick={() => navigate('/roster')}  style={{ gap: 8 }}><Users      size={14} /> View Roster</Btn>
-            <Btn onClick={() => navigate('/placed')}  style={{ gap: 8 }}><CheckSquare size={14} /> View Placed</Btn>
-            <Btn onClick={() => navigate('/remapper')} style={{ gap: 8 }}><BarChart2  size={14} /> Column Remapper</Btn>
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '16px 18px' }}>
+          <h3 style={{ ...titleStyle, marginBottom: 12 }}>Quick Actions</h3>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <Btn onClick={() => navigate('/roster')}   size="sm"><Users       size={13} /> Roster</Btn>
+            <Btn onClick={() => navigate('/placed')}   size="sm"><CheckSquare size={13} /> Placed</Btn>
+            <Btn onClick={() => navigate('/remapper')} size="sm"><BarChart2   size={13} /> Remapper</Btn>
           </div>
         </div>
 
