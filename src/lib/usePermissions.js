@@ -51,9 +51,15 @@ export function usePermissions() {
     // ── Page access ──────────────────────────────────────────────────────────
     // Admin always has access. For others: check Firestore override first,
     // fall back to hardcoded PAGE_ACCESS.
+    // IMPORTANT: 'dashboard' and 'approvals' require pendingChanges read access
+    // which Firestore rules restrict to admin|committee only. Enforce that floor
+    // here regardless of what Firestore config says.
+    const ROLE_FLOOR_PAGES = { dashboard: ['admin', 'committee'], approvals: ['admin'] }
     const canAccessPage = (page) => {
       if (!role) return false
       if (role === 'admin') return true
+      const floor = ROLE_FLOOR_PAGES[page]
+      if (floor && !floor.includes(role)) return false
       const override = pageConfig?.[page]
       const allowed = Array.isArray(override) ? override : (PAGE_ACCESS[page] || [])
       return allowed.includes(role)

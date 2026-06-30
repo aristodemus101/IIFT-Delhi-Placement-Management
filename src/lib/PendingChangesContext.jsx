@@ -19,7 +19,9 @@ export function PendingChangesProvider({ children }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (!user) { setChanges([]); setLoading(false); return }
+    // Only admin and committee can read pendingChanges (Firestore rules enforce this).
+    // tpo and faculty_coordinator must not attempt the query — it will throw permissions error.
+    if (!user || (!isAdmin && !isCommittee)) { setChanges([]); setLoading(false); return }
     const q = query(collection(db, 'pendingChanges'), orderBy('proposedAt', 'desc'))
     const unsub = onSnapshot(
       q,
@@ -27,7 +29,7 @@ export function PendingChangesProvider({ children }) {
       err => { console.error('pendingChanges error:', err); setLoading(false) }
     )
     return unsub
-  }, [user])
+  }, [user, isAdmin, isCommittee])
 
   const pendingCount = changes.filter(c => c.status === 'pending').length
 

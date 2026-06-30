@@ -86,7 +86,11 @@ export const ACTION_LABELS = {
 }
 
 // Which pages/actions are configurable (admin access is always locked; tpo/fc fixed roles excluded)
-export const CONFIGURABLE_PAGES   = ['dashboard', 'roster', 'placed', 'activity', 'analytics', 'remapper', 'approvals', 'tpo']
+// dashboard and approvals are admin/committee only at the Firestore rules level
+// (pendingChanges collection requires hasRole = admin|committee). Never expose
+// these to tpo/faculty_coordinator via the admin panel — it would always throw
+// a Firestore permissions error regardless of what pageAccess config says.
+export const CONFIGURABLE_PAGES   = ['roster', 'placed', 'activity', 'analytics', 'remapper', 'tpo']
 export const CONFIGURABLE_ACTIONS = ['proposePlace', 'proposeUnplace', 'proposeDelete', 'proposeImport', 'proposeClearAll', 'exportData', 'viewAllTpoData']
 
 // Roles that can be toggled in the permission grid (admin is always locked on)
