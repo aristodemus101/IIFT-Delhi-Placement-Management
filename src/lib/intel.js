@@ -104,7 +104,7 @@ export function fuzzyMatch(a, b) {
 
 // ── Parse Excel/CSV rows into canonical intel records ─────────────────────────
 export function parseIntelRows(rawRows) {
-  if (!rawRows || rawRows.length === 0) return []
+  if (!rawRows || rawRows.length === 0) return { records: [], warnings: [] }
 
   // Detect headers from first row
   const headers = Object.keys(rawRows[0])
