@@ -15,6 +15,7 @@ export const PAGE_ACCESS = {
   approvals:  ['admin'],
   admin:      ['admin'],
   tpo:        ['admin', 'tpo', 'faculty_coordinator'],
+  intel:      ['admin', 'committee', 'tpo', 'faculty_coordinator'],
   about:      ['admin', 'committee', 'tpo', 'faculty_coordinator'],
 }
 
@@ -32,6 +33,9 @@ export const ACTION_ACCESS = {
   viewFullRoster:     ['admin', 'committee'],
   writeTpoOutreach:   ['admin', 'tpo'],
   viewAllTpoData:     ['admin', 'faculty_coordinator'],
+  writeIntel:         ['admin', 'committee'],
+  uploadIntel:        ['admin'],
+  deleteIntel:        ['admin'],
 }
 
 // ── Field-level defaults ──────────────────────────────────────────────────────
@@ -72,6 +76,7 @@ export const PAGE_LABELS = {
   remapper:  'Column Remapper',
   approvals: 'Approvals',
   tpo:       'TPO Outreach',
+  intel:     'Intel (Recruiter Intelligence)',
   about:     'About',
 }
 
@@ -83,6 +88,9 @@ export const ACTION_LABELS = {
   proposeClearAll: 'Propose: Clear All Students',
   exportData:      'Export Data (CSV)',
   viewAllTpoData:  'View All TPO Outreach',
+  writeIntel:      'Intel: Add / Edit Records',
+  uploadIntel:     'Intel: Upload Reports (bulk)',
+  deleteIntel:     'Intel: Delete Records',
 }
 
 // Which pages/actions are configurable (admin access is always locked; tpo/fc fixed roles excluded)
@@ -90,8 +98,8 @@ export const ACTION_LABELS = {
 // (pendingChanges collection requires hasRole = admin|committee). Never expose
 // these to tpo/faculty_coordinator via the admin panel — it would always throw
 // a Firestore permissions error regardless of what pageAccess config says.
-export const CONFIGURABLE_PAGES   = ['roster', 'placed', 'activity', 'analytics', 'remapper', 'tpo']
-export const CONFIGURABLE_ACTIONS = ['proposePlace', 'proposeUnplace', 'proposeDelete', 'proposeImport', 'proposeClearAll', 'exportData', 'viewAllTpoData']
+export const CONFIGURABLE_PAGES   = ['roster', 'placed', 'activity', 'analytics', 'remapper', 'tpo', 'intel']
+export const CONFIGURABLE_ACTIONS = ['proposePlace', 'proposeUnplace', 'proposeDelete', 'proposeImport', 'proposeClearAll', 'exportData', 'viewAllTpoData', 'writeIntel', 'uploadIntel', 'deleteIntel']
 
 // Roles that can be toggled in the permission grid (admin is always locked on)
 export const CONFIGURABLE_ROLES = ['committee', 'faculty_coordinator', 'tpo']

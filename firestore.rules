@@ -159,6 +159,22 @@ service cloud.firestore {
       allow read: if canViewTpoData();
     }
 
+    // ── Intel (Recruiter Intelligence) ──────────────────────────────────────────
+    // All authenticated roles can read (intel is shared competitive intelligence).
+    // Admin and committee can create/update (write intel records and edits).
+    // Only admin can bulk-upload (enforced client-side via uploadIntel action;
+    //   rules allow create/update for admin|committee since bulk upload = batch creates).
+    // Soft-delete: update sets _deleted=true. Hard delete: admin only.
+    // _deleted records are readable (needed for audit trail) but filtered client-side.
+    match /intel/{docId} {
+      allow read:          if hasAnyRole();
+      allow create:        if hasAnyRole() && (isAdmin() || isCommittee())
+                             && request.resource.data.createdBy == request.auth.uid;
+      allow update:        if hasAnyRole() && (isAdmin() || isCommittee())
+                             && request.resource.data.updatedBy == request.auth.uid;
+      allow delete:        if isAdmin();
+    }
+
     // Deny everything else
     match /{document=**} {
       allow read, write: if false;

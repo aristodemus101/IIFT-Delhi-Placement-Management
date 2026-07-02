@@ -103,6 +103,7 @@ Defined in `src/lib/roleConfig.js` → `MASTER_ADMIN_EMAILS`. Master admins bypa
 | `/opportunities/{oppId}` | Placement opportunities (Activity page) |
 | `/tpoProfiles/{tpoUid}` | TPO profile docs |
 | `/tpoProfiles/{tpoUid}/outreach/{id}` | TPO outreach entries |
+| `/intel/{docId}` | Recruiter intelligence records (multi-college, multi-year) |
 
 ---
 
@@ -136,6 +137,8 @@ src/
     useOpportunities.js      # Opportunities/pipeline hook
     useTpoOutreach.js        # TPO outreach hooks (own + all)
     useSearch.js             # Full-text search across student columns
+    intel.js                 # Intel: column mapping, dedup key, batch upload, fuzzy match
+    useIntel.js              # Intel: Firestore hook, filter, IIFT benchmark join
   config/
     activityTaxonomy.js      # Activity/opportunity type taxonomy
     opportunityActions.js    # Opportunity stage actions
@@ -153,6 +156,7 @@ src/
     ApprovalsPage.jsx        # Pending changes approval queue
     AdminPage.jsx            # Team access (roles), permissions grid, cohort management
     RemapperPage.jsx         # CSV column remapper (uses Gemini)
+    IntelPage.jsx            # Recruiter intelligence (all roles)
     AboutPage.jsx            # About / info page
     roster/
       ImportModal.jsx
@@ -161,6 +165,11 @@ src/
       useRosterPrefs.js
     analytics/
       TpoAnalytics.jsx
+    intel/
+      IntelTable.jsx         # Dense sortable table view
+      CompanyDrawer.jsx      # Right-side detail panel (Overview/IIFT History/All Records/POC)
+      IntelEditModal.jsx     # Add / edit single intel record
+      UploadModal.jsx        # Excel bulk upload with parse preview + progress bar
 ```
 
 ---
@@ -188,6 +197,9 @@ All shared UI primitives are in `src/components/UI.jsx`:
 6. **Firestore rules are the authoritative security layer** — UI permission checks are UX only.
 7. **SIP columns must never be stored on the student doc** — `parseSipColumns()` strips them; they live only in `_placement_summer`.
 8. **`config/authorizedUsers` must always exist** — master admins bypass it in code but all other users are blocked without it. Never delete this doc.
+9. **Intel records are never hard-deleted from the client** — soft-delete sets `_deleted: true`; only admin can hard-delete via Firestore console. The `useIntel` hook always queries `where('_deleted', '!=', true)`.
+10. **Intel dedup key** = `recruiterId + collegeName + placementYear + placementCycle + program` (all uppercased/normalised). Same company at different colleges = different docs. Do not change this key formula without migrating existing `_dedupKey` fields.
+11. **Intel IIFT benchmark window** = last 2 calendar years. Hardcoded in `useIntel.js` as `currentYear - 2`. Never extend to all-time without user confirmation — it would collapse the "IIFT Gap" signal.
 
 ---
 
@@ -355,6 +367,76 @@ Both slots are independent — a student can have both true simultaneously.
 - Which placement filter Roster shows by default
 - Which cycle PlaceModal locks to
 - Which tab Placed page defaults to
+
+---
+
+## Intel — Recruiter Intelligence
+
+`/intel/{docId}` stores one recruiter-appearance per document. The same company (e.g. KPMG) recruiting at 5 colleges in 3 years = 15 documents. This is intentional and correct.
+
+### Schema
+
+```js
+{
+  recruiterId:     'ASIANPAINTS',      // normalised uppercase, no spaces — dedup key component
+  recruiterName:   'Asian Paints',     // display name
+  alias:           'Asian Paints',
+  placementYear:   2022,               // number
+  academicBatch:   '2020-22',
+  placementCycle:  'Finals',           // 'Finals' | 'Summer' | 'Lateral'
+  collegeName:     'SPJIMR',
+  campus:          '',
+  program:         'PGDM',
+  sector:          'FMCG',
+  function:        '',
+  rolesMentioned:  '',
+  recruiterType:   '',
+  internationalOpp: false,
+  internationalLoc: '',
+  numberOfOffers:  null,               // number or null
+  sourceReport:    'report.pdf',
+  sourceType:      'Logo Wall',
+  evidence:        '',
+  remarks:         '',
+  compensation:    '18–24 LPA',
+  poc: { name: '', email: '', phone: '' },
+  notes:           '',
+  importBatch:     'upload-1234-uid',  // UUID from bulk upload
+  _dedupKey:       'ASIANPAINTS::SPJIMR::2022::FINALS::PGDM',
+  _deleted:        false,              // soft-delete flag
+  createdAt:       Timestamp,
+  updatedAt:       Timestamp,
+  createdBy:       uid,
+  updatedBy:       uid,
+}
+```
+
+### Permission model
+
+| Role | Read | Write (add/edit) | Upload (bulk) | Delete (soft) |
+|------|------|-----------------|--------------|--------------|
+| `admin` | ✓ | ✓ | ✓ | ✓ |
+| `committee` | ✓ | ✓ | ✗ | ✗ |
+| `tpo` | ✓ | ✗ | ✗ | ✗ |
+| `faculty_coordinator` | ✓ | ✗ | ✗ | ✗ |
+
+Actions: `writeIntel`, `uploadIntel`, `deleteIntel` in `permissions.js`. Page `intel` is in `CONFIGURABLE_PAGES` so access can be toggled via the Admin panel.
+
+### IIFT Benchmark
+
+`useIntel.js` builds an in-memory set of normalised company names from `/students` where `_placed_final` or `_placed_summer` is true and the placement date is within the last 2 calendar years. Each intel record gets `_iiftStatus: 'at_iift' | 'gap'` attached at read time — this is never stored in Firestore.
+
+Fuzzy matching in `intel.js → fuzzyMatch()`: normalises both strings (uppercase, strip non-alphanumeric), checks containment, then token overlap for strings ≥ 4 chars.
+
+### Upload flow
+
+1. Admin selects `.xlsx` / `.xls` / `.csv` file in `UploadModal.jsx`
+2. XLSX parses first sheet → `parseIntelRows()` maps headers (case-insensitive) to canonical fields
+3. Preview shown (first 10 rows, warnings for skipped rows)
+4. On confirm: `uploadIntelBatch()` writes in chunks of 499 (Firestore batch limit)
+5. Dedup: queries existing docs by `_dedupKey` (in chunks of 30), upserts matches, inserts new
+6. Progress bar updates via `onProgress` callback
+7. Audit log entry written to `/auditLog` with `type: 'intel_upload'`
 
 ---
 

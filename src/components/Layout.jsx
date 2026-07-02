@@ -10,7 +10,7 @@ import { Badge } from './UI'
 import {
   LayoutDashboard, Users, CheckSquare, ArrowLeftRight, Activity,
   LogOut, GraduationCap, ShieldCheck, ClipboardCheck, User, Sun, Moon, BarChart2, Briefcase, Info,
-  ChevronLeft, ChevronRight
+  ChevronLeft, ChevronRight, Telescope,
 } from 'lucide-react'
 
 function FilterPill({ active, onClick, children, title }) {
@@ -140,6 +140,7 @@ export default function Layout() {
     { to: '/roster',     icon: Users,           label: 'Roster',     exact: false, page: 'roster' },
     { to: '/placed',     icon: CheckSquare,     label: 'Placed',     exact: false, page: 'placed' },
     { to: '/activity',   icon: Activity,        label: 'Activity',   exact: false, page: 'activity' },
+    { to: '/intel',      icon: Telescope,       label: 'Intel',      exact: false, page: 'intel' },
     { to: '/analytics',  icon: BarChart2,       label: 'Analytics',  exact: false, page: 'analytics' },
     { to: '/tpo',        icon: Briefcase,       label: 'TPO Outreach', exact: false, page: 'tpo' },
     { to: '/remapper',   icon: ArrowLeftRight,  label: 'Remapper',   exact: false, page: 'remapper' },
