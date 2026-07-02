@@ -4,7 +4,7 @@ import { ShieldOff, X } from 'lucide-react'
 
 export function PageHeader({ title, subtitle, actions, context }) {
   return (
-    <div style={{
+    <div className="page-header" style={{
       position: 'sticky',
       top: 0,
       zIndex: 10,
@@ -223,7 +223,7 @@ export function Select({ style = {}, children, ...props }) {
 
 export function Table({ headers, rows, emptyMessage = 'No data', onRowContextMenu }) {
   return (
-    <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+    <div className="table-wrap" style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
       <table style={{ minWidth: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
         <thead>
           <tr>
@@ -279,6 +279,7 @@ export function Modal({ open, onClose, title, children, width = 520, closeOnBack
   if (!open) return null
   return (
     <div
+      className="modal-backdrop"
       onClick={closeOnBackdropClick ? onClose : undefined}
       style={{
         position: 'fixed', inset: 0,
@@ -290,6 +291,7 @@ export function Modal({ open, onClose, title, children, width = 520, closeOnBack
       }}
     >
       <div
+        className="modal-sheet"
         onClick={e => e.stopPropagation()}
         style={{
           background: 'var(--surface)',
@@ -374,7 +376,7 @@ export function Spinner() {
 // tabs: [{ key, label, color? }]  color overrides the accent for the active underline (e.g. 'var(--amber)')
 export function TabBar({ tabs, active, onChange, style = {} }) {
   return (
-    <div style={{
+    <div className="tab-bar" style={{
       display: 'flex', gap: 0,
       borderBottom: '1px solid var(--border)',
       background: 'var(--surface)',

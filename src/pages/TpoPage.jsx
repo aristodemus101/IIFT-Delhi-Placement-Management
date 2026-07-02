@@ -522,7 +522,7 @@ function AllOutreachView() {
 
       <TpoSummaryCards entries={tpoFilter ? filtered : entries} profiles={profiles} canSeeFinancials={canSeeFinancials} />
 
-      <div style={{ padding: '10px 24px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', background: 'var(--surface)', marginTop: 14 }}>
+      <div className="filter-bar" style={{ padding: '10px 24px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', background: 'var(--surface)', marginTop: 14 }}>
         <Select value={tpoFilter} onChange={e => setTpoFilter(e.target.value)} style={{ width: 'auto' }}>
           <option value="">All TPOs</option>
           {tpoList.map(t => <option key={t.uid} value={t.uid}>{t.name}</option>)}

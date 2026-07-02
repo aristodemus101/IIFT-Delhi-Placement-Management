@@ -396,7 +396,7 @@ export default function RosterPage() {
       {hasActiveCohorts ? (
         <>
           {/* Filters */}
-          <div style={{ padding: '10px 24px', borderBottom: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+          <div className="filter-bar" style={{ padding: '10px 24px', borderBottom: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
             <div style={{ position: 'relative' }}>
               <Search size={13} style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-3)' }} />
               <Input placeholder="Search all columns…" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} style={{ paddingLeft: 28, width: 200 }} />

@@ -168,7 +168,7 @@ export default function ActivityPage() {
         )}
       />
 
-      <div style={{ padding: '10px 24px', borderBottom: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', flexShrink: 0 }}>
+      <div className="filter-bar" style={{ padding: '10px 24px', borderBottom: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', flexShrink: 0 }}>
         <Select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} style={{ width: 'auto' }}>
           <option value="all">All types</option>
           {ACTIVITY_TYPE_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
@@ -230,7 +230,7 @@ export default function ActivityPage() {
         </div>
       </div>
 
-      <div style={{ flex: 1, overflow: 'auto', padding: viewMode === 'table' ? 0 : '20px 24px' }}>
+      <div className="page-content" style={{ flex: 1, overflow: 'auto', padding: viewMode === 'table' ? 0 : '20px 24px' }}>
         {loading ? <Spinner /> : filtered.length === 0 ? (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', minHeight: 240 }}>
             <div style={{ textAlign: 'center', color: 'var(--text-3)', fontSize: 13 }}>

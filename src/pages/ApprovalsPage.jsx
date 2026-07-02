@@ -128,7 +128,7 @@ export default function ApprovalsPage() {
         </div>
       </div>
 
-      <div style={{ flex: 1, overflow: 'auto', padding: '20px 24px' }}>
+      <div className="page-content" style={{ flex: 1, overflow: 'auto', padding: '20px 24px' }}>
         {filtered.length === 0 ? (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', minHeight: 200 }}>
             <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-3)', fontSize: 14 }}>

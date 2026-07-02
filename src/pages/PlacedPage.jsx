@@ -365,7 +365,7 @@ export default function PlacedPage() {
 
       {/* Stats bar */}
       {placed.length > 0 && (
-        <div style={{ padding: '12px 24px', borderBottom: '1px solid var(--border)', background: 'var(--surface2)', display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'stretch' }}>
+        <div className="stats-bar" style={{ padding: '12px 24px', borderBottom: '1px solid var(--border)', background: 'var(--surface2)', display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'stretch' }}>
           <StatCard
             label="Placed"
             value={placed.length}
@@ -409,7 +409,7 @@ export default function PlacedPage() {
         </div>
       )}
 
-      <div style={{ padding: '10px 24px', borderBottom: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', gap: 8, alignItems: 'center' }}>
+      <div className="filter-bar" style={{ padding: '10px 24px', borderBottom: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
         <div style={{ position: 'relative' }}>
           <Search size={13} style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-3)' }} />
           <Input
@@ -450,7 +450,7 @@ export default function PlacedPage() {
           <Table headers={headers} rows={rows} emptyMessage={placed.length ? 'No matches' : `No ${seasonLabel(selectedSeason).toLowerCase()} placements recorded yet`} />
         </div>
       ) : (
-        <div style={{ flex: 1, overflow: 'auto', padding: '20px 24px' }}>
+        <div className="page-content" style={{ flex: 1, overflow: 'auto', padding: '20px 24px' }}>
           {filteredCompanies.length === 0 ? (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', minHeight: 200, color: 'var(--text-3)', fontSize: 14 }}>
               {placed.length === 0 ? `No ${seasonLabel(selectedSeason).toLowerCase()} placements recorded yet.` : 'No companies match the search.'}

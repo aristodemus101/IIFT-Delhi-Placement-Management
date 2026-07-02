@@ -310,3 +310,76 @@ button:not(:disabled):active {
     display: none !important;
   }
 }
+
+/* ── Mobile optimisation (< 640px) ───────────────────────────────────────── */
+@media (max-width: 640px) {
+  /* Page header — tighter on mobile */
+  .page-header {
+    padding: 11px 16px 9px !important;
+  }
+  .page-header h1 {
+    font-size: 18px !important;
+    letter-spacing: -0.03em !important;
+  }
+  .page-header p {
+    font-size: 12px !important;
+    margin-top: 2px !important;
+  }
+
+  /* Breadcrumb bar */
+  .workspace-bar {
+    padding: 4px 16px !important;
+    font-size: 10px !important;
+  }
+
+  /* Filter bars — smaller padding, wrap naturally */
+  .filter-bar {
+    padding: 8px 16px !important;
+    gap: 6px !important;
+  }
+
+  /* Stats bars — 2-col grid */
+  .stats-bar {
+    padding: 10px 16px !important;
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+  }
+
+  /* Content areas */
+  .page-content {
+    padding: 14px 16px !important;
+  }
+
+  /* Modal — bottom sheet on mobile */
+  .modal-backdrop {
+    align-items: flex-end !important;
+    padding: 0 !important;
+  }
+  .modal-sheet {
+    border-radius: 20px 20px 0 0 !important;
+    max-height: 92dvh !important;
+    width: 100% !important;
+  }
+
+  /* Table — horizontal scroll */
+  .table-wrap {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  /* Tabs — horizontal scroll, no scrollbar */
+  .tab-bar {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+    padding-left: 16px !important;
+    flex-shrink: 0 !important;
+  }
+  .tab-bar::-webkit-scrollbar { display: none; }
+
+  /* Approvals / activity cards */
+  .page-content > div > div {
+    gap: 8px !important;
+  }
+}
