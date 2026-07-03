@@ -31,8 +31,9 @@ export default function DashboardPage() {
   }
   const navigate = useNavigate()
 
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 700
   const [collapsed, setCollapsed] = useState({
-    category: true, gender: true, workex: true, age: true, companies: true,
+    category: isMobile, gender: isMobile, workex: isMobile, age: isMobile, companies: isMobile,
   })
   const toggle = (key) => setCollapsed(c => ({ ...c, [key]: !c[key] }))
 
