@@ -11,19 +11,18 @@ import { auth, googleProvider, db } from './firebase'
 import { MASTER_ADMIN_EMAILS } from './roleConfig'
 
 // ── Platform detection ────────────────────────────────────────────────────────
-// Use redirect on mobile browsers (popup blocked by default) and installed PWAs.
-// Check once at module load so the value is stable for the session.
-const isMobile = () =>
-  /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
-
-const isStandalone = () =>
+// Evaluated once at module load — stable for the entire session.
+const isStandalone =
   window.matchMedia('(display-mode: standalone)').matches ||
   window.navigator.standalone === true
 
-const useRedirect = isMobile() || isStandalone()
-
-// Key used to signal to the next page load that we're returning from a redirect.
-const REDIRECT_PENDING_KEY = 'pos_redirect_pending'
+// On installed PWA (standalone), iOS blocks popups entirely.
+// On regular mobile browsers, popups usually work but are unreliable.
+// Strategy: always try popup first; catch popup-blocked and fall back to redirect.
+// getRedirectResult is called unconditionally on standalone so it catches the
+// credential whether or not sessionStorage survived the OAuth round-trip.
+// On desktop (non-standalone) we never call signInWithRedirect, so
+// getRedirectResult is a cheap no-op that resolves with null immediately.
 
 // ── TPO profile bootstrap ─────────────────────────────────────────────────────
 async function ensureTpoProfileOnLogin(u) {
@@ -175,21 +174,19 @@ export function AuthProvider({ children }) {
     })
 
     // Handle redirect sign-in return.
-    // Only call getRedirectResult when we actually initiated a redirect —
-    // guarded by a sessionStorage flag set in login() below.
-    // This avoids the race where getRedirectResult resolves before
-    // onAuthStateChanged has hydrated the persisted session.
-    if (sessionStorage.getItem(REDIRECT_PENDING_KEY)) {
-      sessionStorage.removeItem(REDIRECT_PENDING_KEY)
+    // On standalone PWA: always call getRedirectResult — sessionStorage doesn't
+    // survive the iOS OAuth round-trip (opens in Safari, returns to PWA as fresh
+    // context), so we can't rely on a flag. getRedirectResult resolves with null
+    // if no redirect is pending, which is fine.
+    // On desktop: never called (we never use signInWithRedirect on desktop).
+    // onAuthStateChanged fires automatically when the credential lands — no
+    // manual state update needed here.
+    if (isStandalone) {
       getRedirectResult(auth).catch(err => {
-        // Surface redirect errors (e.g. account mismatch, popup closed)
         if (err?.code && err.code !== 'auth/cancelled-popup-request') {
           console.error('Redirect sign-in error:', err)
-          // onAuthStateChanged will fire with null — error shown via LoginPage
         }
       })
-      // No need to do anything on success: onAuthStateChanged fires automatically
-      // when the credential lands, exactly as it does for popup sign-in.
     }
 
     return () => {
@@ -199,12 +196,21 @@ export function AuthProvider({ children }) {
     }
   }, [])
 
-  const login = () => {
-    if (useRedirect) {
-      sessionStorage.setItem(REDIRECT_PENDING_KEY, '1')
+  const login = async () => {
+    if (isStandalone) {
+      // Installed PWA: popups are blocked on iOS. Use redirect unconditionally.
       return signInWithRedirect(auth, googleProvider)
     }
-    return signInWithPopup(auth, googleProvider)
+    try {
+      // Regular browser (desktop or mobile): try popup first — faster UX.
+      return await signInWithPopup(auth, googleProvider)
+    } catch (err) {
+      if (err?.code === 'auth/popup-blocked' || err?.code === 'auth/popup-cancelled') {
+        // Browser blocked the popup — fall back to redirect flow.
+        return signInWithRedirect(auth, googleProvider)
+      }
+      throw err
+    }
   }
 
   const logout = () => signOut(auth)

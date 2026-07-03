@@ -67,7 +67,8 @@ service cloud.firestore {
     // ── Roles ───────────────────────────────────────────────────────────────
     // Any authenticated user can read roles (needed to check their own role).
     // Any authenticated user can create their OWN role doc on first login.
-    // Only the master admin can promote/demote others.
+    //   (Bootstrap path — allowlist check on the client enforces who can reach this.)
+    // Only master admin can update/delete any role doc (role management UI).
     match /roles/{uid} {
       allow read:   if isAuthed();
       allow create: if isAuthed() && request.auth.uid == uid;
@@ -168,9 +169,9 @@ service cloud.firestore {
     // _deleted records are readable (needed for audit trail) but filtered client-side.
     match /intel/{docId} {
       allow read:          if hasAnyRole();
-      allow create:        if hasAnyRole() && (isAdmin() || isCommittee())
+      allow create:        if (isAdmin() || isCommittee())
                              && request.resource.data.createdBy == request.auth.uid;
-      allow update:        if hasAnyRole() && (isAdmin() || isCommittee())
+      allow update:        if (isAdmin() || isCommittee())
                              && request.resource.data.updatedBy == request.auth.uid;
       allow delete:        if isAdmin();
     }
