@@ -1,7 +1,7 @@
 // src/pages/LoginPage.jsx
 import React, { useState } from 'react'
 import { useAuth } from '../lib/AuthContext'
-import { GraduationCap, ShieldX } from 'lucide-react'
+import { ShieldX } from 'lucide-react'
 
 
 function getSignInErrorMessage(error) {
@@ -54,21 +54,15 @@ function LoginLayout({ children }) {
         position: 'relative',
         overflow: 'hidden',
       }}>
-        {/* subtle grid overlay */}
-        <div style={{
-          position: 'absolute', inset: 0,
-          backgroundImage: `repeating-linear-gradient(0deg, transparent, transparent 39px, rgba(255,255,255,0.03) 40px), repeating-linear-gradient(90deg, transparent, transparent 39px, rgba(255,255,255,0.03) 40px)`,
-          pointerEvents: 'none',
-        }} />
         {/* logo */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, position: 'relative' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, position: 'relative' }}>
           <div style={{
-            width: 36, height: 36, borderRadius: 10,
-            background: 'rgba(255,255,255,0.15)',
+            width: 34, height: 34, borderRadius: 9,
+            background: 'rgba(255,255,255,0.18)',
             border: '1px solid rgba(255,255,255,0.2)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
-            <GraduationCap size={18} color="#fff" />
+            <span style={{ color: '#fff', fontSize: 11, fontWeight: 800, letterSpacing: '-0.02em', userSelect: 'none' }}>POS</span>
           </div>
           <span style={{ color: '#fff', fontWeight: 800, fontSize: 15, letterSpacing: '-0.03em' }}>PlacementOS</span>
         </div>
@@ -80,30 +74,17 @@ function LoginLayout({ children }) {
             letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 20,
           }}>IIFT Delhi · Placement Cell</div>
           <h1 style={{
-            fontSize: 42, fontWeight: 900, color: '#fff',
-            letterSpacing: '-0.04em', lineHeight: 1.05, marginBottom: 20,
+            fontSize: 40, fontWeight: 900, color: '#fff',
+            letterSpacing: '-0.04em', lineHeight: 1.05, marginBottom: 18,
           }}>
-            Placement<br />Management<br />Platform
+            One place<br />for placement.
           </h1>
           <p style={{
             fontSize: 14.5, color: 'rgba(255,255,255,0.55)',
-            lineHeight: 1.65, maxWidth: 320,
+            lineHeight: 1.65, maxWidth: 300,
           }}>
-            Roster management, placement tracking, analytics, and outreach — all in one place for the placement team.
+            Roster, tracking, analytics, and outreach — for the placement team.
           </p>
-        </div>
-
-        {/* bottom stats row */}
-        <div style={{
-          display: 'flex', gap: 28, position: 'relative',
-          borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 28,
-        }}>
-          {[['Roster', 'Student records'], ['Analytics', 'Cohort insights'], ['Outreach', 'TPO tracking']].map(([label, sub]) => (
-            <div key={label}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#fff', letterSpacing: '-0.02em' }}>{label}</div>
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>{sub}</div>
-            </div>
-          ))}
         </div>
       </div>
 

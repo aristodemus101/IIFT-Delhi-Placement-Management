@@ -8,7 +8,7 @@ import { useBatch } from '../lib/BatchContext'
 import { useStudents } from '../lib/useStudents'
 import {
   LayoutDashboard, Users, CheckSquare, ArrowLeftRight, Activity,
-  LogOut, GraduationCap, ShieldCheck, ClipboardCheck, User, Sun, Moon, BarChart2, Briefcase, Info,
+  LogOut, ShieldCheck, ClipboardCheck, User, Sun, Moon, BarChart2, Briefcase, Info,
   ChevronLeft, ChevronRight, Telescope, Menu,
 } from 'lucide-react'
 
@@ -171,12 +171,14 @@ export default function Layout() {
       <div style={{ padding: compact ? '0 10px 14px' : '0 16px 16px', borderBottom: '1px solid var(--border)', marginBottom: 6 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: compact ? 0 : 10, justifyContent: compact ? 'center' : 'flex-start' }}>
           <div style={{
-            width: 32, height: 32, borderRadius: 9, flexShrink: 0,
-            background: 'linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%)',
+            width: 32, height: 32, borderRadius: 8, flexShrink: 0,
+            background: 'var(--accent)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 2px 8px rgba(37,99,235,0.35)',
           }}>
-            <GraduationCap size={16} color="#fff" />
+            <span style={{
+              color: '#fff', fontSize: 11, fontWeight: 800,
+              letterSpacing: '-0.02em', lineHeight: 1, userSelect: 'none',
+            }}>POS</span>
           </div>
           {!compact && (
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -486,10 +488,10 @@ export default function Layout() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{
               width: 26, height: 26, borderRadius: 7, flexShrink: 0,
-              background: 'linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%)',
+              background: 'var(--accent)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
-              <GraduationCap size={13} color="#fff" />
+              <span style={{ color: '#fff', fontSize: 9, fontWeight: 800, letterSpacing: '-0.02em', userSelect: 'none' }}>POS</span>
             </div>
             <span style={{ fontWeight: 800, fontSize: 13, letterSpacing: '-0.03em', color: 'var(--text)' }}>PlacementOS</span>
           </div>

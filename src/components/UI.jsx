@@ -118,34 +118,31 @@ export function Badge({ children, color = 'gray' }) {
 }
 
 export function StatCard({ label, value, sub, color }) {
-  const accentColor = color || 'var(--accent)'
+  const dotColor = color || 'var(--accent)'
   return (
     <div style={{
       background: 'var(--surface)',
       border: '1px solid var(--border)',
       borderRadius: 'var(--radius-lg)',
-      padding: '18px 20px 16px',
+      padding: '16px 20px 14px',
       flex: 1, minWidth: 120,
       boxShadow: 'var(--shadow-sm)',
-      position: 'relative',
-      overflow: 'hidden',
     }}>
-      {/* top accent line */}
       <div style={{
-        position: 'absolute', top: 0, left: 0, right: 0, height: 2,
-        background: accentColor,
-        borderRadius: '16px 16px 0 0',
-        opacity: 0.7,
-      }} />
+        display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10,
+      }}>
+        <div style={{ width: 6, height: 6, borderRadius: '50%', background: dotColor, flexShrink: 0 }} />
+        <div style={{
+          fontSize: 10, color: 'var(--text-3)', fontWeight: 700,
+          textTransform: 'uppercase', letterSpacing: '0.08em',
+        }}>{label}</div>
+      </div>
       <div style={{
-        fontSize: 10, color: 'var(--text-3)', fontWeight: 700,
-        marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.08em',
-      }}>{label}</div>
-      <div style={{
-        fontSize: 38, fontWeight: 'var(--weight-xbold)',
+        fontSize: 30, fontWeight: 'var(--weight-xbold)',
         letterSpacing: '-0.03em', lineHeight: 1,
-        color: accentColor,
-        marginBottom: sub ? 8 : 0,
+        color: 'var(--text)',
+        fontVariantNumeric: 'tabular-nums',
+        marginBottom: sub ? 6 : 0,
       }}>{value}</div>
       {sub && (
         <div style={{
