@@ -64,21 +64,16 @@ export default function Layout() {
     if (typeof window === 'undefined') return false
     return window.innerWidth < 900
   })
-  const [isMobileViewport, setIsMobileViewport] = useState(() => {
-    if (typeof window === 'undefined') return false
-    return window.innerWidth < 640
-  })
 
   useEffect(() => {
-    const updateViewport = () => {
-      setIsNarrowViewport(window.innerWidth < 900)
-      setIsMobileViewport(window.innerWidth < 640)
-    }
+    const updateViewport = () => setIsNarrowViewport(window.innerWidth < 900)
     updateViewport()
     window.addEventListener('resize', updateViewport)
     return () => window.removeEventListener('resize', updateViewport)
   }, [])
 
+  // Sidebar is always compact (icon-only) on narrow screens.
+  // There is no separate mobile/bottom-tab layout — the sidebar works at all widths.
   const isCompactSidebar = sidebarCollapsed || isNarrowViewport
 
   const hasActiveCohorts = activeBatches.length > 0
@@ -149,99 +144,17 @@ export default function Layout() {
     { to: '/about',      icon: Info,            label: 'About',       exact: false, page: 'about' },
   ].filter(n => canAccessPage(n.page))
 
-  // On mobile (< 640px) we render a bottom tab bar instead of the sidebar.
-  // All accessible tabs are shown in a horizontally scrollable bar — no hard cap.
-  if (isMobileViewport) {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', overflow: 'hidden', background: 'var(--surface)' }}>
-        {/* Slim top bar */}
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '10px 16px', borderBottom: '1px solid var(--border)',
-          background: 'var(--surface)', flexShrink: 0,
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{
-              width: 28, height: 28, borderRadius: 8, flexShrink: 0,
-              background: 'linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 2px 8px rgba(37,99,235,0.3)',
-            }}>
-              <GraduationCap size={14} color="#fff" />
-            </div>
-            <span style={{ fontWeight: 800, fontSize: 13, letterSpacing: '-0.03em', color: 'var(--text)' }}>PlacementOS</span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {hasActiveCohorts && (
-              <span style={{ fontSize: 10.5, color: 'var(--text-3)', fontWeight: 500 }}>
-                {selectedYearCode || 'All'} · {selectedCampuses.length ? selectedCampuses[0] : 'All'}
-              </span>
-            )}
-            <button onClick={toggleTheme} style={{ border: '1px solid var(--border)', background: 'var(--surface2)', width: 30, height: 30, borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-3)' }}>
-              {theme === 'dark' ? <Sun size={13} /> : <Moon size={13} />}
-            </button>
-          </div>
-        </div>
-
-        {/* Page content */}
-        <div style={{ flex: 1, overflow: 'auto', minHeight: 0, background: 'var(--surface)' }}>
-          <Outlet context={{ setWorkspaceActions }} />
-        </div>
-
-        {/* Bottom tab bar — scrollable so all accessible tabs are reachable */}
-        <nav data-mobile-nav style={{
-          display: 'flex', borderTop: '1px solid var(--border)',
-          background: 'color-mix(in srgb, var(--surface) 95%, transparent)',
-          backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
-          flexShrink: 0,
-          overflowX: 'auto',
-          scrollbarWidth: 'none',
-          WebkitOverflowScrolling: 'touch',
-          paddingBottom: 'env(safe-area-inset-bottom)',
-        }}>
-          {NAV.map(({ to, icon: Icon, label, exact, badge }) => (
-            <NavLink key={to} to={to} end={exact} style={({ isActive }) => ({
-              flexShrink: 0,
-              minWidth: 64,
-              display: 'flex', flexDirection: 'column', alignItems: 'center',
-              justifyContent: 'center', gap: 3, padding: '8px 10px 6px',
-              textDecoration: 'none', fontSize: 10, fontWeight: isActive ? 700 : 500,
-              color: isActive ? 'var(--accent)' : 'var(--text-3)',
-              position: 'relative',
-              transition: 'color var(--speed-fast) var(--easing-out)',
-              borderBottom: isActive ? '2px solid var(--accent)' : '2px solid transparent',
-            })}>
-              <div style={{ position: 'relative' }}>
-                <Icon size={20} strokeWidth={1.8} />
-                {badge > 0 && (
-                  <span style={{
-                    position: 'absolute', top: -4, right: -6,
-                    background: 'var(--accent)', color: '#fff',
-                    borderRadius: 999, fontSize: 9, fontWeight: 700,
-                    padding: '1px 4px', minWidth: 14, textAlign: 'center', lineHeight: 1.5,
-                  }}>{badge}</span>
-                )}
-              </div>
-              <span style={{ lineHeight: 1, whiteSpace: 'nowrap' }}>{label.split(' ')[0]}</span>
-            </NavLink>
-          ))}
-        </nav>
-      </div>
-    )
-  }
-
   return (
-    <div style={{ display: 'flex', flexDirection: isNarrowViewport ? 'column' : 'row', height: '100vh', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: 'row', height: '100dvh', overflow: 'hidden' }}>
       <aside style={{
         width: isCompactSidebar ? 72 : 232,
         flexShrink: 0,
         background: 'var(--surface)',
-        borderRight: isNarrowViewport ? 'none' : '1px solid var(--border)',
-        borderBottom: isNarrowViewport ? '1px solid var(--border)' : 'none',
+        borderRight: '1px solid var(--border)',
         display: 'flex',
         flexDirection: 'column',
         padding: isCompactSidebar ? '12px 0' : '16px 0',
-        height: isNarrowViewport ? 'auto' : '100vh',
+        height: '100dvh',
         overflow: 'hidden',
         transition: 'width 0.2s var(--easing)',
       }}>
