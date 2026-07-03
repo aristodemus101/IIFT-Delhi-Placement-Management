@@ -31,9 +31,8 @@ export default function DashboardPage() {
   }
   const navigate = useNavigate()
 
-  const isMobile = typeof window !== 'undefined' && window.innerWidth < 700
   const [collapsed, setCollapsed] = useState({
-    category: isMobile, gender: isMobile, workex: isMobile, age: isMobile, companies: isMobile,
+    category: true, gender: true, workex: true, age: true, companies: true,
   })
   const toggle = (key) => setCollapsed(c => ({ ...c, [key]: !c[key] }))
 
@@ -309,16 +308,15 @@ export default function DashboardPage() {
           </span>
         </div>
 
-        {/* stat cards — row 1 */}
-        <div className="stats-bar" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%/3, 130px), 1fr))', gap: 10, marginBottom: 10, padding: 0 }}>
+        {/* stat cards — 5 per row on desktop, 2-col on mobile */}
+        <div className="stat-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10, marginBottom: 10 }}>
           <StatCard label="Total"       value={stats.total    || 0}  sub="in cohort" />
           <StatCard label="YTP"         value={stats.active   || 0}  sub={`${seasonLabel(selectedSeason)} · not placed`} color="var(--accent)" />
           <StatCard label="Placed"      value={stats.placed   || 0}  sub={`${stats.placePct || 0}% · ${seasonLabel(selectedSeason)}`} color="var(--green)" />
           <StatCard label="Avg CAT"     value={stats.avgCat  || '—'} sub="percentile" />
           <StatCard label="Avg Work Ex" value={stats.avgWx ? `${stats.avgWx}mo` : '—'} sub="all incl. freshers" />
         </div>
-        {/* stat cards — row 2 */}
-        <div className="stats-bar" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%/3, 130px), 1fr))', gap: 10, marginBottom: 20, padding: 0 }}>
+        <div className="stat-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10, marginBottom: 20 }}>
           <StatCard label="Avg WX (Exp)" value={stats.avgWxExp ? `${stats.avgWxExp}mo` : '—'} sub={`${stats.experienced || 0} students ≥12 mo`} color="var(--accent)" />
           <StatCard label="Freshers"     value={stats.freshers ?? '—'} sub="< 12 mo work ex" />
           <StatCard label="Female"       value={stats.females  || 0}   sub={`${stats.femalePct || 0}% of cohort`} color="var(--purple)" />

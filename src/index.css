@@ -346,10 +346,8 @@ button:not(:disabled):active {
     gap: 6px !important;
   }
 
-  /* Stats bars — 2-col grid */
-  .stats-bar {
-    padding: 10px 16px !important;
-    display: grid !important;
+  /* Stat cards — 2-col on mobile */
+  .stat-grid {
     grid-template-columns: 1fr 1fr !important;
     gap: 8px !important;
   }
