@@ -309,7 +309,7 @@ export default function DashboardPage() {
         </div>
 
         {/* stat cards — row 1 */}
-        <div className="stats-bar" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 10, marginBottom: 10, padding: 0 }}>
+        <div className="stats-bar" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%/3, 130px), 1fr))', gap: 10, marginBottom: 10, padding: 0 }}>
           <StatCard label="Total"       value={stats.total    || 0}  sub="in cohort" />
           <StatCard label="YTP"         value={stats.active   || 0}  sub={`${seasonLabel(selectedSeason)} · not placed`} color="var(--accent)" />
           <StatCard label="Placed"      value={stats.placed   || 0}  sub={`${stats.placePct || 0}% · ${seasonLabel(selectedSeason)}`} color="var(--green)" />
@@ -317,7 +317,7 @@ export default function DashboardPage() {
           <StatCard label="Avg Work Ex" value={stats.avgWx ? `${stats.avgWx}mo` : '—'} sub="all incl. freshers" />
         </div>
         {/* stat cards — row 2 */}
-        <div className="stats-bar" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 10, marginBottom: 20, padding: 0 }}>
+        <div className="stats-bar" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%/3, 130px), 1fr))', gap: 10, marginBottom: 20, padding: 0 }}>
           <StatCard label="Avg WX (Exp)" value={stats.avgWxExp ? `${stats.avgWxExp}mo` : '—'} sub={`${stats.experienced || 0} students ≥12 mo`} color="var(--accent)" />
           <StatCard label="Freshers"     value={stats.freshers ?? '—'} sub="< 12 mo work ex" />
           <StatCard label="Female"       value={stats.females  || 0}   sub={`${stats.femalePct || 0}% of cohort`} color="var(--purple)" />
@@ -326,7 +326,7 @@ export default function DashboardPage() {
         </div>
 
         {/* detail cards grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 12, alignItems: 'start' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 260px), 1fr))', gap: 12, marginBottom: 12, alignItems: 'start' }}>
 
           {/* ── Category Breakdown ── */}
           <div style={card()}>

@@ -125,7 +125,7 @@ export function StatCard({ label, value, sub, color }) {
       border: '1px solid var(--border)',
       borderRadius: 'var(--radius-lg)',
       padding: '16px 20px 14px',
-      flex: 1, minWidth: 120,
+      flex: 1, minWidth: 0,
       boxShadow: 'var(--shadow-sm)',
     }}>
       <div style={{
