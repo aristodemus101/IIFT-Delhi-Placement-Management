@@ -77,7 +77,12 @@ export function useRosterPrefs({ user, allColumnDefs, selectedCohort }) {
   }
 
   const setF = (k, v) => setFilters(f => ({ ...f, [k]: v }))
-  const clearFilters = (setSearchTerm) => { setFilters(DEFAULT_FILTERS); setSearchTerm?.('') }
+  const clearFilters = (setSearchTerm) => {
+    setFilters(DEFAULT_FILTERS)
+    setSortCol('name')
+    setSortDir(1)
+    setSearchTerm?.('')
+  }
 
   return {
     sortCol, setSortCol,
