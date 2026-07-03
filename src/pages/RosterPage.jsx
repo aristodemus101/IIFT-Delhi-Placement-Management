@@ -395,8 +395,8 @@ export default function RosterPage() {
 
       {hasActiveCohorts ? (
         <>
-          {/* Filters */}
-          <div className="filter-bar" style={{ padding: '10px 24px', borderBottom: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+          {/* Filter bar */}
+          <div className="filter-bar" style={{ padding: '8px 24px', borderBottom: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
             <div style={{ position: 'relative' }}>
               <Search size={13} style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-3)' }} />
               <Input placeholder="Search all columns…" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} style={{ paddingLeft: 28, width: 200 }} />
@@ -420,7 +420,17 @@ export default function RosterPage() {
               <input type="checkbox" checked={filters.pwdOnly} onChange={e => setF('pwdOnly', e.target.checked)} />
               PWD only
             </label>
-            <div style={{ width: 1, height: 20, background: 'var(--border)', margin: '0 2px', flexShrink: 0 }} />
+            <Btn size="sm" variant="ghost" onClick={clearFilters} style={{ marginLeft: 'auto' }}>Clear filters</Btn>
+          </div>
+
+          {/* Sort bar — visually distinct from filters; sort is persistent, independent of filter state */}
+          <div style={{
+            padding: '6px 24px', borderBottom: '1px solid var(--border)',
+            background: 'var(--surface2)',
+            display: 'flex', gap: 6, alignItems: 'center',
+            flexShrink: 0,
+          }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-3)', letterSpacing: '0.04em', textTransform: 'uppercase', marginRight: 2, userSelect: 'none' }}>Sort</span>
             <Select value={sortCol} onChange={e => setSortCol(e.target.value)} title="Sort by column" style={{ width: 'auto' }}>
               {sortOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
             </Select>
@@ -428,7 +438,9 @@ export default function RosterPage() {
               <option value="asc">A-Z / Low-High</option>
               <option value="desc">Z-A / High-Low</option>
             </Select>
-            <Btn size="sm" variant="ghost" onClick={clearFilters}>Clear</Btn>
+            {(sortCol !== 'name' || sortDir !== 1) && (
+              <Btn size="sm" variant="ghost" onClick={() => { setSortCol('name'); setSortDir(1) }}>Reset</Btn>
+            )}
           </div>
 
           <div style={{ flex: 1, overflow: 'auto' }}>
