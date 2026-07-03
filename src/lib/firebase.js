@@ -7,7 +7,7 @@ import { getFunctions, httpsCallable } from "firebase/functions";
 // Production Firebase Config
 const productionConfig = {
   apiKey: "AIzaSyDeO8mQsjs0C2fzlNkC4QZ2GYZUFBL4Oic",
-  authDomain: "placement-management-6133f.firebaseapp.com",
+  authDomain: "iiftd-pc.web.app",
   projectId: "placement-management-6133f",
   storageBucket: "placement-management-6133f.firebasestorage.app",
   messagingSenderId: "123326226580",
