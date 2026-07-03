@@ -170,16 +170,12 @@ export default function Layout() {
     <>
       <div style={{ padding: compact ? '0 10px 14px' : '0 16px 16px', borderBottom: '1px solid var(--border)', marginBottom: 6 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: compact ? 0 : 10, justifyContent: compact ? 'center' : 'flex-start' }}>
-          <div style={{
-            width: 32, height: 32, borderRadius: 8, flexShrink: 0,
-            background: 'var(--accent)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            <span style={{
-              color: '#fff', fontSize: 11, fontWeight: 800,
-              letterSpacing: '-0.02em', lineHeight: 1, userSelect: 'none',
-            }}>POS</span>
-          </div>
+          <svg width="32" height="32" viewBox="0 0 32 32" fill="none" style={{ flexShrink: 0 }} aria-hidden="true">
+            <rect width="32" height="32" rx="8" fill="var(--accent)"/>
+            <path d="M22 8 A10 10 0 1 0 22 24" stroke="white" strokeWidth="3.5" strokeLinecap="round" fill="none"/>
+            <path d="M19 13 A5 5 0 0 1 19 19" stroke="white" strokeWidth="2" strokeLinecap="round" fill="none" opacity="0.5"/>
+            <circle cx="16" cy="16" r="2" fill="white"/>
+          </svg>
           {!compact && (
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontWeight: 800, fontSize: 13.5, letterSpacing: '-0.03em', lineHeight: 1.15, color: 'var(--text)' }}>PlacementOS</div>
@@ -486,13 +482,12 @@ export default function Layout() {
             <Menu size={18} />
           </button>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{
-              width: 26, height: 26, borderRadius: 7, flexShrink: 0,
-              background: 'var(--accent)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <span style={{ color: '#fff', fontSize: 9, fontWeight: 800, letterSpacing: '-0.02em', userSelect: 'none' }}>POS</span>
-            </div>
+            <svg width="26" height="26" viewBox="0 0 32 32" fill="none" style={{ flexShrink: 0 }} aria-hidden="true">
+              <rect width="32" height="32" rx="8" fill="var(--accent)"/>
+              <path d="M22 8 A10 10 0 1 0 22 24" stroke="white" strokeWidth="3.5" strokeLinecap="round" fill="none"/>
+              <path d="M19 13 A5 5 0 0 1 19 19" stroke="white" strokeWidth="2" strokeLinecap="round" fill="none" opacity="0.5"/>
+              <circle cx="16" cy="16" r="2" fill="white"/>
+            </svg>
             <span style={{ fontWeight: 800, fontSize: 13, letterSpacing: '-0.03em', color: 'var(--text)' }}>PlacementOS</span>
           </div>
         </div>

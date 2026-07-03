@@ -56,14 +56,12 @@ function LoginLayout({ children }) {
       }}>
         {/* logo */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, position: 'relative' }}>
-          <div style={{
-            width: 34, height: 34, borderRadius: 9,
-            background: 'rgba(255,255,255,0.18)',
-            border: '1px solid rgba(255,255,255,0.2)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            <span style={{ color: '#fff', fontSize: 11, fontWeight: 800, letterSpacing: '-0.02em', userSelect: 'none' }}>POS</span>
-          </div>
+          <svg width="34" height="34" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+            <rect width="32" height="32" rx="8" fill="rgba(255,255,255,0.18)" stroke="rgba(255,255,255,0.22)" strokeWidth="1"/>
+            <path d="M22 8 A10 10 0 1 0 22 24" stroke="white" strokeWidth="3.5" strokeLinecap="round" fill="none"/>
+            <path d="M19 13 A5 5 0 0 1 19 19" stroke="white" strokeWidth="2" strokeLinecap="round" fill="none" opacity="0.6"/>
+            <circle cx="16" cy="16" r="2" fill="white"/>
+          </svg>
           <span style={{ color: '#fff', fontWeight: 800, fontSize: 15, letterSpacing: '-0.03em' }}>PlacementOS</span>
         </div>
 
