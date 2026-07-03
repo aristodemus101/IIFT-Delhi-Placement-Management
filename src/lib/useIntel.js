@@ -8,7 +8,7 @@
 //   - "Both"      : at IIFT and at ≥1 peer college in the same window.
 
 import { useState, useEffect, useMemo } from 'react'
-import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore'
+import { collection, query, where, onSnapshot } from 'firebase/firestore'
 import { db } from './firebase'
 import { fuzzyMatch, normalizeId } from './intel'
 
@@ -18,18 +18,18 @@ export function useIntel({ students = [] } = {}) {
   const [error, setError]       = useState(null)
 
   useEffect(() => {
-    // Exclude soft-deleted docs. Firestore inequality filter requires index,
-    // so we filter _deleted !== true via a where clause.
+    // Simple equality filter on _deleted avoids requiring a composite index.
+    // Sorting is done client-side after enrichment.
     const q = query(
       collection(db, 'intel'),
-      where('_deleted', '!=', true),
-      orderBy('_deleted'),
-      orderBy('recruiterName'),
+      where('_deleted', '==', false),
     )
     const unsub = onSnapshot(
       q,
       snap => {
-        setRecords(snap.docs.map(d => ({ _id: d.id, ...d.data() })))
+        const docs = snap.docs.map(d => ({ _id: d.id, ...d.data() }))
+        docs.sort((a, b) => (a.recruiterName || '').localeCompare(b.recruiterName || ''))
+        setRecords(docs)
         setLoading(false)
         setError(null)
       },
