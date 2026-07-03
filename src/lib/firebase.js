@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { browserLocalPersistence, getAuth, GoogleAuthProvider, setPersistence } from "firebase/auth";
+import { getAuth, GoogleAuthProvider, indexedDBLocalPersistence, initializeAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { getFunctions, httpsCallable } from "firebase/functions";
@@ -34,8 +34,11 @@ const isStagingHost =
 const firebaseConfig = isStagingHost ? stagingConfig : productionConfig;
 
 const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
-setPersistence(auth, browserLocalPersistence).catch(() => {})
+// indexedDBLocalPersistence works correctly in PWA/iOS standalone where
+// localStorage can be unreliable. Falls back to in-memory if unavailable.
+export const auth = initializeAuth(app, {
+  persistence: indexedDBLocalPersistence,
+})
 export const googleProvider = new GoogleAuthProvider();
 export const db = getFirestore(app);
 export const storage = getStorage(app);
