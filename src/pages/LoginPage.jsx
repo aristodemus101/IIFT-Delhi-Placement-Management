@@ -42,11 +42,12 @@ function LoginLayout({ children }) {
     <div style={{
       minHeight: '100vh',
       display: 'grid',
-      gridTemplateColumns: '1fr 1fr',
+      gridTemplateColumns: 'var(--login-cols, 1fr 1fr)',
       fontFamily: 'var(--font-sans)',
     }}>
-      {/* Left panel — brand */}
-      <div style={{
+      <style>{`@media (max-width: 640px) { :root { --login-cols: 1fr } .login-brand { display: none !important } }`}</style>
+      {/* Left panel — brand (hidden on mobile) */}
+      <div className="login-brand" style={{
         background: 'linear-gradient(145deg, #0f172a 0%, #1e3a8a 60%, #2563eb 100%)',
         display: 'flex', flexDirection: 'column',
         padding: '48px 52px',

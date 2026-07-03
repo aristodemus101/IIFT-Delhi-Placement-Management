@@ -1,8 +1,14 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
-import { onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth'
+import { onAuthStateChanged, signInWithPopup, signInWithRedirect, getRedirectResult, signOut } from 'firebase/auth'
 import { doc, getDoc, setDoc, updateDoc, onSnapshot, serverTimestamp } from 'firebase/firestore'
 import { auth, googleProvider, db } from './firebase'
 import { MASTER_ADMIN_EMAILS } from './roleConfig'
+
+// Installed PWAs on iOS block popups entirely; Android standalone also prefers redirect.
+// Use redirect when running as a standalone installed app.
+const isStandalone = () =>
+  window.matchMedia('(display-mode: standalone)').matches ||
+  window.navigator.standalone === true
 
 // Creates the tpoProfile doc on first TPO login so the admin All-TPOs view
 // can show the TPO's name even before they visit their own page.
@@ -33,6 +39,10 @@ export function AuthProvider({ children }) {
   const [authError, setAuthError] = useState(null)
 
   useEffect(() => {
+    // Consume any pending redirect result (fires after Google sign-in redirect
+    // returns to the app). onAuthStateChanged will then pick up the signed-in user.
+    getRedirectResult(auth).catch(() => {})
+
     let unsubRole = null
 
     const unsubAuth = onAuthStateChanged(
@@ -151,7 +161,10 @@ export function AuthProvider({ children }) {
     return () => { unsubAuth(); if (unsubRole) unsubRole() }
   }, [])
 
-  const login = () => signInWithPopup(auth, googleProvider)
+  const login = () =>
+    isStandalone()
+      ? signInWithRedirect(auth, googleProvider)
+      : signInWithPopup(auth, googleProvider)
   const logout = () => signOut(auth)
 
   const toggleMasterAdmin = async (uid, value) => {
