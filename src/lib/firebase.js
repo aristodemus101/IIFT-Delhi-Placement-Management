@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { GoogleAuthProvider, indexedDBLocalPersistence, browserLocalPersistence, inMemoryPersistence, initializeAuth } from "firebase/auth";
+import { browserLocalPersistence, getAuth, GoogleAuthProvider, setPersistence } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { getFunctions, httpsCallable } from "firebase/functions";
@@ -7,7 +7,7 @@ import { getFunctions, httpsCallable } from "firebase/functions";
 // Production Firebase Config
 const productionConfig = {
   apiKey: "AIzaSyDeO8mQsjs0C2fzlNkC4QZ2GYZUFBL4Oic",
-  authDomain: "iiftd-pc.web.app",
+  authDomain: "placement-management-6133f.firebaseapp.com",
   projectId: "placement-management-6133f",
   storageBucket: "placement-management-6133f.firebasestorage.app",
   messagingSenderId: "123326226580",
@@ -34,11 +34,8 @@ const isStagingHost =
 const firebaseConfig = isStagingHost ? stagingConfig : productionConfig;
 
 const app = initializeApp(firebaseConfig);
-// Persistence priority: indexedDB (best for PWA/iOS) → localStorage → in-memory.
-// Firebase tries each in order and uses the first available one.
-export const auth = initializeAuth(app, {
-  persistence: [indexedDBLocalPersistence, browserLocalPersistence, inMemoryPersistence],
-})
+export const auth = getAuth(app);
+setPersistence(auth, browserLocalPersistence).catch(() => {})
 export const googleProvider = new GoogleAuthProvider();
 export const db = getFirestore(app);
 export const storage = getStorage(app);
