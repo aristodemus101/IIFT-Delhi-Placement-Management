@@ -395,53 +395,104 @@ export default function RosterPage() {
 
       {hasActiveCohorts ? (
         <>
-          {/* Filter bar */}
-          <div className="filter-bar" style={{ padding: '8px 24px', borderBottom: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-            <div style={{ position: 'relative' }}>
-              <Search size={13} style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-3)' }} />
-              <Input placeholder="Search all columns…" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} style={{ paddingLeft: 28, width: 200 }} />
-            </div>
-            <Input placeholder="CAT %ile ≥" type="number" value={filters.catMin} onChange={e => setF('catMin', e.target.value)} style={{ width: 110 }} />
-            <Input placeholder="Work ex ≥ (mo)" type="number" value={filters.wxMin} onChange={e => setF('wxMin', e.target.value)} style={{ width: 130 }} />
-            <Select value={filters.category} onChange={e => setF('category', e.target.value)} style={{ width: 'auto' }}>
-              <option value="">All categories</option>
-              {categoryOptions.map(c => <option key={c} value={c}>{c}</option>)}
-            </Select>
-            <Select value={filters.gender} onChange={e => setF('gender', e.target.value)} style={{ width: 'auto' }}>
-              <option value="">All genders</option>
-              {genderOptions.map(g => <option key={g} value={g}>{g}</option>)}
-            </Select>
-            <Select value={filters.placementStatus || ''} onChange={e => setF('placementStatus', e.target.value)} title={`Filter by ${selectedCohortCycle === 'summer' ? 'Summer' : 'Final'} placement status`} style={{ width: 'auto' }}>
-              <option value="">All statuses</option>
-              <option value="placed">Placed ({selectedCohortCycle === 'summer' ? 'SIP' : 'Final'})</option>
-              <option value="ytp">YTP ({selectedCohortCycle === 'summer' ? 'SIP' : 'Final'})</option>
-            </Select>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer', color: 'var(--text-2)', whiteSpace: 'nowrap' }}>
-              <input type="checkbox" checked={filters.pwdOnly} onChange={e => setF('pwdOnly', e.target.checked)} />
-              PWD only
-            </label>
-            <Btn size="sm" variant="ghost" onClick={clearFilters} style={{ marginLeft: 'auto' }}>Clear filters</Btn>
-          </div>
+          {/* Toolbar — one bar, filters left, sort + result count right */}
+          {(() => {
+            const activeFilterCount = [
+              searchTerm,
+              filters.catMin,
+              filters.wxMin,
+              filters.category,
+              filters.gender,
+              filters.placementStatus,
+              filters.pwdOnly,
+            ].filter(Boolean).length
+            const sortActive = sortCol !== 'name' || sortDir !== 1
+            const sortLabel = sortOptions.find(o => o.value === sortCol)?.label ?? sortCol
+            const sortDirLabel = sortDir === 1 ? '↑' : '↓'
 
-          {/* Sort bar — visually distinct from filters; sort is persistent, independent of filter state */}
-          <div style={{
-            padding: '6px 24px', borderBottom: '1px solid var(--border)',
-            background: 'var(--surface2)',
-            display: 'flex', gap: 6, alignItems: 'center',
-            flexShrink: 0,
-          }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-3)', letterSpacing: '0.04em', textTransform: 'uppercase', marginRight: 2, userSelect: 'none' }}>Sort</span>
-            <Select value={sortCol} onChange={e => setSortCol(e.target.value)} title="Sort by column" style={{ width: 'auto' }}>
-              {sortOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-            </Select>
-            <Select value={sortDir === 1 ? 'asc' : 'desc'} onChange={e => setSortDir(e.target.value === 'asc' ? 1 : -1)} title="Sort direction" style={{ width: 'auto' }}>
-              <option value="asc">A-Z / Low-High</option>
-              <option value="desc">Z-A / High-Low</option>
-            </Select>
-            {(sortCol !== 'name' || sortDir !== 1) && (
-              <Btn size="sm" variant="ghost" onClick={() => { setSortCol('name'); setSortDir(1) }}>Reset</Btn>
-            )}
-          </div>
+            return (
+              <div className="filter-bar" style={{
+                padding: '8px 24px', borderBottom: '1px solid var(--border)',
+                background: 'var(--surface)', display: 'flex', gap: 6,
+                flexWrap: 'wrap', alignItems: 'center', flexShrink: 0,
+              }}>
+                {/* Search */}
+                <div style={{ position: 'relative' }}>
+                  <Search size={13} style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-3)', pointerEvents: 'none' }} />
+                  <Input placeholder="Search all columns…" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} style={{ paddingLeft: 28, width: 200 }} />
+                </div>
+
+                {/* Filters */}
+                <Input placeholder="CAT %ile ≥" type="number" value={filters.catMin} onChange={e => setF('catMin', e.target.value)} style={{ width: 110 }} />
+                <Input placeholder="Work ex ≥ (mo)" type="number" value={filters.wxMin} onChange={e => setF('wxMin', e.target.value)} style={{ width: 130 }} />
+                <Select value={filters.category} onChange={e => setF('category', e.target.value)} style={{ width: 'auto' }}>
+                  <option value="">All categories</option>
+                  {categoryOptions.map(c => <option key={c} value={c}>{c}</option>)}
+                </Select>
+                <Select value={filters.gender} onChange={e => setF('gender', e.target.value)} style={{ width: 'auto' }}>
+                  <option value="">All genders</option>
+                  {genderOptions.map(g => <option key={g} value={g}>{g}</option>)}
+                </Select>
+                <Select value={filters.placementStatus || ''} onChange={e => setF('placementStatus', e.target.value)} style={{ width: 'auto' }}>
+                  <option value="">All statuses</option>
+                  <option value="placed">Placed ({selectedCohortCycle === 'summer' ? 'SIP' : 'Final'})</option>
+                  <option value="ytp">YTP ({selectedCohortCycle === 'summer' ? 'SIP' : 'Final'})</option>
+                </Select>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer', color: 'var(--text-2)', whiteSpace: 'nowrap' }}>
+                  <input type="checkbox" checked={filters.pwdOnly} onChange={e => setF('pwdOnly', e.target.checked)} />
+                  PWD only
+                </label>
+
+                {/* Clear — only visible when something is active */}
+                {activeFilterCount > 0 && (
+                  <button onClick={clearFilters} style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 5,
+                    padding: '3px 9px', borderRadius: 6, fontSize: 12, fontWeight: 600,
+                    border: '1px solid var(--accent)', background: 'var(--accent-bg)',
+                    color: 'var(--accent-text)', cursor: 'pointer', whiteSpace: 'nowrap',
+                  }}>
+                    {activeFilterCount} filter{activeFilterCount > 1 ? 's' : ''} active · Clear
+                  </button>
+                )}
+
+                {/* Right side: sort + result count */}
+                <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                  {/* Result count */}
+                  <span style={{ fontSize: 12, color: 'var(--text-3)', fontWeight: 500, whiteSpace: 'nowrap' }}>
+                    {sortedFiltered.length} of {scopedStudents.length}
+                  </span>
+
+                  <div style={{ width: 1, height: 16, background: 'var(--border)', flexShrink: 0 }} />
+
+                  {/* Sort — column picker */}
+                  <Select value={sortCol} onChange={e => setSortCol(e.target.value)} title="Sort by" style={{ width: 'auto' }}>
+                    {sortOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                  </Select>
+                  {/* Sort direction — compact toggle button */}
+                  <button
+                    onClick={() => setSortDir(d => -d)}
+                    title={sortDir === 1 ? 'Ascending — click to reverse' : 'Descending — click to reverse'}
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                      width: 30, height: 30, borderRadius: 6, flexShrink: 0,
+                      border: '1px solid var(--border)', background: sortActive ? 'var(--accent-bg)' : 'var(--surface2)',
+                      color: sortActive ? 'var(--accent)' : 'var(--text-3)', cursor: 'pointer',
+                      fontSize: 13, fontWeight: 700, lineHeight: 1,
+                    }}
+                  >
+                    {sortDirLabel}
+                  </button>
+                  {sortActive && (
+                    <button onClick={() => { setSortCol('name'); setSortDir(1) }} style={{
+                      padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600,
+                      border: '1px solid var(--border)', background: 'var(--surface2)',
+                      color: 'var(--text-3)', cursor: 'pointer',
+                    }}>Reset</button>
+                  )}
+                </div>
+              </div>
+            )
+          })()}
 
           <div style={{ flex: 1, overflow: 'auto' }}>
             <Table
