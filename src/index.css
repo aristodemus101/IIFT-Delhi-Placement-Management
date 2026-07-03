@@ -386,3 +386,8 @@ button:not(:disabled):active {
     gap: 8px !important;
   }
 }
+
+@keyframes fadeIn {
+  from { opacity: 0 }
+  to   { opacity: 1 }
+}

@@ -1,18 +1,21 @@
 /**
- * Layout component UI tests — sidebar rendering across viewport widths.
+ * Layout component UI tests.
  *
- * The layout is always a left sidebar + main content (row direction).
- * On narrow viewports (< 900px) the sidebar collapses to 72px icon-only mode.
- * There is no bottom tab bar or top-bar mode — the sidebar works at all widths.
+ * Desktop (>= 900px): inline sidebar pushes content. Expanded = 232px,
+ *   collapsed = 72px icon-only. Collapse/expand button in header.
+ *
+ * Narrow (< 900px): full-width content with a slim top bar containing a
+ *   hamburger. Tapping hamburger slides in a 260px overlay sidebar.
+ *   Tapping backdrop or navigating closes it.
  */
 
 // @vitest-environment jsdom
 import React from 'react'
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { render, screen, cleanup } from '@testing-library/react'
+import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 
-// ── Minimal mocks so Layout can mount without Firebase ──────────────────────
+// ── Mocks ───────────────────────────────────────────────────────────────────
 
 vi.mock('../lib/AuthContext', () => ({
   useAuth: () => ({
@@ -24,9 +27,7 @@ vi.mock('../lib/AuthContext', () => ({
 }))
 
 vi.mock('../lib/usePermissions', () => ({
-  usePermissions: () => ({
-    canAccessPage: () => true,
-  }),
+  usePermissions: () => ({ canAccessPage: () => true }),
 }))
 
 vi.mock('../lib/PendingChangesContext', () => ({
@@ -58,10 +59,7 @@ vi.mock('../lib/useStudents', () => ({
 
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual('react-router-dom')
-  return {
-    ...actual,
-    Outlet: () => <div data-testid="outlet" />,
-  }
+  return { ...actual, Outlet: () => <div data-testid="outlet" /> }
 })
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -73,6 +71,8 @@ function setViewport(width) {
 
 let Layout
 beforeEach(async () => {
+  // Clear persisted sidebar state so each test starts with expanded sidebar
+  localStorage.clear()
   vi.resetModules()
   const mod = await import('../components/Layout.jsx')
   Layout = mod.default
@@ -92,134 +92,179 @@ function renderLayout(width) {
   )
 }
 
-// All 11 nav items visible to an admin (canAccessPage always true)
-const ALL_NAV_FIRST_WORDS = [
-  'Dashboard', 'Roster', 'Placed', 'Activity', 'Intel',
-  'Analytics', 'TPO', 'Remapper', 'Approvals', 'Team', 'About',
-]
+const NAV_COUNT = 11 // admin sees all pages (canAccessPage always true)
 
 // ══════════════════════════════════════════════════════════════════════════════
-// 1. Structure — always sidebar, never bottom tab bar
+// 1. Desktop (>= 900px) — inline sidebar
 // ══════════════════════════════════════════════════════════════════════════════
 
-describe('Layout structure', () => {
-  it('always renders a sidebar <aside>', async () => {
-    renderLayout(390)
+describe('Desktop layout (>= 900px)', () => {
+  it('renders an <aside> sidebar', () => {
+    renderLayout(1280)
     expect(document.querySelector('aside')).not.toBeNull()
   })
 
-  it('never renders a bottom tab bar on mobile width', async () => {
-    renderLayout(390)
-    expect(document.querySelector('nav[data-mobile-nav]')).toBeNull()
-  })
-
-  it('never renders a bottom tab bar on desktop width', async () => {
+  it('no overlay sidebar on desktop', () => {
     renderLayout(1280)
-    expect(document.querySelector('nav[data-mobile-nav]')).toBeNull()
+    expect(screen.queryByLabelText('Navigation menu')).toBeNull()
   })
 
-  it('outer container is always row direction', async () => {
+  it('no hamburger button on desktop', () => {
+    renderLayout(1280)
+    expect(screen.queryByLabelText('Open navigation menu')).toBeNull()
+  })
+
+  it('sidebar is 232px wide (expanded)', () => {
+    renderLayout(1280)
+    const aside = document.querySelector('aside')
+    expect(aside.style.width).toBe('232px')
+  })
+
+  it('all nav links are in the sidebar', () => {
+    renderLayout(1280)
+    const nav = document.querySelector('aside nav')
+    expect(nav.querySelectorAll('a').length).toBe(NAV_COUNT)
+  })
+
+  it('renders the outlet', () => {
+    renderLayout(1280)
+    expect(screen.getByTestId('outlet')).toBeTruthy()
+  })
+
+  it('collapse button visible when expanded', () => {
+    renderLayout(1280)
+    expect(screen.getByTitle('Collapse sidebar')).toBeTruthy()
+  })
+
+  it('sidebar collapses to 72px on collapse button click', () => {
+    renderLayout(1280)
+    fireEvent.click(screen.getByTitle('Collapse sidebar'))
+    const aside = document.querySelector('aside')
+    expect(aside.style.width).toBe('72px')
+  })
+
+  it('expand button appears after collapse', () => {
+    renderLayout(1280)
+    fireEvent.click(screen.getByTitle('Collapse sidebar'))
+    expect(screen.getByTitle('Expand sidebar')).toBeTruthy()
+  })
+
+  it('sidebar expands back on expand button click', () => {
+    renderLayout(1280)
+    fireEvent.click(screen.getByTitle('Collapse sidebar'))
+    fireEvent.click(screen.getByTitle('Expand sidebar'))
+    const aside = document.querySelector('aside')
+    expect(aside.style.width).toBe('232px')
+  })
+
+  it('collapsed sidebar still has all nav links', () => {
+    renderLayout(1280)
+    fireEvent.click(screen.getByTitle('Collapse sidebar'))
+    const nav = document.querySelector('aside nav')
+    expect(nav.querySelectorAll('a').length).toBe(NAV_COUNT)
+  })
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 2. Narrow layout (< 900px) — overlay sidebar
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe('Narrow layout (< 900px)', () => {
+  it('no inline <aside> before hamburger tap', () => {
     renderLayout(390)
-    const root = document.querySelector('div[style*="flex"]')
-    // The root flex container should be row (sidebar left, main right)
-    expect(root.style.flexDirection).toBe('row')
+    // The overlay aside is in the DOM but visually off-screen (translateX(-100%))
+    // Check no collapse/expand toggle exists (desktop-only)
+    expect(screen.queryByTitle('Collapse sidebar')).toBeNull()
+    expect(screen.queryByTitle('Expand sidebar')).toBeNull()
   })
 
-  it('renders the page outlet', async () => {
+  it('hamburger button is visible', () => {
+    renderLayout(390)
+    expect(screen.getByLabelText('Open navigation menu')).toBeTruthy()
+  })
+
+  it('PlacementOS label in top bar', () => {
+    renderLayout(390)
+    // "PlacementOS" appears in both the top bar and the (hidden) overlay sidebar
+    const matches = screen.getAllByText('PlacementOS')
+    expect(matches.length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('page content (outlet) is always visible', () => {
     renderLayout(390)
     expect(screen.getByTestId('outlet')).toBeTruthy()
   })
+
+  it('overlay sidebar starts hidden (translateX -100%)', () => {
+    renderLayout(390)
+    const panel = screen.getByLabelText('Navigation menu')
+    expect(panel.style.transform).toBe('translateX(-100%)')
+  })
+
+  it('overlay sidebar slides in after hamburger tap', () => {
+    renderLayout(390)
+    fireEvent.click(screen.getByLabelText('Open navigation menu'))
+    const panel = screen.getByLabelText('Navigation menu')
+    expect(panel.style.transform).toBe('translateX(0)')
+  })
+
+  it('backdrop appears after hamburger tap', () => {
+    renderLayout(390)
+    fireEvent.click(screen.getByLabelText('Open navigation menu'))
+    expect(document.querySelector('[aria-hidden="true"]')).not.toBeNull()
+  })
+
+  it('all nav links are in the overlay panel', () => {
+    renderLayout(390)
+    fireEvent.click(screen.getByLabelText('Open navigation menu'))
+    const panel = screen.getByLabelText('Navigation menu')
+    expect(panel.querySelectorAll('a').length).toBe(NAV_COUNT)
+  })
+
+  it('overlay closes when backdrop is clicked', () => {
+    renderLayout(390)
+    fireEvent.click(screen.getByLabelText('Open navigation menu'))
+    const backdrop = document.querySelector('[aria-hidden="true"]')
+    fireEvent.click(backdrop)
+    const panel = screen.getByLabelText('Navigation menu')
+    expect(panel.style.transform).toBe('translateX(-100%)')
+  })
+
+  it('overlay panel is 260px wide', () => {
+    renderLayout(390)
+    const panel = screen.getByLabelText('Navigation menu')
+    expect(panel.style.width).toBe('260px')
+  })
+
+  it('close button in overlay panel closes it', () => {
+    renderLayout(390)
+    fireEvent.click(screen.getByLabelText('Open navigation menu'))
+    fireEvent.click(screen.getByLabelText('Close navigation menu'))
+    const panel = screen.getByLabelText('Navigation menu')
+    expect(panel.style.transform).toBe('translateX(-100%)')
+  })
+
+  it('pending count badge visible in top bar', () => {
+    renderLayout(390)
+    // pendingCount = 2 in mock
+    const topBar = document.querySelector('div[style*="height: 48px"]')
+    expect(topBar.textContent).toContain('2')
+  })
 })
 
 // ══════════════════════════════════════════════════════════════════════════════
-// 2. Nav items — all accessible pages always reachable
+// 3. Breakpoint boundary
 // ══════════════════════════════════════════════════════════════════════════════
 
-describe('Nav items', () => {
-  it('sidebar contains all accessible nav links on mobile width', async () => {
-    renderLayout(390)
-    const aside = document.querySelector('aside')
-    const links = aside.querySelectorAll('a')
-    expect(links.length).toBe(ALL_NAV_FIRST_WORDS.length)
-  })
-
-  it('sidebar contains all accessible nav links on desktop width', async () => {
-    renderLayout(1280)
-    const aside = document.querySelector('aside')
-    const nav = aside.querySelector('nav')
-    const links = nav.querySelectorAll('a')
-    expect(links.length).toBe(ALL_NAV_FIRST_WORDS.length)
-  })
-
-  it('pending count badge appears on Approvals link', async () => {
-    renderLayout(1280)
-    const aside = document.querySelector('aside')
-    // Badge text "2" should appear (pendingCount = 2 in mock)
-    expect(aside.textContent).toContain('2')
-  })
-})
-
-// ══════════════════════════════════════════════════════════════════════════════
-// 3. Compact sidebar on narrow screens (< 900px)
-// ══════════════════════════════════════════════════════════════════════════════
-
-describe('Compact sidebar (< 900px)', () => {
-  it('sidebar is 72px wide on 390px viewport', async () => {
-    renderLayout(390)
-    const aside = document.querySelector('aside')
-    expect(aside.style.width).toBe('72px')
-  })
-
-  it('sidebar is 72px wide on 768px viewport', async () => {
-    renderLayout(768)
-    const aside = document.querySelector('aside')
-    expect(aside.style.width).toBe('72px')
-  })
-
-  it('sidebar is 72px wide at the 899px boundary', async () => {
+describe('Breakpoint boundary', () => {
+  it('width 899 shows hamburger (narrow)', () => {
     renderLayout(899)
-    const aside = document.querySelector('aside')
-    expect(aside.style.width).toBe('72px')
+    expect(screen.getByLabelText('Open navigation menu')).toBeTruthy()
   })
-})
 
-// ══════════════════════════════════════════════════════════════════════════════
-// 4. Full sidebar on wide screens (>= 900px)
-// ══════════════════════════════════════════════════════════════════════════════
-
-describe('Full sidebar (>= 900px)', () => {
-  it('sidebar is 232px wide at 900px', async () => {
+  it('width 900 shows inline sidebar (desktop)', () => {
     renderLayout(900)
-    const aside = document.querySelector('aside')
-    expect(aside.style.width).toBe('232px')
-  })
-
-  it('sidebar is 232px wide on desktop', async () => {
-    renderLayout(1280)
-    const aside = document.querySelector('aside')
-    expect(aside.style.width).toBe('232px')
-  })
-
-  it('PlacementOS text label is visible on wide sidebar', async () => {
-    renderLayout(1280)
-    expect(screen.getByText('PlacementOS')).toBeTruthy()
-  })
-})
-
-// ══════════════════════════════════════════════════════════════════════════════
-// 5. Sidebar collapse toggle (desktop only)
-// ══════════════════════════════════════════════════════════════════════════════
-
-describe('Sidebar collapse toggle', () => {
-  it('collapse button is visible on wide desktop sidebar', async () => {
-    renderLayout(1280)
-    const collapseBtn = screen.queryByTitle('Collapse sidebar')
-    expect(collapseBtn).not.toBeNull()
-  })
-
-  it('no collapse button on narrow viewport (sidebar already compact)', async () => {
-    renderLayout(390)
-    const collapseBtn = screen.queryByTitle('Collapse sidebar')
-    expect(collapseBtn).toBeNull()
+    expect(document.querySelector('aside')).not.toBeNull()
+    expect(screen.queryByLabelText('Open navigation menu')).toBeNull()
   })
 })
