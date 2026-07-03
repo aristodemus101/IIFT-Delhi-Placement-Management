@@ -1,7 +1,6 @@
 import React, { useState, useRef, useCallback } from 'react'
 import { Modal, Btn, Badge } from '../../components/UI'
 import { Upload, AlertTriangle, CheckCircle, FileSpreadsheet, X } from 'lucide-react'
-import * as XLSX from 'xlsx'
 import { parseIntelRows, uploadIntelBatch } from '../../lib/intel'
 import { useAuth } from '../../lib/AuthContext'
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore'
@@ -34,12 +33,13 @@ export default function UploadModal({ open, onClose }) {
     setParseErr('')
 
     const reader = new FileReader()
-    reader.onload = e => {
+    reader.onload = async e => {
       try {
+        const { read, utils } = await import('xlsx')
         const data = e.target.result
-        const wb = XLSX.read(data, { type: 'array' })
+        const wb = read(data, { type: 'array' })
         const ws = wb.Sheets[wb.SheetNames[0]]
-        const rawRows = XLSX.utils.sheet_to_json(ws, { defval: '' })
+        const rawRows = utils.sheet_to_json(ws, { defval: '' })
         const { records: parsed, warnings: warns } = parseIntelRows(rawRows)
         if (parsed.length === 0) {
           setParseErr('No valid rows found. Check that your file has the expected column headers.')

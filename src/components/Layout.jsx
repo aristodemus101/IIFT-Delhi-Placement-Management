@@ -149,10 +149,9 @@ export default function Layout() {
     { to: '/about',      icon: Info,            label: 'About',       exact: false, page: 'about' },
   ].filter(n => canAccessPage(n.page))
 
-  // On mobile (< 640px) we render a bottom tab bar instead of the sidebar
+  // On mobile (< 640px) we render a bottom tab bar instead of the sidebar.
+  // All accessible tabs are shown in a horizontally scrollable bar — no hard cap.
   if (isMobileViewport) {
-    // Show only the most relevant nav items for mobile (cap at 5)
-    const mobileNav = NAV.slice(0, 5)
     return (
       <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', overflow: 'hidden', background: 'var(--surface)' }}>
         {/* Slim top bar */}
@@ -189,22 +188,28 @@ export default function Layout() {
           <Outlet context={{ setWorkspaceActions }} />
         </div>
 
-        {/* Bottom tab bar */}
-        <nav style={{
+        {/* Bottom tab bar — scrollable so all accessible tabs are reachable */}
+        <nav data-mobile-nav style={{
           display: 'flex', borderTop: '1px solid var(--border)',
           background: 'color-mix(in srgb, var(--surface) 95%, transparent)',
           backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
           flexShrink: 0,
+          overflowX: 'auto',
+          scrollbarWidth: 'none',
+          WebkitOverflowScrolling: 'touch',
           paddingBottom: 'env(safe-area-inset-bottom)',
         }}>
-          {mobileNav.map(({ to, icon: Icon, label, exact, badge }) => (
+          {NAV.map(({ to, icon: Icon, label, exact, badge }) => (
             <NavLink key={to} to={to} end={exact} style={({ isActive }) => ({
-              flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
-              justifyContent: 'center', gap: 3, padding: '8px 4px 6px',
+              flexShrink: 0,
+              minWidth: 64,
+              display: 'flex', flexDirection: 'column', alignItems: 'center',
+              justifyContent: 'center', gap: 3, padding: '8px 10px 6px',
               textDecoration: 'none', fontSize: 10, fontWeight: isActive ? 700 : 500,
               color: isActive ? 'var(--accent)' : 'var(--text-3)',
               position: 'relative',
               transition: 'color var(--speed-fast) var(--easing-out)',
+              borderBottom: isActive ? '2px solid var(--accent)' : '2px solid transparent',
             })}>
               <div style={{ position: 'relative' }}>
                 <Icon size={20} strokeWidth={1.8} />
@@ -217,7 +222,7 @@ export default function Layout() {
                   }}>{badge}</span>
                 )}
               </div>
-              <span style={{ lineHeight: 1 }}>{label.split(' ')[0]}</span>
+              <span style={{ lineHeight: 1, whiteSpace: 'nowrap' }}>{label.split(' ')[0]}</span>
             </NavLink>
           ))}
         </nav>

@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './lib/AuthContext'
 import { PendingChangesProvider } from './lib/PendingChangesContext'
@@ -8,20 +8,26 @@ import { BatchProvider } from './lib/BatchContext'
 import { usePermissions } from './lib/usePermissions'
 import { Spinner } from './components/UI'
 import Layout from './components/Layout'
-import LoginPage from './pages/LoginPage'
-import DashboardPage from './pages/DashboardPage'
-import RosterPage from './pages/RosterPage'
-import PlacedPage from './pages/PlacedPage'
-import RemapperPage from './pages/RemapperPage'
-import ApprovalsPage from './pages/ApprovalsPage'
-import AdminPage from './pages/AdminPage'
-import ActivityPage from './pages/ActivityPage'
-import AnalyticsPage from './pages/AnalyticsPage'
-import TpoPage from './pages/TpoPage'
-import IntelPage from './pages/IntelPage'
-import AboutPage from './pages/AboutPage'
 
-// Full-screen centered spinner used during auth resolution
+// LoginPage stays eager — it's the first thing unauthenticated users see.
+import LoginPage from './pages/LoginPage'
+
+// All authenticated pages are lazy — they only load after the user is signed in
+// and navigates to that route. This splits the bundle into per-route chunks and
+// keeps the initial JS payload small for the PWA shell.
+const DashboardPage  = lazy(() => import('./pages/DashboardPage'))
+const RosterPage     = lazy(() => import('./pages/RosterPage'))
+const PlacedPage     = lazy(() => import('./pages/PlacedPage'))
+const RemapperPage   = lazy(() => import('./pages/RemapperPage'))
+const ApprovalsPage  = lazy(() => import('./pages/ApprovalsPage'))
+const AdminPage      = lazy(() => import('./pages/AdminPage'))
+const ActivityPage   = lazy(() => import('./pages/ActivityPage'))
+const AnalyticsPage  = lazy(() => import('./pages/AnalyticsPage'))
+const TpoPage        = lazy(() => import('./pages/TpoPage'))
+const IntelPage      = lazy(() => import('./pages/IntelPage'))
+const AboutPage      = lazy(() => import('./pages/AboutPage'))
+
+// Full-screen centered spinner used during auth resolution and lazy page loads
 function FullSpinner() {
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
@@ -107,17 +113,17 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={<LoginRoute />} />
       <Route path="/" element={<AuthGate><BatchProvider><SheetsSyncProvider><PendingChangesProvider><Layout /></PendingChangesProvider></SheetsSyncProvider></BatchProvider></AuthGate>}>
-        <Route index                element={<RoleHome />} />
-        <Route path="roster"        element={<PageGate page="roster"><RosterPage /></PageGate>} />
-        <Route path="placed"        element={<PageGate page="placed"><PlacedPage /></PageGate>} />
-        <Route path="remapper"      element={<PageGate page="remapper"><RemapperPage /></PageGate>} />
-        <Route path="activity"      element={<PageGate page="activity"><ActivityPage /></PageGate>} />
-        <Route path="analytics"     element={<PageGate page="analytics"><AnalyticsPage /></PageGate>} />
-        <Route path="tpo"           element={<PageGate page="tpo"><TpoPage /></PageGate>} />
-        <Route path="intel"         element={<PageGate page="intel"><IntelPage /></PageGate>} />
-        <Route path="approvals"     element={<PageGate page="approvals"><ApprovalsPage /></PageGate>} />
-        <Route path="admin"         element={<PageGate page="admin"><AdminPage /></PageGate>} />
-        <Route path="about"         element={<PageGate page="about"><AboutPage /></PageGate>} />
+        <Route index                element={<Suspense fallback={<FullSpinner />}><RoleHome /></Suspense>} />
+        <Route path="roster"        element={<PageGate page="roster"><Suspense fallback={<FullSpinner />}><RosterPage /></Suspense></PageGate>} />
+        <Route path="placed"        element={<PageGate page="placed"><Suspense fallback={<FullSpinner />}><PlacedPage /></Suspense></PageGate>} />
+        <Route path="remapper"      element={<PageGate page="remapper"><Suspense fallback={<FullSpinner />}><RemapperPage /></Suspense></PageGate>} />
+        <Route path="activity"      element={<PageGate page="activity"><Suspense fallback={<FullSpinner />}><ActivityPage /></Suspense></PageGate>} />
+        <Route path="analytics"     element={<PageGate page="analytics"><Suspense fallback={<FullSpinner />}><AnalyticsPage /></Suspense></PageGate>} />
+        <Route path="tpo"           element={<PageGate page="tpo"><Suspense fallback={<FullSpinner />}><TpoPage /></Suspense></PageGate>} />
+        <Route path="intel"         element={<PageGate page="intel"><Suspense fallback={<FullSpinner />}><IntelPage /></Suspense></PageGate>} />
+        <Route path="approvals"     element={<PageGate page="approvals"><Suspense fallback={<FullSpinner />}><ApprovalsPage /></Suspense></PageGate>} />
+        <Route path="admin"         element={<PageGate page="admin"><Suspense fallback={<FullSpinner />}><AdminPage /></Suspense></PageGate>} />
+        <Route path="about"         element={<PageGate page="about"><Suspense fallback={<FullSpinner />}><AboutPage /></Suspense></PageGate>} />
       </Route>
     </Routes>
   )

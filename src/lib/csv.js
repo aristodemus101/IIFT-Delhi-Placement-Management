@@ -1,7 +1,10 @@
 // src/lib/csv.js
 import Papa from 'papaparse'
-import * as XLSX from 'xlsx'
 import { OUR_COLS } from './columns'
+
+// xlsx is ~500 KB — import it dynamically so it only loads when a user
+// actually opens an Excel file or triggers an Excel export.
+const getXLSX = () => import('xlsx')
 
 export function parseCSVFile(file, meta = {}) {
   return new Promise((resolve, reject) => {
@@ -81,6 +84,7 @@ function detectDelimiter(text, ext) {
 }
 
 async function parseExcelFile(file, meta = {}) {
+  const XLSX = await getXLSX()
   const buffer = await file.arrayBuffer()
   const workbook = XLSX.read(buffer, { type: 'array' })
   const firstSheet = workbook.SheetNames[0]
@@ -204,8 +208,9 @@ export function exportToTSV(rows, filename) {
   downloadString(tsv, filename, 'text/tab-separated-values;charset=utf-8;')
 }
 
-export function exportToExcel(rows, filename) {
+export async function exportToExcel(rows, filename) {
   if (!rows.length) return
+  const XLSX = await getXLSX()
   const clean = stripInternalFields(rows)
   const ws = XLSX.utils.json_to_sheet(clean)
   const wb = XLSX.utils.book_new()

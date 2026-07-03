@@ -8,13 +8,11 @@ export default defineConfig(() => {
       react(),
       VitePWA({
         registerType: 'autoUpdate',
-        // Inline the service worker registration so no extra file needed
         injectRegister: 'auto',
-        // Cache the built assets + runtime Firebase calls
         workbox: {
-          // App shell: cache all Vite-built assets
-          globPatterns: ['**/*.{js,css,html,ico,svg,woff2}'],
-          // Runtime caching for Google Fonts (used by DM Sans)
+          // Precache only the shell chunks. Per-route lazy chunks and xlsx
+          // are fetched on demand and cached by the browser's HTTP cache.
+          globPatterns: ['**/*.{html,css,ico,svg,woff2}', 'assets/vendor-*.js', 'assets/firebase-*.js', 'assets/index-*.js'],
           runtimeCaching: [
             {
               urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
@@ -34,7 +32,6 @@ export default defineConfig(() => {
               },
             },
           ],
-          // Firestore / Firebase JS SDK goes through network — don't cache
           navigateFallback: 'index.html',
           navigateFallbackDenylist: [/^\/__/, /\/[^/?]+\.[^/]+$/],
         },
@@ -65,6 +62,33 @@ export default defineConfig(() => {
         },
       }),
     ],
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks: (id) => {
+            // React + router — tiny, loaded first, always cached
+            if (id.includes('node_modules/react/') ||
+                id.includes('node_modules/react-dom/') ||
+                id.includes('node_modules/react-router-dom/') ||
+                id.includes('node_modules/scheduler/')) {
+              return 'vendor'
+            }
+            // Firebase — large but tree-shaken; separate chunk so it can be
+            // cached independently across deployments when only app code changes
+            if (id.includes('node_modules/firebase/') ||
+                id.includes('node_modules/@firebase/')) {
+              return 'firebase'
+            }
+            // xlsx — dynamically imported, but Rollup still needs a named chunk
+            // so it doesn't get inlined into the requesting module
+            if (id.includes('node_modules/xlsx/')) {
+              return 'xlsx'
+            }
+            // papaparse — small, bundle with app code
+          },
+        },
+      },
+    },
     test: {
       environment: 'node',
     },

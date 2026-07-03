@@ -378,6 +378,9 @@ button:not(:disabled):active {
   }
   .tab-bar::-webkit-scrollbar { display: none; }
 
+  /* Mobile bottom nav — hide horizontal scrollbar across all browsers */
+  nav[data-mobile-nav]::-webkit-scrollbar { display: none; }
+
   /* Approvals / activity cards */
   .page-content > div > div {
     gap: 8px !important;
