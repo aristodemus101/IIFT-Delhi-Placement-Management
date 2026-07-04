@@ -395,101 +395,104 @@ export default function RosterPage() {
 
       {hasActiveCohorts ? (
         <>
-          {/* Toolbar — one bar, filters left, sort + result count right */}
+          {/* Toolbar */}
           {(() => {
             const activeFilterCount = [
-              searchTerm,
-              filters.catMin,
-              filters.wxMin,
-              filters.category,
-              filters.gender,
-              filters.placementStatus,
-              filters.pwdOnly,
+              searchTerm, filters.catMin, filters.wxMin,
+              filters.category, filters.gender, filters.placementStatus, filters.pwdOnly,
             ].filter(Boolean).length
             const sortActive = sortCol !== 'name' || sortDir !== 1
-            const sortLabel = sortOptions.find(o => o.value === sortCol)?.label ?? sortCol
-            const sortDirLabel = sortDir === 1 ? '↑' : '↓'
 
             return (
-              // Outer: never wraps — two groups pinned to opposite ends
-              <div className="filter-bar" style={{
-                padding: '0 24px', borderBottom: '1px solid var(--border)',
-                background: 'var(--surface)', display: 'flex',
-                alignItems: 'center', gap: 0, flexShrink: 0, minHeight: 44,
-              }}>
-                {/* Left: filters — scrolls horizontally on narrow viewports, never wraps */}
+              <div style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)', flexShrink: 0 }}>
+                {/* Row 1: search + primary filters + sort (right-pinned) */}
                 <div style={{
-                  display: 'flex', alignItems: 'center', gap: 6,
-                  overflow: 'hidden', flex: 1, minWidth: 0,
-                  paddingRight: 8,
+                  display: 'flex', alignItems: 'center',
+                  padding: '0 20px', gap: 6, minHeight: 46,
                 }}>
+                  {/* Search */}
                   <div style={{ position: 'relative', flexShrink: 0 }}>
                     <Search size={13} style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-3)', pointerEvents: 'none' }} />
-                    <Input placeholder="Search all columns…" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} style={{ paddingLeft: 28, width: 190 }} />
+                    <Input placeholder="Search all columns…" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} style={{ paddingLeft: 28, width: 200 }} />
                   </div>
-                  <Input placeholder="CAT %ile ≥" type="number" value={filters.catMin} onChange={e => setF('catMin', e.target.value)} style={{ width: 105, flexShrink: 0 }} />
-                  <Input placeholder="Work ex ≥ (mo)" type="number" value={filters.wxMin} onChange={e => setF('wxMin', e.target.value)} style={{ width: 125, flexShrink: 0 }} />
-                  <Select value={filters.category} onChange={e => setF('category', e.target.value)} style={{ width: 'auto', flexShrink: 0 }}>
-                    <option value="">All categories</option>
-                    {categoryOptions.map(c => <option key={c} value={c}>{c}</option>)}
-                  </Select>
-                  <Select value={filters.gender} onChange={e => setF('gender', e.target.value)} style={{ width: 'auto', flexShrink: 0 }}>
-                    <option value="">All genders</option>
-                    {genderOptions.map(g => <option key={g} value={g}>{g}</option>)}
-                  </Select>
-                  <Select value={filters.placementStatus || ''} onChange={e => setF('placementStatus', e.target.value)} style={{ width: 'auto', flexShrink: 0 }}>
-                    <option value="">All statuses</option>
-                    <option value="placed">Placed ({selectedCohortCycle === 'summer' ? 'SIP' : 'Final'})</option>
-                    <option value="ytp">YTP ({selectedCohortCycle === 'summer' ? 'SIP' : 'Final'})</option>
-                  </Select>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12.5, cursor: 'pointer', color: 'var(--text-2)', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                    <input type="checkbox" checked={filters.pwdOnly} onChange={e => setF('pwdOnly', e.target.checked)} />
-                    PWD only
-                  </label>
-                  {activeFilterCount > 0 && (
-                    <button onClick={clearFilters} style={{
-                      display: 'inline-flex', alignItems: 'center', gap: 5, flexShrink: 0,
-                      padding: '3px 9px', borderRadius: 6, fontSize: 12, fontWeight: 600,
-                      border: '1px solid var(--accent)', background: 'var(--accent-bg)',
-                      color: 'var(--accent-text)', cursor: 'pointer', whiteSpace: 'nowrap',
-                    }}>
-                      {activeFilterCount} active · Clear
+
+                  <div style={{ width: 1, height: 18, background: 'var(--border)', flexShrink: 0, margin: '0 2px' }} />
+
+                  {/* Filter controls — scrollable if needed */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0, overflow: 'auto', scrollbarWidth: 'none' }}>
+                    <Input placeholder="CAT %ile ≥" type="number" value={filters.catMin} onChange={e => setF('catMin', e.target.value)} style={{ width: 100, flexShrink: 0 }} />
+                    <Input placeholder="Work ex ≥ (mo)" type="number" value={filters.wxMin} onChange={e => setF('wxMin', e.target.value)} style={{ width: 120, flexShrink: 0 }} />
+                    <Select value={filters.category} onChange={e => setF('category', e.target.value)} style={{ width: 'auto', flexShrink: 0 }}>
+                      <option value="">All categories</option>
+                      {categoryOptions.map(c => <option key={c} value={c}>{c}</option>)}
+                    </Select>
+                    <Select value={filters.gender} onChange={e => setF('gender', e.target.value)} style={{ width: 'auto', flexShrink: 0 }}>
+                      <option value="">All genders</option>
+                      {genderOptions.map(g => <option key={g} value={g}>{g}</option>)}
+                    </Select>
+                    <Select value={filters.placementStatus || ''} onChange={e => setF('placementStatus', e.target.value)} style={{ width: 'auto', flexShrink: 0 }}>
+                      <option value="">All statuses</option>
+                      <option value="placed">Placed ({selectedCohortCycle === 'summer' ? 'SIP' : 'Final'})</option>
+                      <option value="ytp">YTP ({selectedCohortCycle === 'summer' ? 'SIP' : 'Final'})</option>
+                    </Select>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12.5, cursor: 'pointer', color: 'var(--text-2)', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                      <input type="checkbox" checked={filters.pwdOnly} onChange={e => setF('pwdOnly', e.target.checked)} />
+                      PWD only
+                    </label>
+                  </div>
+
+                  {/* Right side — always visible, never scrolls */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, marginLeft: 4 }}>
+                    {activeFilterCount > 0 && (
+                      <button onClick={clearFilters} style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 4,
+                        padding: '3px 10px', borderRadius: 6, fontSize: 11.5, fontWeight: 600,
+                        border: '1px solid var(--accent)', background: 'var(--accent-bg)',
+                        color: 'var(--accent-text)', cursor: 'pointer', whiteSpace: 'nowrap',
+                      }}>
+                        {activeFilterCount} active · Clear
+                      </button>
+                    )}
+
+                    <div style={{ width: 1, height: 18, background: 'var(--border)', flexShrink: 0 }} />
+
+                    {/* Result count */}
+                    <span style={{ fontSize: 12, color: 'var(--text-3)', fontWeight: 500, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
+                      {sortedFiltered.length}<span style={{ opacity: 0.5 }}> / {scopedStudents.length}</span>
+                    </span>
+
+                    <div style={{ width: 1, height: 18, background: 'var(--border)', flexShrink: 0 }} />
+
+                    {/* Sort column */}
+                    <Select value={sortCol} onChange={e => setSortCol(e.target.value)} title="Sort by" style={{ width: 'auto' }}>
+                      {sortOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                    </Select>
+
+                    {/* Sort direction toggle */}
+                    <button
+                      onClick={() => setSortDir(d => -d)}
+                      title={sortDir === 1 ? 'Ascending' : 'Descending'}
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                        width: 28, height: 28, borderRadius: 6, flexShrink: 0,
+                        border: `1px solid ${sortActive ? 'var(--accent)' : 'var(--border)'}`,
+                        background: sortActive ? 'var(--accent-bg)' : 'var(--surface2)',
+                        color: sortActive ? 'var(--accent)' : 'var(--text-3)',
+                        cursor: 'pointer', fontSize: 12, fontWeight: 700, lineHeight: 1,
+                        transition: 'all 0.12s ease',
+                      }}
+                    >
+                      {sortDir === 1 ? '↑' : '↓'}
                     </button>
-                  )}
-                </div>
 
-                {/* Divider */}
-                <div style={{ width: 1, height: 20, background: 'var(--border)', flexShrink: 0 }} />
-
-                {/* Right: sort + count — always visible, never wraps */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, paddingLeft: 10 }}>
-                  <span style={{ fontSize: 12, color: 'var(--text-3)', fontWeight: 500, whiteSpace: 'nowrap' }}>
-                    {sortedFiltered.length} of {scopedStudents.length}
-                  </span>
-                  <div style={{ width: 1, height: 16, background: 'var(--border)', flexShrink: 0 }} />
-                  <Select value={sortCol} onChange={e => setSortCol(e.target.value)} title="Sort by" style={{ width: 'auto' }}>
-                    {sortOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-                  </Select>
-                  <button
-                    onClick={() => setSortDir(d => -d)}
-                    title={sortDir === 1 ? 'Ascending — click to reverse' : 'Descending — click to reverse'}
-                    style={{
-                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                      width: 30, height: 30, borderRadius: 6, flexShrink: 0,
-                      border: '1px solid var(--border)', background: sortActive ? 'var(--accent-bg)' : 'var(--surface2)',
-                      color: sortActive ? 'var(--accent)' : 'var(--text-3)', cursor: 'pointer',
-                      fontSize: 13, fontWeight: 700, lineHeight: 1,
-                    }}
-                  >
-                    {sortDirLabel}
-                  </button>
-                  {sortActive && (
-                    <button onClick={() => { setSortCol('name'); setSortDir(1) }} style={{
-                      padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600,
-                      border: '1px solid var(--border)', background: 'var(--surface2)',
-                      color: 'var(--text-3)', cursor: 'pointer',
-                    }}>Reset</button>
-                  )}
+                    {sortActive && (
+                      <button onClick={() => { setSortCol('name'); setSortDir(1) }} style={{
+                        padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600,
+                        border: '1px solid var(--border)', background: 'transparent',
+                        color: 'var(--text-3)', cursor: 'pointer', whiteSpace: 'nowrap',
+                      }}>Reset</button>
+                    )}
+                  </div>
                 </div>
               </div>
             )

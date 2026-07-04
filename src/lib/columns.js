@@ -196,10 +196,18 @@ export const SYNONYMS = {
   por:         ['por', 'position of responsibility', 'leadership', 'role of responsibility'],
 }
 
+// Date column keys — coerce Excel serials to ISO at display time
+const DATE_KEYS = new Set(['dob', 'x10_start', 'x10_end', 'x12_start', 'x12_end', 'ug_start', 'ug_end', 'pg1_start', 'pg1_end'])
+
 export function getVal(student, key) {
   const col = OUR_COLS.find(c => c.key === key)
-  if (!col) return ''
-  try { return col.path(student) || '' } catch { return '' }
+  // Firestore docs store values under the short key (e.g. 'ug_start'), not the
+  // original header label, so direct key lookup is the reliable path.
+  const raw = (student && student[key] !== undefined && student[key] !== null && student[key] !== '')
+    ? student[key]
+    : (col ? (() => { try { return col.path(student) } catch { return '' } })() : '')
+  const val = String(raw ?? '')
+  return DATE_KEYS.has(key) ? coerceDate(val) : val
 }
 
 export function normalize(s) {
