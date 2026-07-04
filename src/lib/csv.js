@@ -86,7 +86,9 @@ function detectDelimiter(text, ext) {
 async function parseExcelFile(file, meta = {}) {
   const XLSX = await getXLSX()
   const buffer = await file.arrayBuffer()
-  const workbook = XLSX.read(buffer, { type: 'array' })
+  // cellDates: true → SheetJS converts date-typed cells to JS Date objects
+  // instead of leaving them as Excel serial integers (e.g. 44869 → 2022-11-03)
+  const workbook = XLSX.read(buffer, { type: 'array', cellDates: true })
   const firstSheet = workbook.SheetNames[0]
   if (!firstSheet) throw new Error('No sheet found in workbook')
 
@@ -113,13 +115,29 @@ function buildTableFromMatrix(matrix, meta = {}) {
   if (!labeled.length) return { rows: [], headers: [] }
 
   const headers = normalizeHeaders(labeled.map(c => c.raw))
+
+  // Mark which column indices look like date columns (header contains "date" or "dob")
+  // so we can coerce stray Excel serials (e.g. from CSVs) to ISO strings.
+  const dateColIndices = new Set(
+    labeled
+      .filter(c => /date|dob|birth/i.test(c.raw))
+      .map(c => c.idx)
+  )
+
   const rows = rowsArr
     .slice(headerIdx + 1)
     .filter(r => Array.isArray(r) && labeled.some(c => cleanCell(r[c.idx]) !== ''))
     .map(r => {
       const obj = {}
       labeled.forEach((c, i) => {
-        obj[headers[i]] = cleanCell(r[c.idx])
+        const raw = r[c.idx]
+        // Coerce bare Excel serial integers in date columns to ISO date strings.
+        // cellDates:true handles most cases; this catches CSVs and unformatted cells.
+        if (dateColIndices.has(c.idx) && typeof raw === 'number' && Number.isInteger(raw) && raw > 1 && raw < 73050) {
+          obj[headers[i]] = excelSerialToISO(raw)
+        } else {
+          obj[headers[i]] = cleanCell(raw)
+        }
       })
       return attachMeta(obj, meta)
     })
@@ -152,7 +170,26 @@ function findHeaderRowIndex(matrix) {
   return bestIdx
 }
 
+// Convert an Excel serial integer to an ISO date string (YYYY-MM-DD).
+// Formula: serial - 25569 gives days since Unix epoch (1970-01-01),
+// matching SheetJS's own internal conversion.
+function excelSerialToISO(serial) {
+  const utcMs = (serial - 25569) * 86400 * 1000
+  const d = new Date(utcMs)
+  const y = d.getUTCFullYear()
+  const m = String(d.getUTCMonth() + 1).padStart(2, '0')
+  const day = String(d.getUTCDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
 function cleanCell(value) {
+  // SheetJS with cellDates:true yields JS Date objects for date-typed cells
+  if (value instanceof Date && !isNaN(value)) {
+    const y = value.getUTCFullYear()
+    const m = String(value.getUTCMonth() + 1).padStart(2, '0')
+    const d = String(value.getUTCDate()).padStart(2, '0')
+    return `${y}-${m}-${d}`
+  }
   return String(value ?? '')
     .replace(/^\uFEFF/, '')
     .replace(/\r/g, '')
