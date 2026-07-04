@@ -411,64 +411,65 @@ export default function RosterPage() {
             const sortDirLabel = sortDir === 1 ? '↑' : '↓'
 
             return (
+              // Outer: never wraps — two groups pinned to opposite ends
               <div className="filter-bar" style={{
-                padding: '8px 24px', borderBottom: '1px solid var(--border)',
-                background: 'var(--surface)', display: 'flex', gap: 6,
-                flexWrap: 'wrap', alignItems: 'center', flexShrink: 0,
+                padding: '0 24px', borderBottom: '1px solid var(--border)',
+                background: 'var(--surface)', display: 'flex',
+                alignItems: 'center', gap: 0, flexShrink: 0, minHeight: 44,
               }}>
-                {/* Search */}
-                <div style={{ position: 'relative' }}>
-                  <Search size={13} style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-3)', pointerEvents: 'none' }} />
-                  <Input placeholder="Search all columns…" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} style={{ paddingLeft: 28, width: 200 }} />
+                {/* Left: filters — scrolls horizontally on narrow viewports, never wraps */}
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  overflow: 'hidden', flex: 1, minWidth: 0,
+                  paddingRight: 8,
+                }}>
+                  <div style={{ position: 'relative', flexShrink: 0 }}>
+                    <Search size={13} style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-3)', pointerEvents: 'none' }} />
+                    <Input placeholder="Search all columns…" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} style={{ paddingLeft: 28, width: 190 }} />
+                  </div>
+                  <Input placeholder="CAT %ile ≥" type="number" value={filters.catMin} onChange={e => setF('catMin', e.target.value)} style={{ width: 105, flexShrink: 0 }} />
+                  <Input placeholder="Work ex ≥ (mo)" type="number" value={filters.wxMin} onChange={e => setF('wxMin', e.target.value)} style={{ width: 125, flexShrink: 0 }} />
+                  <Select value={filters.category} onChange={e => setF('category', e.target.value)} style={{ width: 'auto', flexShrink: 0 }}>
+                    <option value="">All categories</option>
+                    {categoryOptions.map(c => <option key={c} value={c}>{c}</option>)}
+                  </Select>
+                  <Select value={filters.gender} onChange={e => setF('gender', e.target.value)} style={{ width: 'auto', flexShrink: 0 }}>
+                    <option value="">All genders</option>
+                    {genderOptions.map(g => <option key={g} value={g}>{g}</option>)}
+                  </Select>
+                  <Select value={filters.placementStatus || ''} onChange={e => setF('placementStatus', e.target.value)} style={{ width: 'auto', flexShrink: 0 }}>
+                    <option value="">All statuses</option>
+                    <option value="placed">Placed ({selectedCohortCycle === 'summer' ? 'SIP' : 'Final'})</option>
+                    <option value="ytp">YTP ({selectedCohortCycle === 'summer' ? 'SIP' : 'Final'})</option>
+                  </Select>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12.5, cursor: 'pointer', color: 'var(--text-2)', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                    <input type="checkbox" checked={filters.pwdOnly} onChange={e => setF('pwdOnly', e.target.checked)} />
+                    PWD only
+                  </label>
+                  {activeFilterCount > 0 && (
+                    <button onClick={clearFilters} style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 5, flexShrink: 0,
+                      padding: '3px 9px', borderRadius: 6, fontSize: 12, fontWeight: 600,
+                      border: '1px solid var(--accent)', background: 'var(--accent-bg)',
+                      color: 'var(--accent-text)', cursor: 'pointer', whiteSpace: 'nowrap',
+                    }}>
+                      {activeFilterCount} active · Clear
+                    </button>
+                  )}
                 </div>
 
-                {/* Filters */}
-                <Input placeholder="CAT %ile ≥" type="number" value={filters.catMin} onChange={e => setF('catMin', e.target.value)} style={{ width: 110 }} />
-                <Input placeholder="Work ex ≥ (mo)" type="number" value={filters.wxMin} onChange={e => setF('wxMin', e.target.value)} style={{ width: 130 }} />
-                <Select value={filters.category} onChange={e => setF('category', e.target.value)} style={{ width: 'auto' }}>
-                  <option value="">All categories</option>
-                  {categoryOptions.map(c => <option key={c} value={c}>{c}</option>)}
-                </Select>
-                <Select value={filters.gender} onChange={e => setF('gender', e.target.value)} style={{ width: 'auto' }}>
-                  <option value="">All genders</option>
-                  {genderOptions.map(g => <option key={g} value={g}>{g}</option>)}
-                </Select>
-                <Select value={filters.placementStatus || ''} onChange={e => setF('placementStatus', e.target.value)} style={{ width: 'auto' }}>
-                  <option value="">All statuses</option>
-                  <option value="placed">Placed ({selectedCohortCycle === 'summer' ? 'SIP' : 'Final'})</option>
-                  <option value="ytp">YTP ({selectedCohortCycle === 'summer' ? 'SIP' : 'Final'})</option>
-                </Select>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer', color: 'var(--text-2)', whiteSpace: 'nowrap' }}>
-                  <input type="checkbox" checked={filters.pwdOnly} onChange={e => setF('pwdOnly', e.target.checked)} />
-                  PWD only
-                </label>
+                {/* Divider */}
+                <div style={{ width: 1, height: 20, background: 'var(--border)', flexShrink: 0 }} />
 
-                {/* Clear — only visible when something is active */}
-                {activeFilterCount > 0 && (
-                  <button onClick={clearFilters} style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 5,
-                    padding: '3px 9px', borderRadius: 6, fontSize: 12, fontWeight: 600,
-                    border: '1px solid var(--accent)', background: 'var(--accent-bg)',
-                    color: 'var(--accent-text)', cursor: 'pointer', whiteSpace: 'nowrap',
-                  }}>
-                    {activeFilterCount} filter{activeFilterCount > 1 ? 's' : ''} active · Clear
-                  </button>
-                )}
-
-                {/* Right side: sort + result count */}
-                <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                  {/* Result count */}
+                {/* Right: sort + count — always visible, never wraps */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, paddingLeft: 10 }}>
                   <span style={{ fontSize: 12, color: 'var(--text-3)', fontWeight: 500, whiteSpace: 'nowrap' }}>
                     {sortedFiltered.length} of {scopedStudents.length}
                   </span>
-
                   <div style={{ width: 1, height: 16, background: 'var(--border)', flexShrink: 0 }} />
-
-                  {/* Sort — column picker */}
                   <Select value={sortCol} onChange={e => setSortCol(e.target.value)} title="Sort by" style={{ width: 'auto' }}>
                     {sortOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                   </Select>
-                  {/* Sort direction — compact toggle button */}
                   <button
                     onClick={() => setSortDir(d => -d)}
                     title={sortDir === 1 ? 'Ascending — click to reverse' : 'Descending — click to reverse'}

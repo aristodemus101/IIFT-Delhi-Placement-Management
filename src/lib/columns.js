@@ -9,6 +9,30 @@ function pick(r, ...headers) {
   return ''
 }
 
+// Coerce Excel serial integers stored as strings in Firestore to ISO date strings.
+// Existing data imported before the cellDates fix may have bare serials like "43191".
+// Serial range 1–73050 covers 1900-01-01 to 2099-12-31.
+function coerceDate(v) {
+  const s = String(v ?? '').trim()
+  if (!s) return s
+  // Already ISO or human-readable — pass through
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s
+  const n = Number(s)
+  if (Number.isInteger(n) && n > 1 && n < 73050) {
+    const utcMs = (n - 25569) * 86400 * 1000
+    const d = new Date(utcMs)
+    const y = d.getUTCFullYear()
+    const m = String(d.getUTCMonth() + 1).padStart(2, '0')
+    const day = String(d.getUTCDate()).padStart(2, '0')
+    return `${y}-${m}-${day}`
+  }
+  return s
+}
+
+function pickDate(r, ...headers) {
+  return coerceDate(pick(r, ...headers))
+}
+
 export const OUR_COLS = [
   { key: 'course', label: 'Course', path: r => pick(r, 'Course') },
   { key: 'roll', label: 'Roll No.', path: r => pick(r, 'Roll No.') },
@@ -24,7 +48,7 @@ export const OUR_COLS = [
   { key: 'cat_score', label: 'CAT Score', path: r => pick(r, 'CAT Score') },
   { key: 'cat', label: 'CAT Percentile', path: r => pick(r, 'CAT Percentile') },
   { key: 'cat_scorecard', label: 'CAT Scorecard', path: r => pick(r, 'CAT Scorecard') },
-  { key: 'dob', label: 'Date of Birth', path: r => pick(r, 'Date of Birth') },
+  { key: 'dob', label: 'Date of Birth', path: r => pickDate(r, 'Date of Birth') },
   { key: 'age', label: 'Age', path: r => pick(r, 'Age') },
   { key: 'category', label: 'Category', path: r => pick(r, 'Category') },
   { key: 'category_proof', label: 'Category Certificate proof', path: r => pick(r, 'Category Certificate proof') },
@@ -50,8 +74,8 @@ export const OUR_COLS = [
   { key: 'x10_score', label: 'Class X Score', path: r => pick(r, 'Class X Score') },
   { key: 'x10_outof', label: 'Class X score out of', path: r => pick(r, 'Class X score out of') },
   { key: 'x10pct', label: 'Class X Score in percentage:', path: r => pick(r, 'Class X Score in percentage:') },
-  { key: 'x10_start', label: 'Class 10th Start Date (Format - YYYY-MM-DD)', path: r => pick(r, 'Class 10th Start Date (Format - YYYY-MM-DD)') },
-  { key: 'x10_end', label: 'Class 10th End Date (Format - YYYY-MM-DD)', path: r => pick(r, 'Class 10th End Date (Format - YYYY-MM-DD)') },
+  { key: 'x10_start', label: 'Class 10th Start Date (Format - YYYY-MM-DD)', path: r => pickDate(r, 'Class 10th Start Date (Format - YYYY-MM-DD)') },
+  { key: 'x10_end', label: 'Class 10th End Date (Format - YYYY-MM-DD)', path: r => pickDate(r, 'Class 10th End Date (Format - YYYY-MM-DD)') },
   { key: 'x12board', label: 'Class XII Board Name (CBSE/ICSE/ETC)', path: r => pick(r, 'Class XII Board Name (CBSE/ICSE/ETC)') },
   { key: 'x12school', label: 'Class XII School Name', path: r => pick(r, 'Class XII School Name') },
   { key: 'x12stream', label: 'Class XII Stream', path: r => pick(r, 'Class XII Stream') },
@@ -59,8 +83,8 @@ export const OUR_COLS = [
   { key: 'x12_score', label: 'Class XII Score', path: r => pick(r, 'Class XII Score') },
   { key: 'x12_outof', label: 'Class XII Score out of', path: r => pick(r, 'Class XII Score out of') },
   { key: 'x12pct', label: 'Class XII Score in percentage:', path: r => pick(r, 'Class XII Score in percentage:') },
-  { key: 'x12_start', label: 'Class 12th Start Date (Format - YYYY-MM-DD)', path: r => pick(r, 'Class 12th Start Date (Format - YYYY-MM-DD)') },
-  { key: 'x12_end', label: 'Class 12th End Date (Format - YYYY-MM-DD)', path: r => pick(r, 'Class 12th End Date (Format - YYYY-MM-DD)') },
+  { key: 'x12_start', label: 'Class 12th Start Date (Format - YYYY-MM-DD)', path: r => pickDate(r, 'Class 12th Start Date (Format - YYYY-MM-DD)') },
+  { key: 'x12_end', label: 'Class 12th End Date (Format - YYYY-MM-DD)', path: r => pickDate(r, 'Class 12th End Date (Format - YYYY-MM-DD)') },
   { key: 'ug_field', label: 'Field of UG study (Engineering/Commerce/Management/Science/etc)', path: r => pick(r, 'Field of UG study (Engineering/Commerce/Management/Science/etc)') },
   { key: 'ug', label: 'UG Degree (Eg: Btech, BBA, B.com, etc.)', path: r => pick(r, 'UG Degree (Eg: Btech, BBA, B.com, etc.)') },
   { key: 'ug_spec', label: 'UG Specialization', path: r => pick(r, 'UG Specialization') },
@@ -71,8 +95,8 @@ export const OUR_COLS = [
   { key: 'ug_score', label: 'Graduation Score', path: r => pick(r, 'Graduation Score') },
   { key: 'ug_outof', label: 'Graduation Score out of', path: r => pick(r, 'Graduation Score out of') },
   { key: 'ugpct', label: 'Graduation Overall Score in %age', path: r => pick(r, 'Graduation Overall Score in %age') },
-  { key: 'ug_start', label: 'UG Start Date (Format - YYYY-MM-DD)', path: r => pick(r, 'UG Start Date (Format - YYYY-MM-DD)') },
-  { key: 'ug_end', label: 'UG End Date (Format - YYYY-MM-DD)', path: r => pick(r, 'UG End Date (Format - YYYY-MM-DD)') },
+  { key: 'ug_start', label: 'UG Start Date (Format - YYYY-MM-DD)', path: r => pickDate(r, 'UG Start Date (Format - YYYY-MM-DD)') },
+  { key: 'ug_end', label: 'UG End Date (Format - YYYY-MM-DD)', path: r => pickDate(r, 'UG End Date (Format - YYYY-MM-DD)') },
   { key: 'pg1', label: 'Post Graduate Degree 1', path: r => pick(r, 'Post Graduate Degree 1') },
   { key: 'pg1_spec', label: 'Post Graduate Degree Specialization', path: r => pick(r, 'Post Graduate Degree Specialization') },
   { key: 'pg1_year', label: 'Year of passing PG1', path: r => pick(r, 'Year of passing PG1') },
@@ -83,8 +107,8 @@ export const OUR_COLS = [
   { key: 'pg1_score', label: 'PG1 Score', path: r => pick(r, 'PG1 Score') },
   { key: 'pg1_outof', label: 'PG1 Score Out of', path: r => pick(r, 'PG1 Score Out of') },
   { key: 'pg1pct', label: 'PG1 Score in %age', path: r => pick(r, 'PG1 Score in %age') },
-  { key: 'pg1_start', label: 'PG1 Start Date (Format - YYYY-MM-DD)', path: r => pick(r, 'PG1 Start Date (Format - YYYY-MM-DD)') },
-  { key: 'pg1_end', label: 'PG1 End Date (Format - YYYY-MM-DD)', path: r => pick(r, 'PG1 End Date (Format - YYYY-MM-DD)') },
+  { key: 'pg1_start', label: 'PG1 Start Date (Format - YYYY-MM-DD)', path: r => pickDate(r, 'PG1 Start Date (Format - YYYY-MM-DD)') },
+  { key: 'pg1_end', label: 'PG1 End Date (Format - YYYY-MM-DD)', path: r => pickDate(r, 'PG1 End Date (Format - YYYY-MM-DD)') },
   { key: 'intern1', label: 'Internship Company 1', path: r => pick(r, 'Internship Company 1') },
   { key: 'intern1_loc', label: 'Internship Location C1', path: r => pick(r, 'Internship Location C1') },
   { key: 'intern1_project', label: 'Internship Project C1 (Details in brief)', path: r => pick(r, 'Internship Project C1 (Details in brief)') },
