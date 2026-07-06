@@ -39,7 +39,10 @@ function FullSpinner() {
 function AuthGate({ children }) {
   const { user, authStatus } = useAuth()
   const location = useLocation()
-  if (authStatus === 'loading' || user === undefined) return <FullSpinner />
+  // Block only while Firebase hasn't resolved yet (user === undefined, ~50ms from cache).
+  // Once Firebase fires, we know if there's a user — render immediately.
+  // Role loads in the background; PageGate handles per-page role gating.
+  if (user === undefined) return <FullSpinner />
   if (authStatus === 'unauthorized') return <UnauthorizedPage />
   if (!user) return <Navigate to="/login" state={{ from: `${location.pathname}${location.search}${location.hash}` }} replace />
   return children
@@ -80,7 +83,9 @@ function UnauthorizedPage() {
 function LoginRoute() {
   const { user, authStatus } = useAuth()
   const location = useLocation()
-  if (authStatus === 'loading' || user === undefined) return <FullSpinner />
+  // Wait for Firebase to resolve before showing login or redirecting.
+  // This prevents a flash of LoginPage for already-signed-in users.
+  if (user === undefined) return <FullSpinner />
   if (authStatus === 'unauthorized') return <UnauthorizedPage />
   if (user) return <Navigate to={location.state?.from || '/'} replace />
   return <LoginPage />
