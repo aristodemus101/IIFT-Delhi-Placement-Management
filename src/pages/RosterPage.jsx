@@ -395,10 +395,14 @@ export default function RosterPage() {
 
       {hasActiveCohorts ? (
         <>
-          {/* Toolbar — Row 1: search + count + sort. Row 2: filter chips. */}
+          {/* ── Toolbar ─────────────────────────────────────────────────────
+              Row 1: search (full-width on mobile, max 320px on desktop)
+              Row 2: horizontally-scrollable filter strip — never wraps,
+                     no overflow on any screen size. Sort lives here too.
+          ──────────────────────────────────────────────────────────────── */}
           {(() => {
             const activeFilterCount = [
-              searchTerm, filters.catMin, filters.wxMin,
+              filters.catMin, filters.wxMin,
               filters.category, filters.gender, filters.placementStatus, filters.pwdOnly,
             ].filter(Boolean).length
             const sortActive = sortCol !== 'name' || sortDir !== 1
@@ -406,78 +410,123 @@ export default function RosterPage() {
             return (
               <div style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)', flexShrink: 0 }}>
 
-                {/* Row 1: search left · count + sort right */}
-                <div style={{ display: 'flex', alignItems: 'center', padding: '8px 20px', gap: 8, borderBottom: '1px solid var(--border)' }}>
-                  <div style={{ position: 'relative', flex: 1, maxWidth: 280 }}>
+                {/* Row 1: search + result count */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px' }}>
+                  <div style={{ position: 'relative', flex: 1, maxWidth: 320 }}>
                     <Search size={13} style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-3)', pointerEvents: 'none' }} />
-                    <Input placeholder="Search all columns…" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} style={{ paddingLeft: 28, width: '100%' }} />
+                    <Input
+                      placeholder="Search all columns…"
+                      value={searchTerm}
+                      onChange={e => setSearchTerm(e.target.value)}
+                      style={{ paddingLeft: 28, width: '100%' }}
+                    />
                   </div>
-
-                  <div style={{ flex: 1 }} />
-
-                  {/* Count */}
                   <span style={{ fontSize: 12, color: 'var(--text-3)', fontWeight: 500, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>
-                    {sortedFiltered.length} <span style={{ opacity: 0.45 }}>/ {scopedStudents.length}</span>
+                    {sortedFiltered.length}<span style={{ opacity: 0.4 }}> / {scopedStudents.length}</span>
                   </span>
+                </div>
+
+                {/* Row 2: filter + sort strip — horizontally scrollable, never wraps */}
+                <style>{`.roster-filter-strip { scrollbar-width: none; -ms-overflow-style: none; } .roster-filter-strip::-webkit-scrollbar { display: none; }`}</style>
+                <div className="roster-filter-strip" style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '0 16px 8px',
+                  overflowX: 'auto', overflowY: 'visible',
+                  WebkitOverflowScrolling: 'touch',
+                }}>
+
+                  {/* CAT %ile */}
+                  <Input
+                    placeholder="CAT ≥"
+                    type="number"
+                    value={filters.catMin}
+                    onChange={e => setF('catMin', e.target.value)}
+                    style={{ width: 72, flexShrink: 0 }}
+                  />
+
+                  {/* Work ex */}
+                  <Input
+                    placeholder="WX ≥ mo"
+                    type="number"
+                    value={filters.wxMin}
+                    onChange={e => setF('wxMin', e.target.value)}
+                    style={{ width: 80, flexShrink: 0 }}
+                  />
+
+                  <div style={{ width: 1, height: 16, background: 'var(--border)', flexShrink: 0 }} />
+
+                  {/* Category */}
+                  <Select value={filters.category} onChange={e => setF('category', e.target.value)} style={{ width: 'auto', flexShrink: 0 }}>
+                    <option value="">Category</option>
+                    {categoryOptions.map(c => <option key={c} value={c}>{c}</option>)}
+                  </Select>
+
+                  {/* Gender */}
+                  <Select value={filters.gender} onChange={e => setF('gender', e.target.value)} style={{ width: 'auto', flexShrink: 0 }}>
+                    <option value="">Gender</option>
+                    {genderOptions.map(g => <option key={g} value={g}>{g}</option>)}
+                  </Select>
+
+                  {/* Status */}
+                  <Select value={filters.placementStatus || ''} onChange={e => setF('placementStatus', e.target.value)} style={{ width: 'auto', flexShrink: 0 }}>
+                    <option value="">Status</option>
+                    <option value="placed">Placed ({selectedCohortCycle === 'summer' ? 'SIP' : 'Final'})</option>
+                    <option value="ytp">YTP ({selectedCohortCycle === 'summer' ? 'SIP' : 'Final'})</option>
+                  </Select>
+
+                  {/* PWD */}
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12.5, cursor: 'pointer', color: 'var(--text-2)', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                    <input type="checkbox" checked={filters.pwdOnly} onChange={e => setF('pwdOnly', e.target.checked)} />
+                    PWD
+                  </label>
 
                   <div style={{ width: 1, height: 16, background: 'var(--border)', flexShrink: 0 }} />
 
                   {/* Sort column */}
-                  <Select value={sortCol} onChange={e => setSortCol(e.target.value)} style={{ width: 'auto', flexShrink: 0 }}>
+                  <Select value={sortCol} onChange={e => setSortCol(e.target.value)} style={{ width: 'auto', flexShrink: 0, maxWidth: 140 }}>
                     {sortOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                   </Select>
 
-                  {/* Direction toggle */}
+                  {/* Sort direction */}
                   <button
                     onClick={() => setSortDir(d => -d)}
-                    title={sortDir === 1 ? 'Ascending' : 'Descending'}
+                    title={sortDir === 1 ? 'Ascending — click to reverse' : 'Descending — click to reverse'}
                     style={{
                       display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                      width: 30, height: 30, borderRadius: 6, flexShrink: 0,
+                      width: 28, height: 28, borderRadius: 6, flexShrink: 0,
                       border: `1px solid ${sortActive ? 'var(--accent)' : 'var(--border)'}`,
                       background: sortActive ? 'var(--accent-bg)' : 'var(--surface2)',
                       color: sortActive ? 'var(--accent)' : 'var(--text-3)',
-                      cursor: 'pointer', fontSize: 13, fontWeight: 700,
+                      cursor: 'pointer', fontSize: 12, fontWeight: 700,
+                      transition: 'all 0.1s',
                     }}
                   >{sortDir === 1 ? '↑' : '↓'}</button>
 
-                  {sortActive && (
-                    <button onClick={() => { setSortCol('name'); setSortDir(1) }} style={{
-                      padding: '3px 9px', borderRadius: 6, fontSize: 11, fontWeight: 600,
-                      border: '1px solid var(--border)', background: 'transparent',
-                      color: 'var(--text-3)', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
-                    }}>Reset</button>
+                  {/* Clear — only when something is active */}
+                  {(activeFilterCount > 0 || searchTerm) && (
+                    <button
+                      onClick={clearFilters}
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 4,
+                        padding: '3px 9px', borderRadius: 6, fontSize: 11.5, fontWeight: 600,
+                        border: '1px solid var(--accent)', background: 'var(--accent-bg)',
+                        color: 'var(--accent-text)', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
+                      }}
+                    >
+                      {activeFilterCount > 0 ? `${activeFilterCount} · Clear` : 'Clear'}
+                    </button>
                   )}
-                </div>
 
-                {/* Row 2: filter chips — wrap naturally */}
-                <div className="filter-bar" style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6, padding: '8px 20px' }}>
-                  <Input placeholder="CAT %ile ≥" type="number" value={filters.catMin} onChange={e => setF('catMin', e.target.value)} style={{ width: 100 }} />
-                  <Input placeholder="Work ex ≥ (mo)" type="number" value={filters.wxMin} onChange={e => setF('wxMin', e.target.value)} style={{ width: 124 }} />
-                  <Select value={filters.category} onChange={e => setF('category', e.target.value)} style={{ width: 'auto' }}>
-                    <option value="">All categories</option>
-                    {categoryOptions.map(c => <option key={c} value={c}>{c}</option>)}
-                  </Select>
-                  <Select value={filters.gender} onChange={e => setF('gender', e.target.value)} style={{ width: 'auto' }}>
-                    <option value="">All genders</option>
-                    {genderOptions.map(g => <option key={g} value={g}>{g}</option>)}
-                  </Select>
-                  <Select value={filters.placementStatus || ''} onChange={e => setF('placementStatus', e.target.value)} style={{ width: 'auto' }}>
-                    <option value="">All statuses</option>
-                    <option value="placed">Placed ({selectedCohortCycle === 'summer' ? 'SIP' : 'Final'})</option>
-                    <option value="ytp">YTP ({selectedCohortCycle === 'summer' ? 'SIP' : 'Final'})</option>
-                  </Select>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12.5, cursor: 'pointer', color: 'var(--text-2)', whiteSpace: 'nowrap' }}>
-                    <input type="checkbox" checked={filters.pwdOnly} onChange={e => setF('pwdOnly', e.target.checked)} />
-                    PWD only
-                  </label>
-                  {activeFilterCount > 0 && (
-                    <button onClick={clearFilters} style={{
-                      display: 'inline-flex', alignItems: 'center', gap: 4,
-                      padding: '3px 10px', borderRadius: 6, fontSize: 11.5, fontWeight: 600,
-                      border: '1px solid var(--accent)', background: 'var(--accent-bg)',
-                      color: 'var(--accent-text)', cursor: 'pointer', whiteSpace: 'nowrap',
-                    }}>{activeFilterCount} active · Clear</button>
+                  {/* Sort reset — separate, only when sort is non-default */}
+                  {sortActive && (
+                    <button
+                      onClick={() => { setSortCol('name'); setSortDir(1) }}
+                      style={{
+                        padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600,
+                        border: '1px solid var(--border)', background: 'transparent',
+                        color: 'var(--text-3)', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
+                      }}
+                    >Reset sort</button>
                   )}
                 </div>
 
