@@ -427,106 +427,72 @@ export default function RosterPage() {
                 </div>
 
                 {/* Row 2: filter + sort strip — horizontally scrollable, never wraps */}
-                <style>{`.roster-filter-strip { scrollbar-width: none; -ms-overflow-style: none; } .roster-filter-strip::-webkit-scrollbar { display: none; }`}</style>
+                <style>{`
+                  .roster-filter-strip { scrollbar-width: none; -ms-overflow-style: none; }
+                  .roster-filter-strip::-webkit-scrollbar { display: none; }
+                  .fchip { height:30px; padding:0 10px; border-radius:8px; border:1px solid var(--border); background:var(--surface); color:var(--text); font-size:12px; font-family:var(--font-sans); outline:none; cursor:pointer; white-space:nowrap; flex-shrink:0; box-sizing:border-box; }
+                  .fchip:focus { border-color:var(--accent); box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 15%,transparent); }
+                  .fchip-num { width:68px; }
+                  .fchip-select { padding-right:28px; appearance:none; -webkit-appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%236B7280' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 9px center; }
+                  .fchip-sort-dir { width:30px; padding:0; justify-content:center; display:inline-flex; align-items:center; font-weight:700; }
+                  .fchip-sort-dir.active { border-color:var(--accent); background:var(--accent-bg); color:var(--accent); }
+                  .fchip-clear { border-color:var(--accent); background:var(--accent-bg); color:var(--accent-text); font-weight:600; }
+                `}</style>
                 <div className="roster-filter-strip" style={{
-                  display: 'flex', alignItems: 'center', gap: 6,
+                  display: 'flex', alignItems: 'center', gap: 5,
                   padding: '0 16px 8px',
-                  overflowX: 'auto', overflowY: 'visible',
+                  overflowX: 'auto',
                   WebkitOverflowScrolling: 'touch',
                 }}>
 
-                  {/* CAT %ile */}
-                  <Input
-                    placeholder="CAT ≥"
-                    type="number"
-                    value={filters.catMin}
-                    onChange={e => setF('catMin', e.target.value)}
-                    style={{ width: 72, flexShrink: 0 }}
-                  />
+                  <input className="fchip fchip-num" placeholder="CAT ≥" inputMode="numeric" value={filters.catMin} onChange={e => setF('catMin', e.target.value.replace(/[^\d.]/g, ''))} />
+                  <input className="fchip fchip-num" placeholder="WX ≥" inputMode="numeric" value={filters.wxMin} onChange={e => setF('wxMin', e.target.value.replace(/[^\d.]/g, ''))} />
 
-                  {/* Work ex */}
-                  <Input
-                    placeholder="WX ≥ mo"
-                    type="number"
-                    value={filters.wxMin}
-                    onChange={e => setF('wxMin', e.target.value)}
-                    style={{ width: 80, flexShrink: 0 }}
-                  />
+                  <div style={{ width: 1, height: 14, background: 'var(--border)', flexShrink: 0, marginLeft: 1, marginRight: 1 }} />
 
-                  <div style={{ width: 1, height: 16, background: 'var(--border)', flexShrink: 0 }} />
-
-                  {/* Category */}
-                  <Select value={filters.category} onChange={e => setF('category', e.target.value)} style={{ width: 'auto', flexShrink: 0 }}>
+                  <select className="fchip fchip-select" value={filters.category} onChange={e => setF('category', e.target.value)}>
                     <option value="">Category</option>
                     {categoryOptions.map(c => <option key={c} value={c}>{c}</option>)}
-                  </Select>
+                  </select>
 
-                  {/* Gender */}
-                  <Select value={filters.gender} onChange={e => setF('gender', e.target.value)} style={{ width: 'auto', flexShrink: 0 }}>
+                  <select className="fchip fchip-select" value={filters.gender} onChange={e => setF('gender', e.target.value)}>
                     <option value="">Gender</option>
                     {genderOptions.map(g => <option key={g} value={g}>{g}</option>)}
-                  </Select>
+                  </select>
 
-                  {/* Status */}
-                  <Select value={filters.placementStatus || ''} onChange={e => setF('placementStatus', e.target.value)} style={{ width: 'auto', flexShrink: 0 }}>
+                  <select className="fchip fchip-select" value={filters.placementStatus || ''} onChange={e => setF('placementStatus', e.target.value)}>
                     <option value="">Status</option>
                     <option value="placed">Placed ({selectedCohortCycle === 'summer' ? 'SIP' : 'Final'})</option>
                     <option value="ytp">YTP ({selectedCohortCycle === 'summer' ? 'SIP' : 'Final'})</option>
-                  </Select>
+                  </select>
 
-                  {/* PWD */}
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12.5, cursor: 'pointer', color: 'var(--text-2)', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, cursor: 'pointer', color: 'var(--text-2)', whiteSpace: 'nowrap', flexShrink: 0 }}>
                     <input type="checkbox" checked={filters.pwdOnly} onChange={e => setF('pwdOnly', e.target.checked)} />
                     PWD
                   </label>
 
-                  <div style={{ width: 1, height: 16, background: 'var(--border)', flexShrink: 0 }} />
+                  <div style={{ width: 1, height: 14, background: 'var(--border)', flexShrink: 0, marginLeft: 1, marginRight: 1 }} />
 
-                  {/* Sort column */}
-                  <Select value={sortCol} onChange={e => setSortCol(e.target.value)} style={{ width: 'auto', flexShrink: 0, maxWidth: 140 }}>
+                  <select className="fchip fchip-select" value={sortCol} onChange={e => setSortCol(e.target.value)} style={{ maxWidth: 130 }}>
                     {sortOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-                  </Select>
+                  </select>
 
-                  {/* Sort direction */}
                   <button
+                    className={`fchip fchip-sort-dir${sortActive ? ' active' : ''}`}
                     onClick={() => setSortDir(d => -d)}
-                    title={sortDir === 1 ? 'Ascending — click to reverse' : 'Descending — click to reverse'}
-                    style={{
-                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                      width: 28, height: 28, borderRadius: 6, flexShrink: 0,
-                      border: `1px solid ${sortActive ? 'var(--accent)' : 'var(--border)'}`,
-                      background: sortActive ? 'var(--accent-bg)' : 'var(--surface2)',
-                      color: sortActive ? 'var(--accent)' : 'var(--text-3)',
-                      cursor: 'pointer', fontSize: 12, fontWeight: 700,
-                      transition: 'all 0.1s',
-                    }}
+                    title={sortDir === 1 ? 'Ascending' : 'Descending'}
                   >{sortDir === 1 ? '↑' : '↓'}</button>
 
-                  {/* Clear — only when something is active */}
                   {(activeFilterCount > 0 || searchTerm) && (
-                    <button
-                      onClick={clearFilters}
-                      style={{
-                        display: 'inline-flex', alignItems: 'center', gap: 4,
-                        padding: '3px 9px', borderRadius: 6, fontSize: 11.5, fontWeight: 600,
-                        border: '1px solid var(--accent)', background: 'var(--accent-bg)',
-                        color: 'var(--accent-text)', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
-                      }}
-                    >
+                    <button className="fchip fchip-clear" onClick={clearFilters}>
                       {activeFilterCount > 0 ? `${activeFilterCount} · Clear` : 'Clear'}
                     </button>
                   )}
 
-                  {/* Sort reset — separate, only when sort is non-default */}
                   {sortActive && (
-                    <button
-                      onClick={() => { setSortCol('name'); setSortDir(1) }}
-                      style={{
-                        padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600,
-                        border: '1px solid var(--border)', background: 'transparent',
-                        color: 'var(--text-3)', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
-                      }}
-                    >Reset sort</button>
+                    <button className="fchip" onClick={() => { setSortCol('name'); setSortDir(1) }} style={{ color: 'var(--text-3)' }}>
+                      Reset sort
+                    </button>
                   )}
                 </div>
 
