@@ -220,8 +220,8 @@ export function Select({ style = {}, children, ...props }) {
 
 export function Table({ headers, rows, emptyMessage = 'No data', onRowContextMenu }) {
   return (
-    <div className="table-wrap" style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-      <table style={{ minWidth: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+    <div className="table-wrap">
+      <table style={{ width: 'max-content', minWidth: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
         <thead>
           <tr>
             {headers.map((h, i) => (
