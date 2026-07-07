@@ -407,95 +407,87 @@ export default function RosterPage() {
             ].filter(Boolean).length
             const sortActive = sortCol !== 'name' || sortDir !== 1
 
+            const arrow = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%236B7280' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E")`
+            const chip = { height:30, padding:'0 10px', borderRadius:8, border:'1px solid var(--border)', background:'var(--surface)', color:'var(--text)', fontSize:12, fontFamily:'var(--font-sans)', outline:'none', cursor:'pointer', whiteSpace:'nowrap', flexShrink:0, boxSizing:'border-box' }
+            const chipSelect = { ...chip, paddingRight:26, appearance:'none', WebkitAppearance:'none', backgroundImage:arrow, backgroundRepeat:'no-repeat', backgroundPosition:'right 8px center' }
+
             return (
               <div style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)', flexShrink: 0 }}>
+                <style>{`.rfs{scrollbar-width:none;-ms-overflow-style:none}.rfs::-webkit-scrollbar{display:none}`}</style>
 
-                {/* Row 1: search + result count */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px' }}>
-                  <div style={{ position: 'relative', flex: 1, maxWidth: 320 }}>
-                    <Search size={13} style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-3)', pointerEvents: 'none' }} />
-                    <Input
-                      placeholder="Search all columns…"
+                {/* Single toolbar row — scrolls horizontally on narrow screens */}
+                <div className="rfs" style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 16px', overflowX:'auto', WebkitOverflowScrolling:'touch' }}>
+
+                  {/* Search */}
+                  <div style={{ position:'relative', flexShrink:0 }}>
+                    <Search size={12} style={{ position:'absolute', left:8, top:'50%', transform:'translateY(-50%)', color:'var(--text-3)', pointerEvents:'none' }} />
+                    <input
+                      placeholder="Search…"
                       value={searchTerm}
                       onChange={e => setSearchTerm(e.target.value)}
-                      style={{ paddingLeft: 28, width: '100%' }}
+                      style={{ ...chip, paddingLeft:26, width:160 }}
                     />
                   </div>
-                  <span style={{ fontSize: 12, color: 'var(--text-3)', fontWeight: 500, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>
-                    {sortedFiltered.length}<span style={{ opacity: 0.4 }}> / {scopedStudents.length}</span>
-                  </span>
-                </div>
 
-                {/* Row 2: filter + sort strip — horizontally scrollable, never wraps */}
-                <style>{`
-                  .roster-filter-strip { scrollbar-width: none; -ms-overflow-style: none; }
-                  .roster-filter-strip::-webkit-scrollbar { display: none; }
-                  .fchip { height:30px; padding:0 10px; border-radius:8px; border:1px solid var(--border); background:var(--surface); color:var(--text); font-size:12px; font-family:var(--font-sans); outline:none; cursor:pointer; white-space:nowrap; flex-shrink:0; box-sizing:border-box; }
-                  .fchip:focus { border-color:var(--accent); box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 15%,transparent); }
-                  .fchip-num { width:68px; }
-                  .fchip-select { padding-right:28px; appearance:none; -webkit-appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%236B7280' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 9px center; }
-                  .fchip-sort-dir { width:30px; padding:0; justify-content:center; display:inline-flex; align-items:center; font-weight:700; }
-                  .fchip-sort-dir.active { border-color:var(--accent); background:var(--accent-bg); color:var(--accent); }
-                  .fchip-clear { border-color:var(--accent); background:var(--accent-bg); color:var(--accent-text); font-weight:600; }
-                `}</style>
-                <div className="roster-filter-strip" style={{
-                  display: 'flex', alignItems: 'center', gap: 5,
-                  padding: '0 16px 8px',
-                  overflowX: 'auto',
-                  WebkitOverflowScrolling: 'touch',
-                }}>
+                  <div style={{ width:1, height:14, background:'var(--border)', flexShrink:0 }} />
 
-                  <input className="fchip fchip-num" placeholder="CAT ≥" inputMode="numeric" value={filters.catMin} onChange={e => setF('catMin', e.target.value.replace(/[^\d.]/g, ''))} />
-                  <input className="fchip fchip-num" placeholder="WX ≥" inputMode="numeric" value={filters.wxMin} onChange={e => setF('wxMin', e.target.value.replace(/[^\d.]/g, ''))} />
+                  <input style={{ ...chip, width:64 }} placeholder="CAT ≥" inputMode="numeric" value={filters.catMin} onChange={e => setF('catMin', e.target.value.replace(/[^\d.]/g, ''))} />
+                  <input style={{ ...chip, width:60 }} placeholder="WX ≥" inputMode="numeric" value={filters.wxMin} onChange={e => setF('wxMin', e.target.value.replace(/[^\d.]/g, ''))} />
 
-                  <div style={{ width: 1, height: 14, background: 'var(--border)', flexShrink: 0, marginLeft: 1, marginRight: 1 }} />
-
-                  <select className="fchip fchip-select" value={filters.category} onChange={e => setF('category', e.target.value)}>
+                  <select style={chipSelect} value={filters.category} onChange={e => setF('category', e.target.value)}>
                     <option value="">Category</option>
                     {categoryOptions.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
 
-                  <select className="fchip fchip-select" value={filters.gender} onChange={e => setF('gender', e.target.value)}>
+                  <select style={chipSelect} value={filters.gender} onChange={e => setF('gender', e.target.value)}>
                     <option value="">Gender</option>
                     {genderOptions.map(g => <option key={g} value={g}>{g}</option>)}
                   </select>
 
-                  <select className="fchip fchip-select" value={filters.placementStatus || ''} onChange={e => setF('placementStatus', e.target.value)}>
+                  <select style={chipSelect} value={filters.placementStatus || ''} onChange={e => setF('placementStatus', e.target.value)}>
                     <option value="">Status</option>
                     <option value="placed">Placed ({selectedCohortCycle === 'summer' ? 'SIP' : 'Final'})</option>
                     <option value="ytp">YTP ({selectedCohortCycle === 'summer' ? 'SIP' : 'Final'})</option>
                   </select>
 
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, cursor: 'pointer', color: 'var(--text-2)', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                  <label style={{ display:'flex', alignItems:'center', gap:4, fontSize:12, cursor:'pointer', color:'var(--text-2)', whiteSpace:'nowrap', flexShrink:0 }}>
                     <input type="checkbox" checked={filters.pwdOnly} onChange={e => setF('pwdOnly', e.target.checked)} />
                     PWD
                   </label>
 
-                  <div style={{ width: 1, height: 14, background: 'var(--border)', flexShrink: 0, marginLeft: 1, marginRight: 1 }} />
+                  <div style={{ width:1, height:14, background:'var(--border)', flexShrink:0 }} />
 
-                  <select className="fchip fchip-select" value={sortCol} onChange={e => setSortCol(e.target.value)} style={{ maxWidth: 130 }}>
+                  <select style={{ ...chipSelect, maxWidth:120 }} value={sortCol} onChange={e => setSortCol(e.target.value)}>
                     {sortOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                   </select>
 
                   <button
-                    className={`fchip fchip-sort-dir${sortActive ? ' active' : ''}`}
                     onClick={() => setSortDir(d => -d)}
                     title={sortDir === 1 ? 'Ascending' : 'Descending'}
+                    style={{ ...chip, width:30, padding:0, display:'inline-flex', alignItems:'center', justifyContent:'center', fontWeight:700, ...(sortActive ? { borderColor:'var(--accent)', background:'var(--accent-bg)', color:'var(--accent)' } : { color:'var(--text-3)' }) }}
                   >{sortDir === 1 ? '↑' : '↓'}</button>
 
+                  {/* Spacer pushes count to the right on wide screens */}
+                  <div style={{ flex:1, minWidth:8 }} />
+
+                  {/* Count — always visible, right-anchored */}
+                  <span style={{ fontSize:12, color:'var(--text-3)', fontWeight:500, whiteSpace:'nowrap', fontVariantNumeric:'tabular-nums', flexShrink:0 }}>
+                    {sortedFiltered.length}<span style={{ opacity:0.4 }}> / {scopedStudents.length}</span>
+                  </span>
+
                   {(activeFilterCount > 0 || searchTerm) && (
-                    <button className="fchip fchip-clear" onClick={clearFilters}>
+                    <button onClick={clearFilters} style={{ ...chip, borderColor:'var(--accent)', background:'var(--accent-bg)', color:'var(--accent-text)', fontWeight:600 }}>
                       {activeFilterCount > 0 ? `${activeFilterCount} · Clear` : 'Clear'}
                     </button>
                   )}
 
                   {sortActive && (
-                    <button className="fchip" onClick={() => { setSortCol('name'); setSortDir(1) }} style={{ color: 'var(--text-3)' }}>
-                      Reset sort
+                    <button onClick={() => { setSortCol('name'); setSortDir(1) }} style={{ ...chip, color:'var(--text-3)' }}>
+                      Reset
                     </button>
                   )}
-                </div>
 
+                </div>
               </div>
             )
           })()}
