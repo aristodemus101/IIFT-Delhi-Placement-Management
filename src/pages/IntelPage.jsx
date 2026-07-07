@@ -1,4 +1,5 @@
-import React, { useMemo, useState, useRef, useEffect } from 'react'
+import React, { useMemo, useState, useRef, useEffect, useCallback } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../lib/AuthContext'
 import { usePermissions } from '../lib/usePermissions'
 import { useStudentsContext } from '../lib/StudentsContext'
@@ -17,6 +18,9 @@ import UploadModal from './intel/UploadModal'
 
 const VIEW = { TABLE: 'table', CARDS: 'cards', BENCHMARK: 'benchmark' }
 
+// Param names in the URL
+const P = { search: 'q', college: 'college', year: 'year', cycle: 'cycle', sector: 'sector', program: 'program', iift: 'iift', view: 'view' }
+
 export default function IntelPage() {
   const { user, role } = useAuth()
   const { canDo } = usePermissions()
@@ -27,22 +31,44 @@ export default function IntelPage() {
   const { students } = useStudentsContext()
   const { records, loading, error, colleges, years, sectors, programs, cycles } = useIntel({ students })
 
-  // Filters
-  const [search,         setSearch]         = useState('')
-  const [debouncedSearch, setDebouncedSearch] = useState('')
-  const [college,     setCollege]     = useState('')
-  const [year,        setYear]        = useState('')
-  const [cycle,       setCycle]       = useState('')
-  const [sector,      setSector]      = useState('')
-  const [program,     setProgram]     = useState('')
-  const [iiftFilter,  setIiftFilter]  = useState('')  // '' | 'gap' | 'at_iift'
-  const [viewMode,    setViewMode]    = useState(VIEW.TABLE)
+  // ── URL-synced filter state ──────────────────────────────────────────────────
+  const [searchParams, setSearchParams] = useSearchParams()
 
-  // UI state
+  const college    = searchParams.get(P.college) || ''
+  const year       = searchParams.get(P.year)    || ''
+  const cycle      = searchParams.get(P.cycle)   || ''
+  const sector     = searchParams.get(P.sector)  || ''
+  const program    = searchParams.get(P.program) || ''
+  const iiftFilter = searchParams.get(P.iift)    || ''
+  const viewMode   = searchParams.get(P.view)    || VIEW.TABLE
+
+  // Search input: local state (instant visual feedback) + URL (debounced, shareable)
+  const [search, setSearch] = useState(searchParams.get(P.search) || '')
+  const debouncedSearch = searchParams.get(P.search) || ''
+
+  // Helper: update one param, preserve the rest, remove param when empty
+  const setParam = useCallback((key, val) => {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      if (val) next.set(key, val)
+      else next.delete(key)
+      return next
+    }, { replace: true })
+  }, [setSearchParams])
+
+  const setCollege    = v => setParam(P.college, v)
+  const setYear       = v => setParam(P.year, v)
+  const setCycle      = v => setParam(P.cycle, v)
+  const setSector     = v => setParam(P.sector, v)
+  const setProgram    = v => setParam(P.program, v)
+  const setIiftFilter = v => setParam(P.iift, v)
+  const setViewMode   = v => setParam(P.view, v === VIEW.TABLE ? '' : v)
+
+  // UI state — ephemeral, not in URL (drawer/modal/context-menu don't belong in URL)
   const [selectedRecord, setSelectedRecord] = useState(null)
-  const [editRecord,     setEditRecord]     = useState(null)   // null = closed; {} = new; {...} = edit
+  const [editRecord,     setEditRecord]     = useState(null)
   const [uploadOpen,     setUploadOpen]     = useState(false)
-  const [ctxMenu,        setCtxMenu]        = useState(null)   // { x, y, record }
+  const [ctxMenu,        setCtxMenu]        = useState(null)
 
   // Close context menu on outside click
   const ctxRef = useRef()
@@ -53,9 +79,9 @@ export default function IntelPage() {
     return () => document.removeEventListener('click', handler)
   }, [ctxMenu])
 
-  // Debounce search: input is instant, filter recompute is deferred 250ms
+  // Debounce search to URL: push after 250ms idle, keeping local state instant
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(search), 250)
+    const t = setTimeout(() => setParam(P.search, search), 250)
     return () => clearTimeout(t)
   }, [search])
 
@@ -90,8 +116,8 @@ export default function IntelPage() {
   }
 
   const clearFilters = () => {
-    setSearch(''); setDebouncedSearch(''); setCollege(''); setYear(''); setCycle('')
-    setSector(''); setProgram(''); setIiftFilter('')
+    setSearch('')
+    setSearchParams({}, { replace: true })
   }
 
   const hasFilters = search || college || year || cycle || sector || program || iiftFilter
@@ -142,12 +168,12 @@ export default function IntelPage() {
           <SummaryChip
             icon={CheckCircle} color="green"
             label="At IIFT" value={atIiftCount.toLocaleString()}
-            active={iiftFilter === 'at_iift'} onClick={() => setIiftFilter(p => p === 'at_iift' ? '' : 'at_iift')}
+            active={iiftFilter === 'at_iift'} onClick={() => setIiftFilter(iiftFilter === 'at_iift' ? '' : 'at_iift')}
           />
           <SummaryChip
             icon={TrendingUp} color="amber"
             label="IIFT Gap" value={gapCount.toLocaleString()}
-            active={iiftFilter === 'gap'} onClick={() => setIiftFilter(p => p === 'gap' ? '' : 'gap')}
+            active={iiftFilter === 'gap'} onClick={() => setIiftFilter(iiftFilter === 'gap' ? '' : 'gap')}
           />
           <SummaryChip
             icon={Building2} color="gray"
