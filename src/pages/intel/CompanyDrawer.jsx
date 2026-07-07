@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { Btn, Badge, TabBar } from '../../components/UI'
 import { X, Building2, MapPin, Calendar, Users, DollarSign, FileText, Edit2, Save } from 'lucide-react'
 import { sectorColor } from './IntelTable'
+import CompanyLogo from './CompanyLogo'
 import { fuzzyMatch } from '../../lib/intel'
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
@@ -89,14 +90,7 @@ export default function CompanyDrawer({ record, allRecords, iiftStudents, onClos
       }}>
         {/* Header */}
         <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'flex-start', gap: 12, flexShrink: 0 }}>
-          <div style={{
-            width: 40, height: 40, borderRadius: 10, flexShrink: 0,
-            background: sectorColor(record.sector),
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 16, fontWeight: 800, color: '#fff',
-          }}>
-            {(record.recruiterName || '?')[0].toUpperCase()}
-          </div>
+          <CompanyLogo name={record.recruiterName} size={40} sector={record.sector} />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--text)', letterSpacing: '-0.02em' }}>
               {record.recruiterName}
@@ -193,38 +187,7 @@ export default function CompanyDrawer({ record, allRecords, iiftStudents, onClos
 
           {/* ── All Records ── */}
           {tab === 'all' && (
-            <div>
-              <p style={{ fontSize: 12, color: 'var(--text-3)', marginBottom: 12 }}>
-                All appearances of this recruiter across colleges and years ({related.length + 1} record{related.length !== 0 ? 's' : ''})
-              </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {[record, ...related].map(r => (
-                  <div key={r._id} style={{
-                    border: `1px solid ${r._id === record._id ? 'var(--accent)' : 'var(--border)'}`,
-                    borderRadius: 8, padding: '10px 12px',
-                    background: r._id === record._id ? 'var(--accent-bg)' : 'var(--surface2)',
-                  }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div>
-                        <div style={{ fontWeight: 600, fontSize: 13 }}>{r.collegeName || '—'} {r.campus ? `· ${r.campus}` : ''}</div>
-                        <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 2 }}>
-                          {[r.placementYear, r.placementCycle, r.program].filter(Boolean).join(' · ')}
-                        </div>
-                      </div>
-                      <div style={{ display: 'flex', gap: 4 }}>
-                        {r.numberOfOffers != null && (
-                          <Badge color="gray">{r.numberOfOffers} offer{r.numberOfOffers !== 1 ? 's' : ''}</Badge>
-                        )}
-                        {r.compensation && <Badge color="green">{r.compensation}</Badge>}
-                      </div>
-                    </div>
-                    {r.rolesMentioned && (
-                      <div style={{ fontSize: 12, color: 'var(--text-2)', marginTop: 4 }}>{r.rolesMentioned}</div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
+            <AllRecordsGrouped records={[record, ...related]} activeId={record._id} />
           )}
 
           {/* ── POC & Notes ── */}
@@ -299,6 +262,110 @@ export default function CompanyDrawer({ record, allRecords, iiftStudents, onClos
         }
       `}</style>
     </>
+  )
+}
+
+const CYCLE_ORDER = ['Finals', 'Summer', 'Lateral']
+const CYCLE_COLOR_MAP = { Finals: 'blue', Summer: 'amber', Lateral: 'gray' }
+
+function AllRecordsGrouped({ records, activeId }) {
+  // Group: cycle → college → year → program
+  const byCycle = {}
+  for (const r of records) {
+    const cycle   = r.placementCycle || 'Unknown'
+    const college = [r.collegeName, r.campus].filter(Boolean).join(' · ') || '—'
+    const year    = r.placementYear || '—'
+    const program = r.program || '—'
+    ;(byCycle[cycle] ??= {})[college] ??= {}
+    ;(byCycle[cycle][college][year] ??= {})[program] ??= []
+    byCycle[cycle][college][year][program].push(r)
+  }
+
+  const cycles = CYCLE_ORDER.filter(c => byCycle[c]).concat(
+    Object.keys(byCycle).filter(c => !CYCLE_ORDER.includes(c)).sort()
+  )
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+      <p style={{ fontSize: 12, color: 'var(--text-3)', margin: 0 }}>
+        {records.length} record{records.length !== 1 ? 's' : ''} across colleges and years
+      </p>
+
+      {cycles.map(cycle => {
+        const colleges = Object.keys(byCycle[cycle]).sort()
+        return (
+          <div key={cycle}>
+            {/* Cycle header */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+              <Badge color={CYCLE_COLOR_MAP[cycle] || 'gray'}>{cycle}</Badge>
+              <span style={{ fontSize: 11, color: 'var(--text-3)' }}>
+                {Object.values(byCycle[cycle]).reduce((n, yrs) =>
+                  n + Object.values(yrs).reduce((m, progs) =>
+                    m + Object.values(progs).reduce((k, rs) => k + rs.length, 0), 0), 0)
+                } record{Object.values(byCycle[cycle]).reduce((n, yrs) => n + Object.values(yrs).reduce((m, progs) => m + Object.values(progs).reduce((k, rs) => k + rs.length, 0), 0), 0) !== 1 ? 's' : ''}
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingLeft: 4 }}>
+              {colleges.map(college => {
+                const years = Object.keys(byCycle[cycle][college]).sort((a, b) => b - a)
+                return (
+                  <div key={college} style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+                    {/* College header */}
+                    <div style={{
+                      padding: '7px 12px', background: 'color-mix(in srgb, var(--surface2) 70%, transparent)',
+                      borderBottom: '1px solid var(--border)',
+                      fontSize: 12, fontWeight: 600, color: 'var(--text)',
+                    }}>
+                      {college}
+                    </div>
+
+                    {/* Year rows */}
+                    {years.map((year, yi) => {
+                      const programs = Object.keys(byCycle[cycle][college][year]).sort()
+                      return programs.map((program, pi) => {
+                        const recs = byCycle[cycle][college][year][program]
+                        const isActive = recs.some(r => r._id === activeId)
+                        const isLast = yi === years.length - 1 && pi === programs.length - 1
+                        return (
+                          <div
+                            key={`${year}-${program}`}
+                            style={{
+                              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                              padding: '7px 12px',
+                              borderBottom: isLast ? 'none' : '1px solid color-mix(in srgb, var(--border) 50%, transparent)',
+                              background: isActive ? 'var(--accent-bg)' : 'transparent',
+                            }}
+                          >
+                            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>{year}</span>
+                              {program !== '—' && (
+                                <span style={{ fontSize: 11, color: 'var(--text-3)', background: 'var(--surface2)', borderRadius: 4, padding: '1px 6px' }}>{program}</span>
+                              )}
+                              {isActive && (
+                                <span style={{ fontSize: 10, color: 'var(--accent-dark)', fontWeight: 600, background: 'var(--accent-bg)', borderRadius: 4, padding: '1px 6px', border: '1px solid var(--accent-border, var(--accent))' }}>this record</span>
+                              )}
+                            </div>
+                            <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                              {recs[0].numberOfOffers != null && (
+                                <span style={{ fontSize: 11, color: 'var(--text-3)', fontVariantNumeric: 'tabular-nums' }}>{recs[0].numberOfOffers} offer{recs[0].numberOfOffers !== 1 ? 's' : ''}</span>
+                              )}
+                              {recs[0].compensation && (
+                                <Badge color="green">{recs[0].compensation}</Badge>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })
+                    })}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )
+      })}
+    </div>
   )
 }
 
