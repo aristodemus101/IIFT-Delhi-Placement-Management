@@ -5,7 +5,7 @@ import { usePermissions } from '../lib/usePermissions'
 import { usePendingChanges } from '../lib/PendingChangesContext'
 import { useTheme } from '../lib/ThemeContext'
 import { useBatch } from '../lib/BatchContext'
-import { useStudents } from '../lib/useStudents'
+import { useStudentsContext } from '../lib/StudentsContext'
 import {
   LayoutDashboard, Users, CheckSquare, ArrowLeftRight, Activity,
   LogOut, ShieldCheck, ClipboardCheck, User, Sun, Moon, BarChart2, Briefcase, Info,
@@ -52,7 +52,7 @@ export default function Layout() {
     availableCampuses, availableProgrammes, availableYears,
     getCohortCycle,
   } = useBatch()
-  const { students } = useStudents()
+  const { students } = useStudentsContext()
   const navigate = useNavigate()
   const location = useLocation()
   const [workspaceActions, setWorkspaceActions] = useState(null)

@@ -53,8 +53,8 @@ vi.mock('../lib/BatchContext', () => ({
   }),
 }))
 
-vi.mock('../lib/useStudents', () => ({
-  useStudents: () => ({ students: [] }),
+vi.mock('../lib/StudentsContext', () => ({
+  useStudentsContext: () => ({ students: [], loading: false }),
 }))
 
 vi.mock('react-router-dom', async () => {
@@ -211,7 +211,7 @@ describe('Narrow layout (< 900px)', () => {
   it('backdrop appears after hamburger tap', () => {
     renderLayout(390)
     fireEvent.click(screen.getByLabelText('Open navigation menu'))
-    expect(document.querySelector('[aria-hidden="true"]')).not.toBeNull()
+    expect(document.querySelector('div[aria-hidden="true"][style*="position: fixed"]')).not.toBeNull()
   })
 
   it('all nav links are in the overlay panel', () => {
@@ -224,7 +224,10 @@ describe('Narrow layout (< 900px)', () => {
   it('overlay closes when backdrop is clicked', () => {
     renderLayout(390)
     fireEvent.click(screen.getByLabelText('Open navigation menu'))
-    const backdrop = document.querySelector('[aria-hidden="true"]')
+    // The backdrop is a fixed-position div with aria-hidden and z-index:40.
+    // Multiple elements have aria-hidden (SVG icons) so use a specific style attribute.
+    const backdrop = document.querySelector('div[aria-hidden="true"][style*="position: fixed"]')
+    expect(backdrop).not.toBeNull()
     fireEvent.click(backdrop)
     const panel = screen.getByLabelText('Navigation menu')
     expect(panel.style.transform).toBe('translateX(-100%)')
