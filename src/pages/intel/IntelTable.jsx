@@ -31,10 +31,17 @@ export function sectorColor(sector) {
   return palette[Math.abs(hash) % palette.length]
 }
 
+function normalise(s) {
+  return (s || '').trim().toLowerCase().replace(/\s+/g, ' ')
+}
+
 function groupByCompany(records) {
   const map = new Map()
   for (const r of records) {
-    const key = r.recruiterId || r.recruiterName || '?'
+    // Group by normalised recruiterName so that records with the same display
+    // name but different recruiterId values (data entry inconsistency) merge
+    // into one group instead of splitting into duplicates.
+    const key = normalise(r.recruiterName) || r.recruiterId || '?'
     if (!map.has(key)) {
       map.set(key, {
         key,
