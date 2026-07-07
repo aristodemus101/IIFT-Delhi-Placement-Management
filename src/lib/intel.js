@@ -124,6 +124,15 @@ export function parseIntelRows(rawRows) {
       if (key) row[key] = v
     })
 
+    // If normalised Sector is empty, fall back to Sector (Raw) from the source sheet
+    if (!row.sector) {
+      const rawHeaders = Object.keys(raw)
+      const rawSectorHeader = rawHeaders.find(h => h.toLowerCase().trim() === 'sector (raw)')
+      if (rawSectorHeader && raw[rawSectorHeader]) {
+        row.sector = String(raw[rawSectorHeader]).trim()
+      }
+    }
+
     // Require at minimum a name or ID
     if (!row.recruiterId && !row.recruiterName) {
       warnings.push(`Row ${idx + 2}: skipped — no Recruiter ID or Name`)
