@@ -1,11 +1,10 @@
 // useIntel: live Firestore subscription to /intel collection.
-// Provides search, filter, and IIFT benchmark join (fuzzy, last 2 years).
+// Provides search, filter, and IIFT benchmark join (fuzzy, last 3 years).
 //
 // Benchmark logic:
-//   - "At IIFT"   : recruiterName/alias fuzzy-matches a company in IIFT placed students
-//                   within the last 2 calendar years (final or summer).
-//   - "IIFT Gap"  : appeared at a peer college but NOT at IIFT in the last 2 years.
-//   - "Both"      : at IIFT and at ≥1 peer college in the same window.
+//   - "At IIFT"  : company fuzzy-matches one placed at IIFT (SIP or Finals)
+//                  within the last 3 calendar years. SIP+Finals count once.
+//   - "IIFT Gap" : appears in peer-college intel data but NOT at IIFT in that window.
 
 import { useState, useEffect, useMemo } from 'react'
 import { collection, query, where, onSnapshot } from 'firebase/firestore'
@@ -42,38 +41,38 @@ export function useIntel({ students = [] } = {}) {
     return () => unsub()
   }, [])
 
-  // ── IIFT placed company index (last 2 years, fuzzy-normalised) ────────────
-  const iiftCompanySet = useMemo(() => {
-    const currentYear = new Date().getFullYear()
-    const cutoff = currentYear - 2
-    const set = new Set()
+  // ── IIFT placed company list (last 3 calendar years, deduplicated) ──────────
+  // One entry per unique company name from IIFT student placements.
+  // SIP and Finals both included — a company in both cycles still counts once
+  // (Set deduplicates). Raw names preserved so fuzzyMatch can token-split.
+  // Window: placementYear >= currentYear - 3 (2026 → 2023, 2024, 2025).
+  const iiftPlacedNames = useMemo(() => {
+    const cutoff = new Date().getFullYear() - 3
+    const seen = new Set()
     students.forEach(s => {
-      const finalYear = s._placement_final?.placedAtIso
-        ? new Date(s._placement_final.placedAtIso).getFullYear()
-        : null
-      const summerYear = s._placement_summer?.placedAtIso
-        ? new Date(s._placement_summer.placedAtIso).getFullYear()
-        : null
-
-      if (s._placed_final && s._placement_final?.company && finalYear >= cutoff) {
-        set.add(normalizeId(s._placement_final.company))
+      if (s._placed_final && s._placement_final?.company) {
+        const yr = s._placement_final.placedAtIso
+          ? new Date(s._placement_final.placedAtIso).getFullYear() : null
+        if (yr !== null && yr >= cutoff) seen.add(s._placement_final.company)
       }
-      if (s._placed_summer && s._placement_summer?.company && summerYear >= cutoff) {
-        set.add(normalizeId(s._placement_summer.company))
+      if (s._placed_summer && s._placement_summer?.company) {
+        const yr = s._placement_summer.placedAtIso
+          ? new Date(s._placement_summer.placedAtIso).getFullYear() : null
+        if (yr !== null && yr >= cutoff) seen.add(s._placement_summer.company)
       }
     })
-    return set
+    return [...seen]
   }, [students])
 
   // ── Attach IIFT status to each intel record ───────────────────────────────
   const enriched = useMemo(() => {
     return records.map(r => {
-      const matchesIift = iiftCompanySet.size > 0 && [...iiftCompanySet].some(
+      const matchesIift = iiftPlacedNames.length > 0 && iiftPlacedNames.some(
         iiftName => fuzzyMatch(r.recruiterName, iiftName) || fuzzyMatch(r.alias, iiftName)
       )
       return { ...r, _iiftStatus: matchesIift ? 'at_iift' : 'gap' }
     })
-  }, [records, iiftCompanySet])
+  }, [records, iiftPlacedNames])
 
   // ── Derived filter options ─────────────────────────────────────────────────
   const colleges = useMemo(() => {
