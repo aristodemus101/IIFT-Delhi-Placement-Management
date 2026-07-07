@@ -182,7 +182,10 @@ export async function uploadIntelBatch({ records, user, importBatchId, onProgres
   const existingMap = {}
   const keyChunks = chunkArray(allKeys, 30)
   for (const chunk of keyChunks) {
-    const q = query(intelCol, where('_dedupKey', 'in', chunk), where('_deleted', '!=', true))
+    // Query by _dedupKey only — no _deleted filter, so no composite index needed.
+    // We intentionally match soft-deleted docs too: if a record was deleted and
+    // re-uploaded, we update it in place rather than creating a duplicate.
+    const q = query(intelCol, where('_dedupKey', 'in', chunk))
     const snap = await getDocs(q)
     snap.forEach(d => { existingMap[d.data()._dedupKey] = d.id })
   }
