@@ -241,6 +241,7 @@ export default function IntelPage() {
           </div>
         ) : viewMode === VIEW.TABLE ? (
           <IntelTable
+            key={filtered.length}
             records={filtered}
             onRowClick={setSelectedRecord}
             contextMenu={handleContextMenu}

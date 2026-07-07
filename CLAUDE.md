@@ -46,6 +46,71 @@ Do **not** run `firebase deploy --only hosting` manually — the pipeline handle
 
 ---
 
+## Release Process
+
+### When to create a release
+After every significant milestone — not every commit. Triggers:
+- Major new features (new page, new data model, new workflow)
+- Performance improvements with measurable impact
+- Security fixes
+- Bug fixes affecting data integrity or user access
+- Batch of related improvements shipped together
+
+Minor copy changes, icon tweaks, and single-line fixes do not warrant a release on their own.
+
+### How releases work (automated)
+Every push to `main` triggers the GitHub Actions pipeline which **automatically creates a versioned GitHub Release** (`v1.0.N`) after a successful deploy. You do not need to create releases manually — they are created by the pipeline.
+
+To verify a release was created:
+```bash
+gh release list --limit 5
+gh release view v1.0.N
+```
+
+### Release notes (manual, for significant changes)
+The auto-created release has a bare commit message. For major milestones, add descriptive notes:
+
+```bash
+gh release edit v1.0.N --notes "$(cat <<'EOF'
+## Summary
+- What changed and why (not just what)
+- Breaking changes (if any)
+- Migration steps (if any)
+
+## Test coverage
+- N tests passing (vitest)
+- Auth/security invariants: verified
+- Layout: verified
+
+## Deploy
+- Deployed to production: iiftd-pc.web.app
+- Staging verified before production: yes
+EOF
+)"
+```
+
+### Versioning convention
+The pipeline auto-increments `v1.0.N`. Semantic versioning intent:
+- `v1.0.N` — production-stable, incremental improvements
+- `v1.1.0` — major new module or breaking schema change (manual tag required)
+- `v2.0.0` — architectural rewrite (manual tag required)
+
+To manually tag a major version:
+```bash
+git tag v1.1.0 -m "Release v1.1.0: <short description>"
+git push origin v1.1.0
+gh release create v1.1.0 --title "v1.1.0" --notes "..."
+```
+
+### Rollback
+Each GitHub Release is tied to a specific commit SHA. To roll back production:
+1. Find the last good release: `gh release list`
+2. Get its commit: `gh release view v1.0.N --json targetCommitish`
+3. Revert: `git revert HEAD` (preferred) or coordinate a force-push with the team
+4. Push the revert — the pipeline will deploy it as a new release
+
+---
+
 ## Firebase Projects
 
 | Environment | Project ID | Used when |
