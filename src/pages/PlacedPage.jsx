@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react'
-import { useStudents } from '../lib/useStudents'
+import { useStudentsContext } from '../lib/StudentsContext'
 import { usePendingChanges } from '../lib/PendingChangesContext'
 import { useAuth } from '../lib/AuthContext'
 import { useBatch } from '../lib/BatchContext'
@@ -37,7 +37,7 @@ function StatCard({ label, value, sub, color }) {
 }
 
 export default function PlacedPage() {
-  const { students, loading } = useStudents()
+  const { students, loading } = useStudentsContext()
   const { propose } = usePendingChanges()
   const { isAdmin } = useAuth()
   const { scopedCohorts, selectedCohort, selectedCohortCycle, setLastSeason, batchesLoading } = useBatch()

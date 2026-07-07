@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react'
 import { collectionGroup, onSnapshot, query, collection, orderBy } from 'firebase/firestore'
 import { db, auth } from '../lib/firebase'
-import { useStudents } from '../lib/useStudents'
+import { useStudentsContext } from '../lib/StudentsContext'
 import { useBatch } from '../lib/BatchContext'
 import { cohortLabel } from '../lib/batch'
 import { getVal } from '../lib/columns'
@@ -79,7 +79,7 @@ function studentCohort(s) {
 
 export default function AnalyticsPage() {
   const { isFacultyCoordinator } = useAuth()
-  const { students, loading: studentsLoading } = useStudents()
+  const { students, loading: studentsLoading } = useStudentsContext()
   const { scopedCohorts } = useBatch()
   const { applicants, loading: appsLoading } = useAllApplicants()
   const { opps, loading: oppsLoading } = useAllOpportunities()

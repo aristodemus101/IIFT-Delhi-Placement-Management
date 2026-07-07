@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useStudents } from '../lib/useStudents'
+import { useStudentsContext } from '../lib/StudentsContext'
 import { useBatch } from '../lib/BatchContext'
 import { cohortLabel, seasonLabel } from '../lib/batch'
 import { getVal } from '../lib/columns'
@@ -13,7 +13,7 @@ function studentCohort(s) {
 }
 
 export default function DashboardPage() {
-  const { students, loading } = useStudents()
+  const { students, loading } = useStudentsContext()
   const { scopedCohorts, selectedCohortCycle, setLastSeason, batchesLoading } = useBatch()
   const [selectedSeason, setSelectedSeasonLocal] = useState(selectedCohortCycle)
 

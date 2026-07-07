@@ -5,6 +5,7 @@ import { PendingChangesProvider } from './lib/PendingChangesContext'
 import { SheetsSyncProvider } from './lib/SheetsSyncContext'
 import { ThemeProvider } from './lib/ThemeContext'
 import { BatchProvider } from './lib/BatchContext'
+import { StudentsProvider } from './lib/StudentsContext'
 import { usePermissions } from './lib/usePermissions'
 import { Spinner } from './components/UI'
 import Layout from './components/Layout'
@@ -117,7 +118,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<LoginRoute />} />
-      <Route path="/" element={<AuthGate><BatchProvider><SheetsSyncProvider><PendingChangesProvider><Layout /></PendingChangesProvider></SheetsSyncProvider></BatchProvider></AuthGate>}>
+      <Route path="/" element={<AuthGate><StudentsProvider><BatchProvider><SheetsSyncProvider><PendingChangesProvider><Layout /></PendingChangesProvider></SheetsSyncProvider></BatchProvider></StudentsProvider></AuthGate>}>
         <Route index                element={<Suspense fallback={<FullSpinner />}><RoleHome /></Suspense>} />
         <Route path="roster"        element={<PageGate page="roster"><Suspense fallback={<FullSpinner />}><RosterPage /></Suspense></PageGate>} />
         <Route path="placed"        element={<PageGate page="placed"><Suspense fallback={<FullSpinner />}><PlacedPage /></Suspense></PageGate>} />

@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react'
 import { useAuth } from '../lib/AuthContext'
-import { useStudents } from '../lib/useStudents'
+import { useStudentsContext } from '../lib/StudentsContext'
 import { useSheetsSync } from '../lib/SheetsSyncContext'
 import { usePendingChanges } from '../lib/PendingChangesContext'
 import { useBatch } from '../lib/BatchContext'
@@ -132,7 +132,7 @@ function ActivityTable({ opps, isAdmin, onOpen, onDelete }) {
 export default function ActivityPage() {
   const { user, role } = useAuth()
   const isAdmin = role === 'admin'
-  const { students } = useStudents()
+  const { students } = useStudentsContext()
   const { opportunities, loading } = useOpportunities()
   const { connected: sheetsConnected, createTracker, addStageTab } = useSheetsSync()
   const { propose } = usePendingChanges()

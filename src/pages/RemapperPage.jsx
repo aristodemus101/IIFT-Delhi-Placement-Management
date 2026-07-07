@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react'
-import { useStudents } from '../lib/useStudents'
 import { useTemplates } from '../lib/useStudents'
+import { useStudentsContext } from '../lib/StudentsContext'
 import { useBatch } from '../lib/BatchContext'
 import { autoMapColumns, OUR_COLS, getVal } from '../lib/columns'
 import { exportRemapped } from '../lib/csv'
@@ -14,7 +14,7 @@ function getSection(s) {
 }
 
 export default function RemapperPage() {
-  const { students, loading } = useStudents()
+  const { students, loading } = useStudentsContext()
   const { templates, saveTemplate, deleteTemplate } = useTemplates()
   const { scopedCohorts } = useBatch()
 

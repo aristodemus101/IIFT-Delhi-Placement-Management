@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react'
 import { useOutletContext } from 'react-router-dom'
-import { useStudents, useColumnSchema } from '../lib/useStudents'
+import { useColumnSchema } from '../lib/useStudents'
+import { useStudentsContext } from '../lib/StudentsContext'
 import { usePendingChanges } from '../lib/PendingChangesContext'
 import { useAuth } from '../lib/AuthContext'
 import { usePermissions } from '../lib/usePermissions'
@@ -32,7 +33,7 @@ const newPlacementForm = () => ({
 function studentCohort(s) { return s.cohort || 'unknown' }
 
 export default function RosterPage() {
-  const { students, loading } = useStudents()
+  const { students, loading } = useStudentsContext()
   const { scopedCohorts, selectedCohort, selectedCohortCycle, selectedYearCode, selectedCampuses, selectedProgramme, batchesLoading, activeBatches } = useBatch()
   const { schemaHeaders } = useColumnSchema(selectedCohort || 'default')
   const { propose, changes } = usePendingChanges()

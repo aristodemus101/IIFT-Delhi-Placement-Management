@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useRoles } from '../lib/useRoles'
 import { useAuth } from '../lib/AuthContext'
-import { useStudents } from '../lib/useStudents'
+import { useStudentsContext } from '../lib/StudentsContext'
 import { useSheetsSync } from '../lib/SheetsSyncContext'
 import { useBatch } from '../lib/BatchContext'
 import { usePendingChanges } from '../lib/PendingChangesContext'
@@ -32,7 +32,7 @@ export default function AdminPage() {
   const { roles, loading, setRole, adminCount, adminUsers } = useRoles()
   const { user, isMasterAdmin, isAdmin, toggleMasterAdmin } = useAuth()
   const { pageConfig, actionConfig } = usePermissions()
-  const { students } = useStudents()
+  const { students } = useStudentsContext()
   const { selectedCohort, batches, activeBatches, archivedBatches, getCohortCycle, setCohortCycle } = useBatch()
   const { connected, sheetUrl, lastSync, syncing, authorize, syncNow } = useSheetsSync()
   const { propose } = usePendingChanges()

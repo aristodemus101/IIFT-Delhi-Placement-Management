@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react'
 import { useAuth } from '../lib/AuthContext'
 import { usePermissions } from '../lib/usePermissions'
-import { useStudents } from '../lib/useStudents'
+import { useStudentsContext } from '../lib/StudentsContext'
 import { useIntel, filterIntelRecords, aggregateByCompany } from '../lib/useIntel'
 import { softDeleteIntel } from '../lib/intel'
 import { PageHeader, Btn, Badge, Spinner, Input, Select } from '../components/UI'
@@ -23,11 +23,12 @@ export default function IntelPage() {
   const canUpload = canDo('uploadIntel')
   const canDelete = canDo('deleteIntel')
 
-  const { students } = useStudents()
+  const { students } = useStudentsContext()
   const { records, loading, error, colleges, years, sectors, programs, cycles } = useIntel({ students })
 
   // Filters
-  const [search,      setSearch]      = useState('')
+  const [search,         setSearch]         = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [college,     setCollege]     = useState('')
   const [year,        setYear]        = useState('')
   const [cycle,       setCycle]       = useState('')
@@ -51,11 +52,20 @@ export default function IntelPage() {
     return () => document.removeEventListener('click', handler)
   }, [ctxMenu])
 
+  // Debounce search: input is instant, filter recompute is deferred 250ms
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 250)
+    return () => clearTimeout(t)
+  }, [search])
+
   const filtered = useMemo(() => filterIntelRecords(records, {
-    search, college, year, cycle, sector, program, iiftFilter,
-  }), [records, search, college, year, cycle, sector, program, iiftFilter])
+    search: debouncedSearch, college, year, cycle, sector, program, iiftFilter,
+  }), [records, debouncedSearch, college, year, cycle, sector, program, iiftFilter])
 
   const companies = useMemo(() => aggregateByCompany(filtered), [filtered])
+
+  // Memoize total company count across ALL records (not filtered) — used in summary bar
+  const allCompaniesCount = useMemo(() => aggregateByCompany(records).length, [records])
 
   // Summary counts
   const gapCount    = useMemo(() => records.filter(r => r._iiftStatus === 'gap').length, [records])
@@ -79,7 +89,7 @@ export default function IntelPage() {
   }
 
   const clearFilters = () => {
-    setSearch(''); setCollege(''); setYear(''); setCycle('')
+    setSearch(''); setDebouncedSearch(''); setCollege(''); setYear(''); setCycle('')
     setSector(''); setProgram(''); setIiftFilter('')
   }
 
@@ -140,7 +150,7 @@ export default function IntelPage() {
           />
           <SummaryChip
             icon={Building2} color="gray"
-            label="Companies" value={aggregateByCompany(records).length.toLocaleString()}
+            label="Companies" value={allCompaniesCount.toLocaleString()}
           />
         </div>
       )}
