@@ -10,6 +10,7 @@ import {
   AlertTriangle, CheckCircle, TrendingUp, Building2,
 } from 'lucide-react'
 import IntelTable, { sectorColor } from './intel/IntelTable'
+import CompanyLogo from './intel/CompanyLogo'
 import CompanyDrawer from './intel/CompanyDrawer'
 import IntelEditModal from './intel/IntelEditModal'
 import UploadModal from './intel/UploadModal'
@@ -345,14 +346,7 @@ function CompanyCard({ company, onClick }) {
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-        <div style={{
-          width: 32, height: 32, borderRadius: 8, flexShrink: 0,
-          background: sectorColor(company.sector),
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 13, fontWeight: 800, color: '#fff',
-        }}>
-          {(company.recruiterName || '?')[0].toUpperCase()}
-        </div>
+        <CompanyLogo name={company.recruiterName} size={32} sector={company.sector} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontWeight: 600, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {company.recruiterName}
@@ -433,14 +427,7 @@ function BenchmarkColumn({ title, count, color, description, companies, onCardCl
             onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
             onMouseLeave={e => e.currentTarget.style.background = ''}
           >
-            <div style={{
-              width: 26, height: 26, borderRadius: 6, flexShrink: 0,
-              background: sectorColor(c.sector),
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 11, fontWeight: 800, color: '#fff',
-            }}>
-              {(c.recruiterName || '?')[0].toUpperCase()}
-            </div>
+            <CompanyLogo name={c.recruiterName} size={26} sector={c.sector} />
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontWeight: 600, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {c.recruiterName}

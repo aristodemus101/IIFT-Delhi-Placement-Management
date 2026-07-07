@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react'
 import { Badge } from '../../components/UI'
 import { ChevronDown, ChevronRight, MoreVertical } from 'lucide-react'
+import CompanyLogo from './CompanyLogo'
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 
@@ -150,15 +151,8 @@ export default function IntelTable({ records, onRowClick, contextMenu }) {
                       <span style={{ color: 'var(--text-3)', display: 'flex', flexShrink: 0, transition: 'transform 0.15s ease', transform: isExpanded ? 'rotate(0deg)' : 'rotate(-90deg)' }}>
                         <ChevronDown size={13} />
                       </span>
-                      {/* Avatar */}
-                      <span style={{
-                        width: 26, height: 26, borderRadius: 6, flexShrink: 0,
-                        background: accentColor,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: 11, fontWeight: 800, color: '#fff',
-                      }}>
-                        {group.recruiterName[0].toUpperCase()}
-                      </span>
+                      {/* Logo */}
+                      <CompanyLogo name={group.recruiterName} size={26} fallbackColor={accentColor} />
                       {/* Name */}
                       <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--text)' }}>
                         {group.recruiterName}
