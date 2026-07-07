@@ -138,6 +138,15 @@ export function parseIntelRows(rawRows) {
     // Coerce types
     if (row.placementYear) row.placementYear = parseInt(row.placementYear, 10) || null
     if (row.numberOfOffers) row.numberOfOffers = parseInt(row.numberOfOffers, 10) || null
+
+    // Normalise placementCycle to canonical casing regardless of what the Excel had
+    if (row.placementCycle) {
+      const c = String(row.placementCycle).toLowerCase().trim()
+      if (c === 'finals' || c === 'final' || c === 'placement' || c === 'finals placement') row.placementCycle = 'Finals'
+      else if (c === 'summer' || c === 'sip' || c === 'summer internship' || c === 'internship') row.placementCycle = 'Summer'
+      else if (c === 'lateral' || c === 'lateral hiring' || c === 'lateral recruitment') row.placementCycle = 'Lateral'
+      // else keep as-is (unknown cycle value)
+    }
     if (row.internationalOpp) {
       const v = String(row.internationalOpp).toLowerCase()
       row.internationalOpp = v === 'yes' || v === 'true' || v === '1'

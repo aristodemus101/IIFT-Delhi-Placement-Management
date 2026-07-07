@@ -24,7 +24,7 @@ export default function IntelPage() {
   const canDelete = canDo('deleteIntel')
 
   const { students } = useStudents()
-  const { records, loading, error, colleges, years, sectors, programs } = useIntel({ students })
+  const { records, loading, error, colleges, years, sectors, programs, cycles } = useIntel({ students })
 
   // Filters
   const [search,      setSearch]      = useState('')
@@ -170,9 +170,7 @@ export default function IntelPage() {
 
         <Select value={cycle} onChange={e => setCycle(e.target.value)} style={{ width: 'auto' }}>
           <option value="">All cycles</option>
-          <option value="Finals">Finals</option>
-          <option value="Summer">Summer</option>
-          <option value="Lateral">Lateral</option>
+          {cycles.map(c => <option key={c} value={c}>{c}</option>)}
         </Select>
 
         <Select value={sector} onChange={e => setSector(e.target.value)} style={{ width: 'auto' }}>

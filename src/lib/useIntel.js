@@ -100,6 +100,12 @@ export function useIntel({ students = [] } = {}) {
     return [...s].sort()
   }, [records])
 
+  const cycles = useMemo(() => {
+    const s = new Set()
+    records.forEach(r => { if (r.placementCycle) s.add(r.placementCycle) })
+    return [...s].sort()
+  }, [records])
+
   return {
     records: enriched,
     loading,
@@ -108,6 +114,7 @@ export function useIntel({ students = [] } = {}) {
     years,
     sectors,
     programs,
+    cycles,
   }
 }
 
@@ -119,7 +126,7 @@ export function filterIntelRecords(records, { search, college, year, cycle, sect
   return records.filter(r => {
     if (college && r.collegeName !== college) return false
     if (year    && r.placementYear !== Number(year)) return false
-    if (cycle   && r.placementCycle !== cycle) return false
+    if (cycle   && (r.placementCycle || '').toLowerCase() !== cycle.toLowerCase()) return false
     if (sector  && r.sector !== sector) return false
     if (program && r.program !== program) return false
     if (iiftFilter === 'gap'     && r._iiftStatus !== 'gap') return false
