@@ -11,6 +11,18 @@ import { usePermissions } from '../../lib/usePermissions'
 
 const CYCLE_COLOR = { Finals: 'blue', Summer: 'amber', Lateral: 'gray' }
 
+// Strict name match for IIFT history: normalise then check exact equality or
+// containment. Deliberately avoids token-overlap so "Bandhan Bank" doesn't
+// match "ICICI Bank", "Axis Bank" etc. via the shared "BANK" token.
+function normalize(s) {
+  return String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '')
+}
+function strictMatch(a, b) {
+  if (!a || !b) return false
+  const na = normalize(a), nb = normalize(b)
+  return na === nb || na.includes(nb) || nb.includes(na)
+}
+
 // All intel records for the same recruiter (by name/alias fuzzy match)
 function useAllRecordsForCompany(record, allRecords) {
   if (!record) return []
@@ -33,12 +45,14 @@ export default function CompanyDrawer({ record, allRecords, iiftStudents, onClos
 
   const related = useAllRecordsForCompany(record, allRecords)
 
-  // IIFT students placed at this company (fuzzy)
+  // IIFT students placed at this company.
+  // Uses containment-only match (not token overlap) to avoid false positives
+  // from shared generic tokens like "Bank", "Capital", "Finance" etc.
   const iiftMatches = iiftStudents.filter(s => {
-    const fc = s._placement_final?.company || ''
+    const fc = s._placement_final?.company  || ''
     const sc = s._placement_summer?.company || ''
-    return (s._placed_final && fuzzyMatch(fc, record.recruiterName)) ||
-           (s._placed_summer && fuzzyMatch(sc, record.recruiterName))
+    return (s._placed_final   && strictMatch(fc, record.recruiterName)) ||
+           (s._placed_summer  && strictMatch(sc, record.recruiterName))
   })
 
   if (!record) return null
