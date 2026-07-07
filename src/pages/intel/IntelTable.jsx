@@ -7,9 +7,10 @@ import CompanyLogo from './CompanyLogo'
 
 const thStyle = {
   textAlign: 'left', padding: '8px 14px', fontSize: 10.5, fontWeight: 700,
-  color: 'var(--text-3)', background: 'color-mix(in srgb, var(--surface2) 85%, transparent)',
+  color: 'var(--text-3)', background: 'color-mix(in srgb, var(--surface2) 85%, var(--surface))',
   borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap',
   textTransform: 'uppercase', letterSpacing: '0.06em', userSelect: 'none',
+  position: 'sticky', top: 0, zIndex: 2,
 }
 
 const IIFT_STATUS_CONFIG = {
@@ -178,8 +179,8 @@ export default function IntelTable({ records, onRowClick, contextMenu }) {
                       ? <Badge color="gray">{group.sector}</Badge>
                       : <span style={{ color: 'var(--text-3)', fontSize: 12 }}>—</span>}
                   </td>
-                  {/* Empty cells for remaining columns */}
-                  <td /><td /><td /><td />
+                  {/* Empty cells: cycle, program, role, offers, compensation */}
+                  <td /><td /><td /><td /><td />
                   {/* IIFT status */}
                   <td style={{ padding: '9px 14px', whiteSpace: 'nowrap' }}>
                     <Badge color={status.color}>{status.label}</Badge>
