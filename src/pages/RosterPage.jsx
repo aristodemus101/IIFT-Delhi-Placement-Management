@@ -138,28 +138,15 @@ export default function RosterPage() {
     return allColumnDefs.filter(c => set.has(c.key))
   }, [allColumnDefs, visibleCols])
 
-  const ugDegreeOptions = useMemo(() => {
-    const vals = new Set()
-    scopedStudents.forEach(s => { const v = String(getVal(s, 'ug') || '').trim(); if (v) vals.add(v) })
-    return [...vals].sort()
-  }, [scopedStudents])
-
-  const x12streamOptions = useMemo(() => {
-    const vals = new Set()
-    scopedStudents.forEach(s => { const v = String(getVal(s, 'x12stream') || '').trim(); if (v) vals.add(v) })
-    return [...vals].sort()
-  }, [scopedStudents])
-
-  const ugSpecOptions = useMemo(() => {
-    const vals = new Set()
-    scopedStudents.forEach(s => { const v = String(getVal(s, 'ug_spec') || '').trim(); if (v) vals.add(v) })
-    return [...vals].sort()
-  }, [scopedStudents])
-
-  const stateOptions = useMemo(() => {
-    const vals = new Set()
-    scopedStudents.forEach(s => { const v = String(getVal(s, 'state') || '').trim(); if (v) vals.add(v) })
-    return [...vals].sort()
+  // Derive unique values for any column key from current cohort data
+  const colValueMap = useMemo(() => {
+    const map = {}
+    OUR_COLS.forEach(col => {
+      const vals = new Set()
+      scopedStudents.forEach(s => { const v = String(getVal(s, col.key) || '').trim(); if (v) vals.add(v) })
+      if (vals.size > 0) map[col.key] = [...vals].sort()
+    })
+    return map
   }, [scopedStudents])
 
   const categoryOptions = useMemo(() => {
@@ -198,13 +185,14 @@ export default function RosterPage() {
     if (searchMatch && !searchMatch.has(i)) return false
     if (filters.catMin && parseFloat(getVal(s, 'cat')) < parseFloat(filters.catMin)) return false
     if (filters.wxMin && parseFloat(getVal(s, 'wx')) < parseFloat(filters.wxMin)) return false
-    if (filters.category  && getVal(s, 'category')  !== filters.category)  return false
-    if (filters.gender    && getVal(s, 'gender')    !== filters.gender)    return false
-    if (filters.ugDegree  && getVal(s, 'ug')        !== filters.ugDegree)  return false
-    if (filters.x12stream && getVal(s, 'x12stream') !== filters.x12stream) return false
-    if (filters.ugSpec    && getVal(s, 'ug_spec')   !== filters.ugSpec)    return false
-    if (filters.state     && getVal(s, 'state')     !== filters.state)     return false
+    if (filters.category && getVal(s, 'category') !== filters.category) return false
+    if (filters.gender   && getVal(s, 'gender')   !== filters.gender)   return false
     if (filters.pwdOnly && (getVal(s, 'pwd') || '').toLowerCase() !== 'yes') return false
+    if (filters.columnFilters?.length) {
+      for (const { colKey, value } of filters.columnFilters) {
+        if (value && String(getVal(s, colKey) || '').trim() !== value) return false
+      }
+    }
     if (filters.placementStatus) {
       // scope placement filter to the cohort's active cycle
       const cycle = selectedCohortCycle || 'final'
@@ -213,7 +201,7 @@ export default function RosterPage() {
       if (filters.placementStatus === 'ytp'    &&  isPlaced) return false
     }
     return true
-  }), [scopedStudents, searchMatch, filters.catMin, filters.wxMin, filters.category, filters.gender, filters.ugDegree, filters.x12stream, filters.ugSpec, filters.state, filters.pwdOnly, filters.placementStatus, selectedCohortCycle])
+  }), [scopedStudents, searchMatch, filters.catMin, filters.wxMin, filters.category, filters.gender, filters.pwdOnly, filters.columnFilters, filters.placementStatus, selectedCohortCycle])
 
   const sortedFiltered = useMemo(() => {
     const out = [...filtered]
@@ -433,7 +421,7 @@ export default function RosterPage() {
             const activeFilterCount = [
               filters.catMin, filters.wxMin,
               filters.category, filters.gender, filters.placementStatus, filters.pwdOnly,
-              filters.ugDegree, filters.x12stream, filters.ugSpec, filters.state,
+              ...(filters.columnFilters || []).map(f => f.value),
             ].filter(Boolean).length
             const sortActive = sortCol !== 'name' || sortDir !== 1
 
@@ -485,33 +473,32 @@ export default function RosterPage() {
                     PWD
                   </label>
 
-                  {ugDegreeOptions.length > 0 && (
-                    <select style={chipSelect} value={filters.ugDegree} onChange={e => setF('ugDegree', e.target.value)}>
-                      <option value="">UG Degree</option>
-                      {ugDegreeOptions.map(v => <option key={v} value={v}>{v}</option>)}
-                    </select>
-                  )}
+                  {/* Dynamic column filter chips */}
+                  {(filters.columnFilters || []).map((cf, i) => {
+                    const colDef = OUR_COLS.find(c => c.key === cf.colKey)
+                    return (
+                      <div key={i} style={{ display:'flex', alignItems:'center', gap:0, flexShrink:0 }}>
+                        <span style={{ ...chip, display:'flex', alignItems:'center', gap:4, paddingRight:4, borderRight:'none', borderRadius:'8px 0 0 8px', background:'var(--accent-bg)', borderColor:'var(--accent)', color:'var(--accent-dark)', cursor:'default' }}>
+                          <span style={{ color:'var(--text-3)', fontSize:11 }}>{colDef?.label?.split(' ')[0] || cf.colKey}:</span>
+                          <span style={{ fontWeight:600 }}>{cf.value}</span>
+                        </span>
+                        <button
+                          onClick={() => setF('columnFilters', filters.columnFilters.filter((_, j) => j !== i))}
+                          style={{ ...chip, width:22, padding:0, borderLeft:'none', borderRadius:'0 8px 8px 0', display:'flex', alignItems:'center', justifyContent:'center', color:'var(--text-3)', background:'var(--accent-bg)', borderColor:'var(--accent)' }}
+                          title="Remove filter"
+                        >×</button>
+                      </div>
+                    )
+                  })}
 
-                  {x12streamOptions.length > 0 && (
-                    <select style={chipSelect} value={filters.x12stream} onChange={e => setF('x12stream', e.target.value)}>
-                      <option value="">XII Stream</option>
-                      {x12streamOptions.map(v => <option key={v} value={v}>{v}</option>)}
-                    </select>
-                  )}
-
-                  {ugSpecOptions.length > 0 && (
-                    <select style={chipSelect} value={filters.ugSpec} onChange={e => setF('ugSpec', e.target.value)}>
-                      <option value="">UG Spec</option>
-                      {ugSpecOptions.map(v => <option key={v} value={v}>{v}</option>)}
-                    </select>
-                  )}
-
-                  {stateOptions.length > 0 && (
-                    <select style={chipSelect} value={filters.state} onChange={e => setF('state', e.target.value)}>
-                      <option value="">State</option>
-                      {stateOptions.map(v => <option key={v} value={v}>{v}</option>)}
-                    </select>
-                  )}
+                  {/* + Filter button — column picker → value picker */}
+                  <ColumnFilterPicker
+                    colValueMap={colValueMap}
+                    activeColKeys={(filters.columnFilters || []).map(f => f.colKey)}
+                    onAdd={(colKey, value) => setF('columnFilters', [...(filters.columnFilters || []), { colKey, value }])}
+                    chip={chip}
+                    chipSelect={chipSelect}
+                  />
 
                   <div style={{ width:1, height:14, background:'var(--border)', flexShrink:0 }} />
 
@@ -694,6 +681,75 @@ export default function RosterPage() {
         lastImportSummary={lastImportSummary}
         onReset={step => { setImportStep(step); setImportFile(null); setImportParsed(null); setImportCohort(''); setReplaceOnImport(false); setIncludeSipDataRaw(false); setLastImportSummary(null); if (fileRef.current) fileRef.current.value = '' }}
       />
+    </div>
+  )
+}
+
+// ── Column filter picker ───────────────────────────────────────────────────────
+// Step 1: pick a column. Step 2: pick a value from that column's data.
+function ColumnFilterPicker({ colValueMap, activeColKeys, onAdd, chip, chipSelect }) {
+  const [step, setStep]       = useState(0)   // 0=closed 1=pick-col 2=pick-val
+  const [colKey, setColKey]   = useState('')
+  const ref                   = useRef()
+
+  // Close on outside click
+  useEffect(() => {
+    if (step === 0) return
+    const handler = e => { if (ref.current && !ref.current.contains(e.target)) setStep(0) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [step])
+
+  // Filterable columns: has values in data, skip a few noisy/freetext ones
+  const SKIP = new Set(['name', 'firstName', 'middleName', 'lastName', 'email', 'official_email', 'mobile', 'mobile2', 'address', 'pincode', 'cat_scorecard', 'dob', 'father', 'mother', 'roll'])
+  const pickableCols = OUR_COLS.filter(c => colValueMap[c.key] && !SKIP.has(c.key))
+
+  const values = colKey ? (colValueMap[colKey] || []) : []
+
+  if (step === 0) {
+    return (
+      <button
+        style={{ ...chip, color: 'var(--text-3)', display:'flex', alignItems:'center', gap:4 }}
+        onClick={() => setStep(1)}
+      >
+        <span style={{ fontSize:15, lineHeight:1 }}>+</span> Filter
+      </button>
+    )
+  }
+
+  return (
+    <div ref={ref} style={{ position:'relative', flexShrink:0 }}>
+      {step === 1 && (
+        <select
+          autoFocus
+          size={1}
+          style={{ ...chipSelect, minWidth:160 }}
+          value=""
+          onChange={e => { if (e.target.value) { setColKey(e.target.value); setStep(2) } }}
+        >
+          <option value="" disabled>Pick column…</option>
+          {pickableCols.map(c => (
+            <option key={c.key} value={c.key} disabled={activeColKeys.includes(c.key)}>
+              {c.label.length > 40 ? c.label.slice(0, 40) + '…' : c.label}
+              {activeColKeys.includes(c.key) ? ' ✓' : ''}
+            </option>
+          ))}
+        </select>
+      )}
+      {step === 2 && (
+        <select
+          autoFocus
+          size={1}
+          style={{ ...chipSelect, minWidth:160 }}
+          value=""
+          onChange={e => {
+            if (e.target.value) { onAdd(colKey, e.target.value); setColKey(''); setStep(0) }
+          }}
+        >
+          <option value="" disabled>Pick value…</option>
+          {values.map(v => <option key={v} value={v}>{v}</option>)}
+        </select>
+      )}
     </div>
   )
 }
