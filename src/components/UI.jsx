@@ -109,7 +109,7 @@ export function Badge({ children, color = 'gray' }) {
   const c = colors[color] || colors.gray
   return (
     <span style={{
-      display: 'inline-flex', alignItems: 'center',
+      display: 'inline-flex', alignItems: 'center', whiteSpace: 'nowrap',
       padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 600,
       letterSpacing: '0.01em',
       background: c.bg, color: c.text, border: `1px solid ${c.border}`,
