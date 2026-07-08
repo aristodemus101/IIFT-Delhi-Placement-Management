@@ -554,7 +554,7 @@ export default function AdminPage() {
                   const justSaved = roleSavedFor === email
                   return (
                     <div key={email} style={{
-                      display: 'grid', gridTemplateColumns: '1fr 160px auto',
+                      display: 'grid', gridTemplateColumns: '1fr 200px auto',
                       padding: '8px 14px', alignItems: 'center', gap: 8,
                       borderBottom: i < authUserEmails.length - 1 ? '1px solid var(--border)' : 'none',
                       background: i % 2 === 0 ? 'var(--surface)' : 'var(--surface2)',

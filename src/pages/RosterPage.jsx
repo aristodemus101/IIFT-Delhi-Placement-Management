@@ -447,33 +447,41 @@ export default function RosterPage() {
                     />
                   </div>
 
-                  <div style={{ width:1, height:14, background:'var(--border)', flexShrink:0 }} />
+                  {/* ── Scores group ── */}
+                  <div style={{ display:'flex', alignItems:'center', gap:4, padding:'0 6px', borderRadius:8, background:'var(--surface2)', border:'1px solid var(--border)', flexShrink:0 }}>
+                    <input style={{ ...chip, width:58, border:'none', background:'transparent', padding:'0 4px' }} placeholder="CAT ≥" inputMode="numeric" value={filters.catMin} onChange={e => setF('catMin', e.target.value.replace(/[^\d.]/g, ''))} />
+                    <div style={{ width:1, height:12, background:'var(--border)' }} />
+                    <input style={{ ...chip, width:52, border:'none', background:'transparent', padding:'0 4px' }} placeholder="WX ≥" inputMode="numeric" value={filters.wxMin} onChange={e => setF('wxMin', e.target.value.replace(/[^\d.]/g, ''))} />
+                  </div>
 
-                  <input style={{ ...chip, width:64 }} placeholder="CAT ≥" inputMode="numeric" value={filters.catMin} onChange={e => setF('catMin', e.target.value.replace(/[^\d.]/g, ''))} />
-                  <input style={{ ...chip, width:60 }} placeholder="WX ≥" inputMode="numeric" value={filters.wxMin} onChange={e => setF('wxMin', e.target.value.replace(/[^\d.]/g, ''))} />
+                  {/* ── Demographics group ── */}
+                  <div style={{ display:'flex', alignItems:'center', gap:4, padding:'0 4px', borderRadius:8, background:'var(--surface2)', border:'1px solid var(--border)', flexShrink:0 }}>
+                    <select style={{ ...chipSelect, border:'none', background:'transparent' }} value={filters.category} onChange={e => setF('category', e.target.value)}>
+                      <option value="">Category</option>
+                      {categoryOptions.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                    <div style={{ width:1, height:12, background:'var(--border)' }} />
+                    <select style={{ ...chipSelect, border:'none', background:'transparent' }} value={filters.gender} onChange={e => setF('gender', e.target.value)}>
+                      <option value="">Gender</option>
+                      {genderOptions.map(g => <option key={g} value={g}>{g}</option>)}
+                    </select>
+                  </div>
 
-                  <select style={chipSelect} value={filters.category} onChange={e => setF('category', e.target.value)}>
-                    <option value="">Category</option>
-                    {categoryOptions.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
+                  {/* ── Placement status group ── */}
+                  <div style={{ display:'flex', alignItems:'center', gap:6, padding:'0 8px', borderRadius:8, background:'var(--surface2)', border:'1px solid var(--border)', flexShrink:0, height:30 }}>
+                    <select style={{ ...chipSelect, border:'none', background:'transparent' }} value={filters.placementStatus || ''} onChange={e => setF('placementStatus', e.target.value)}>
+                      <option value="">Status</option>
+                      <option value="placed">Placed ({selectedCohortCycle === 'summer' ? 'SIP' : 'Final'})</option>
+                      <option value="ytp">YTP ({selectedCohortCycle === 'summer' ? 'SIP' : 'Final'})</option>
+                    </select>
+                    <div style={{ width:1, height:12, background:'var(--border)' }} />
+                    <label style={{ display:'flex', alignItems:'center', gap:4, fontSize:12, cursor:'pointer', color:'var(--text-2)', whiteSpace:'nowrap' }}>
+                      <input type="checkbox" checked={filters.pwdOnly} onChange={e => setF('pwdOnly', e.target.checked)} />
+                      PWD
+                    </label>
+                  </div>
 
-                  <select style={chipSelect} value={filters.gender} onChange={e => setF('gender', e.target.value)}>
-                    <option value="">Gender</option>
-                    {genderOptions.map(g => <option key={g} value={g}>{g}</option>)}
-                  </select>
-
-                  <select style={chipSelect} value={filters.placementStatus || ''} onChange={e => setF('placementStatus', e.target.value)}>
-                    <option value="">Status</option>
-                    <option value="placed">Placed ({selectedCohortCycle === 'summer' ? 'SIP' : 'Final'})</option>
-                    <option value="ytp">YTP ({selectedCohortCycle === 'summer' ? 'SIP' : 'Final'})</option>
-                  </select>
-
-                  <label style={{ display:'flex', alignItems:'center', gap:4, fontSize:12, cursor:'pointer', color:'var(--text-2)', whiteSpace:'nowrap', flexShrink:0 }}>
-                    <input type="checkbox" checked={filters.pwdOnly} onChange={e => setF('pwdOnly', e.target.checked)} />
-                    PWD
-                  </label>
-
-                  {/* Dynamic column filter chips */}
+                  {/* ── Column filters group ── */}
                   {(filters.columnFilters || []).map((cf, i) => {
                     const colDef = OUR_COLS.find(c => c.key === cf.colKey)
                     return (
@@ -502,6 +510,7 @@ export default function RosterPage() {
 
                   <div style={{ width:1, height:14, background:'var(--border)', flexShrink:0 }} />
 
+                  {/* ── Sort group ── */}
                   <select style={{ ...chipSelect, maxWidth:120 }} value={sortCol} onChange={e => setSortCol(e.target.value)}>
                     {sortOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                   </select>
