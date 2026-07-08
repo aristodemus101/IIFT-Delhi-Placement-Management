@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
 
-const DEFAULT_FILTERS = { catMin: '', wxMin: '', category: '', gender: '', pwdOnly: false }
+const DEFAULT_FILTERS = { catMin: '', wxMin: '', category: '', gender: '', pwdOnly: false, ugDegree: '', x12stream: '', ugSpec: '', state: '' }
 
 export { DEFAULT_FILTERS }
 

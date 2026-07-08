@@ -138,6 +138,30 @@ export default function RosterPage() {
     return allColumnDefs.filter(c => set.has(c.key))
   }, [allColumnDefs, visibleCols])
 
+  const ugDegreeOptions = useMemo(() => {
+    const vals = new Set()
+    scopedStudents.forEach(s => { const v = String(getVal(s, 'ug') || '').trim(); if (v) vals.add(v) })
+    return [...vals].sort()
+  }, [scopedStudents])
+
+  const x12streamOptions = useMemo(() => {
+    const vals = new Set()
+    scopedStudents.forEach(s => { const v = String(getVal(s, 'x12stream') || '').trim(); if (v) vals.add(v) })
+    return [...vals].sort()
+  }, [scopedStudents])
+
+  const ugSpecOptions = useMemo(() => {
+    const vals = new Set()
+    scopedStudents.forEach(s => { const v = String(getVal(s, 'ug_spec') || '').trim(); if (v) vals.add(v) })
+    return [...vals].sort()
+  }, [scopedStudents])
+
+  const stateOptions = useMemo(() => {
+    const vals = new Set()
+    scopedStudents.forEach(s => { const v = String(getVal(s, 'state') || '').trim(); if (v) vals.add(v) })
+    return [...vals].sort()
+  }, [scopedStudents])
+
   const categoryOptions = useMemo(() => {
     const vals = new Set()
     scopedStudents.forEach(s => { const v = String(getVal(s, 'category') || '').trim(); if (v) vals.add(v) })
@@ -174,8 +198,12 @@ export default function RosterPage() {
     if (searchMatch && !searchMatch.has(i)) return false
     if (filters.catMin && parseFloat(getVal(s, 'cat')) < parseFloat(filters.catMin)) return false
     if (filters.wxMin && parseFloat(getVal(s, 'wx')) < parseFloat(filters.wxMin)) return false
-    if (filters.category && getVal(s, 'category') !== filters.category) return false
-    if (filters.gender && getVal(s, 'gender') !== filters.gender) return false
+    if (filters.category  && getVal(s, 'category')  !== filters.category)  return false
+    if (filters.gender    && getVal(s, 'gender')    !== filters.gender)    return false
+    if (filters.ugDegree  && getVal(s, 'ug')        !== filters.ugDegree)  return false
+    if (filters.x12stream && getVal(s, 'x12stream') !== filters.x12stream) return false
+    if (filters.ugSpec    && getVal(s, 'ug_spec')   !== filters.ugSpec)    return false
+    if (filters.state     && getVal(s, 'state')     !== filters.state)     return false
     if (filters.pwdOnly && (getVal(s, 'pwd') || '').toLowerCase() !== 'yes') return false
     if (filters.placementStatus) {
       // scope placement filter to the cohort's active cycle
@@ -185,7 +213,7 @@ export default function RosterPage() {
       if (filters.placementStatus === 'ytp'    &&  isPlaced) return false
     }
     return true
-  }), [scopedStudents, searchMatch, filters.catMin, filters.wxMin, filters.category, filters.gender, filters.pwdOnly, filters.placementStatus, selectedCohortCycle])
+  }), [scopedStudents, searchMatch, filters.catMin, filters.wxMin, filters.category, filters.gender, filters.ugDegree, filters.x12stream, filters.ugSpec, filters.state, filters.pwdOnly, filters.placementStatus, selectedCohortCycle])
 
   const sortedFiltered = useMemo(() => {
     const out = [...filtered]
@@ -405,6 +433,7 @@ export default function RosterPage() {
             const activeFilterCount = [
               filters.catMin, filters.wxMin,
               filters.category, filters.gender, filters.placementStatus, filters.pwdOnly,
+              filters.ugDegree, filters.x12stream, filters.ugSpec, filters.state,
             ].filter(Boolean).length
             const sortActive = sortCol !== 'name' || sortDir !== 1
 
@@ -455,6 +484,34 @@ export default function RosterPage() {
                     <input type="checkbox" checked={filters.pwdOnly} onChange={e => setF('pwdOnly', e.target.checked)} />
                     PWD
                   </label>
+
+                  {ugDegreeOptions.length > 0 && (
+                    <select style={chipSelect} value={filters.ugDegree} onChange={e => setF('ugDegree', e.target.value)}>
+                      <option value="">UG Degree</option>
+                      {ugDegreeOptions.map(v => <option key={v} value={v}>{v}</option>)}
+                    </select>
+                  )}
+
+                  {x12streamOptions.length > 0 && (
+                    <select style={chipSelect} value={filters.x12stream} onChange={e => setF('x12stream', e.target.value)}>
+                      <option value="">XII Stream</option>
+                      {x12streamOptions.map(v => <option key={v} value={v}>{v}</option>)}
+                    </select>
+                  )}
+
+                  {ugSpecOptions.length > 0 && (
+                    <select style={chipSelect} value={filters.ugSpec} onChange={e => setF('ugSpec', e.target.value)}>
+                      <option value="">UG Spec</option>
+                      {ugSpecOptions.map(v => <option key={v} value={v}>{v}</option>)}
+                    </select>
+                  )}
+
+                  {stateOptions.length > 0 && (
+                    <select style={chipSelect} value={filters.state} onChange={e => setF('state', e.target.value)}>
+                      <option value="">State</option>
+                      {stateOptions.map(v => <option key={v} value={v}>{v}</option>)}
+                    </select>
+                  )}
 
                   <div style={{ width:1, height:14, background:'var(--border)', flexShrink:0 }} />
 
