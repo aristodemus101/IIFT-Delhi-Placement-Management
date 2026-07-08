@@ -10,9 +10,12 @@ export default defineConfig(() => {
         registerType: 'autoUpdate',
         injectRegister: 'auto',
         workbox: {
-          // Precache only the shell chunks. Per-route lazy chunks and xlsx
-          // are fetched on demand and cached by the browser's HTTP cache.
-          globPatterns: ['**/*.{html,css,ico,svg,woff2}', 'assets/vendor-*.js', 'assets/firebase-*.js', 'assets/index-*.js'],
+          // Precache all JS/CSS assets. Hash-named chunks are immutable so
+          // this is safe — new deploy = new hashes = fresh precache entries.
+          // Previously only shell chunks were listed, which caused the SW's
+          // navigateFallback to intercept lazy chunk fetches and return
+          // index.html (text/html) instead of the JS file.
+          globPatterns: ['**/*.{html,css,js,ico,svg,woff2}'],
           runtimeCaching: [
             {
               urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
