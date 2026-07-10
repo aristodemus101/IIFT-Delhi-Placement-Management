@@ -147,6 +147,18 @@ export const OUR_COLS = [
   { key: 'por', label: 'Past Position of Responsibility', path: r => pick(r, 'Past Position of Responsibility') },
   { key: 'state_natl', label: 'State or National Level Achievement', path: r => pick(r, 'State or National Level Achievement') },
   { key: 'languages', label: 'Languages Known (Write all seperated by comma)', path: r => pick(r, 'Languages Known (Write all seperated by comma)') },
+
+  // ── Summer Internship (SIP) placement fields ──────────────────────────────
+  // Stored in _placement_summer.* after import; also readable from raw SIP headers.
+  { key: 'sip_status',   label: 'SIP Status',                    path: r => pick(r, 'SIP Status') || (r._placed_summer ? 'Placed' : '') },
+  { key: 'sip_company',  label: 'SIP Company',                   path: r => r._placement_summer?.company  || pick(r, 'SIP Company') },
+  { key: 'sip_role',     label: 'SIP Role',                      path: r => r._placement_summer?.role     || pick(r, 'SIP Role') },
+  { key: 'sip_sector',   label: 'SIP Company Sector / Domain',   path: r => r._placement_summer?.sector   || pick(r, 'SIP Company Sector', 'SIP Company Domain') },
+  { key: 'sip_location', label: 'SIP Location',                  path: r => r._placement_summer?.location || pick(r, 'Location') },
+  { key: 'sip_stipend',  label: 'SIP Stipend',                   path: r => r._placement_summer?.package  || pick(r, 'SIP Stipend (In Lakhs/month)', 'Summer Stipend', 'SIP Stipend') },
+  { key: 'sip_via',      label: 'SIP Placed Via',                path: r => r._placement_summer?.via      || pick(r, 'Placed Via') },
+  { key: 'sip_date',     label: 'SIP Date of Placement',         path: r => r._placement_summer?.date     || pickDate(r, 'DOP') },
+  { key: 'sip_notes',    label: 'SIP Roles & Responsibilities',  path: r => r._placement_summer?.ctcNotes || pick(r, 'SIP Roles and Responsibilities') },
 ]
 
 export const SYNONYMS = {
@@ -194,10 +206,19 @@ export const SYNONYMS = {
   cert_prof:   ['certification', 'cert', 'ca', 'cfa', 'professional cert', 'certifications', 'professional certification'],
   languages:   ['languages', 'language', 'known languages', 'languages known', 'languages spoken'],
   por:         ['por', 'position of responsibility', 'leadership', 'role of responsibility'],
+  sip_status:  ['sip status', 'summer status', 'internship status', 'summer placement status'],
+  sip_company: ['sip company', 'summer company', 'internship company', 'summer employer', 'sip employer', 'summer internship company'],
+  sip_role:    ['sip role', 'summer role', 'internship role', 'summer designation', 'sip designation'],
+  sip_sector:  ['sip sector', 'sip domain', 'summer sector', 'sip company sector', 'sip company domain', 'summer company domain'],
+  sip_location:['sip location', 'summer location', 'internship location', 'location'],
+  sip_stipend: ['sip stipend', 'summer stipend', 'stipend', 'sip package', 'summer package', 'internship stipend'],
+  sip_via:     ['sip via', 'placed via', 'summer placed via', 'how placed'],
+  sip_date:    ['dop', 'date of placement', 'sip date', 'summer date', 'joining date'],
+  sip_notes:   ['sip roles', 'sip responsibilities', 'summer responsibilities', 'internship responsibilities'],
 }
 
 // Date column keys — coerce Excel serials to ISO at display time
-const DATE_KEYS = new Set(['dob', 'x10_start', 'x10_end', 'x12_start', 'x12_end', 'ug_start', 'ug_end', 'pg1_start', 'pg1_end'])
+const DATE_KEYS = new Set(['dob', 'x10_start', 'x10_end', 'x12_start', 'x12_end', 'ug_start', 'ug_end', 'pg1_start', 'pg1_end', 'sip_date'])
 
 export function getVal(student, key) {
   const col = OUR_COLS.find(c => c.key === key)
