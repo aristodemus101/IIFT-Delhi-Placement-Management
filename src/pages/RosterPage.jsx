@@ -138,16 +138,18 @@ export default function RosterPage() {
     return allColumnDefs.filter(c => set.has(c.key))
   }, [allColumnDefs, visibleCols])
 
-  // Derive unique values for any column key from current cohort data
+  // Derive unique values for every column actually present in the data.
+  // Keyed by raw doc field name (same as allColumnDefs keys) so the picker
+  // shows exactly the columns that came from the uploaded file.
   const colValueMap = useMemo(() => {
     const map = {}
-    OUR_COLS.forEach(col => {
+    allColumnDefs.forEach(col => {
       const vals = new Set()
-      scopedStudents.forEach(s => { const v = String(getVal(s, col.key) || '').trim(); if (v) vals.add(v) })
+      scopedStudents.forEach(s => { const v = String(s[col.key] ?? '').trim(); if (v) vals.add(v) })
       if (vals.size > 0) map[col.key] = [...vals].sort()
     })
     return map
-  }, [scopedStudents])
+  }, [scopedStudents, allColumnDefs])
 
   const categoryOptions = useMemo(() => {
     const vals = new Set()
@@ -483,11 +485,12 @@ export default function RosterPage() {
 
                   {/* ── Column filters group ── */}
                   {(filters.columnFilters || []).map((cf, i) => {
-                    const colDef = OUR_COLS.find(c => c.key === cf.colKey)
+                    const colDef = allColumnDefs.find(c => c.key === cf.colKey)
+                    const shortLabel = (colDef?.label || cf.colKey).replace(/\s*\(.*?\)/g, '').trim().split(' ').slice(0, 2).join(' ')
                     return (
                       <div key={i} style={{ display:'flex', alignItems:'center', gap:0, flexShrink:0 }}>
                         <span style={{ ...chip, display:'flex', alignItems:'center', gap:4, paddingRight:4, borderRight:'none', borderRadius:'8px 0 0 8px', background:'var(--accent-bg)', borderColor:'var(--accent)', color:'var(--accent-dark)', cursor:'default' }}>
-                          <span style={{ color:'var(--text-3)', fontSize:11 }}>{colDef?.label?.split(' ')[0] || cf.colKey}:</span>
+                          <span style={{ color:'var(--text-3)', fontSize:11 }}>{shortLabel}:</span>
                           <span style={{ fontWeight:600 }}>{cf.value}</span>
                         </span>
                         <button
@@ -502,6 +505,7 @@ export default function RosterPage() {
                   {/* + Filter button — column picker → value picker */}
                   <ColumnFilterPicker
                     colValueMap={colValueMap}
+                    allColumnDefs={allColumnDefs}
                     activeColKeys={(filters.columnFilters || []).map(f => f.colKey)}
                     onAdd={(colKey, value) => setF('columnFilters', [...(filters.columnFilters || []), { colKey, value }])}
                     chip={chip}
@@ -696,7 +700,7 @@ export default function RosterPage() {
 
 // ── Column filter picker ───────────────────────────────────────────────────────
 // Step 1: pick a column. Step 2: pick a value from that column's data.
-function ColumnFilterPicker({ colValueMap, activeColKeys, onAdd, chip, chipSelect }) {
+function ColumnFilterPicker({ colValueMap, allColumnDefs, activeColKeys, onAdd, chip, chipSelect }) {
   const [step, setStep]       = useState(0)   // 0=closed 1=pick-col 2=pick-val
   const [colKey, setColKey]   = useState('')
   const ref                   = useRef()
@@ -709,9 +713,12 @@ function ColumnFilterPicker({ colValueMap, activeColKeys, onAdd, chip, chipSelec
     return () => document.removeEventListener('mousedown', handler)
   }, [step])
 
-  // Filterable columns: has values in data, skip a few noisy/freetext ones
-  const SKIP = new Set(['name', 'firstName', 'middleName', 'lastName', 'email', 'official_email', 'mobile', 'mobile2', 'address', 'pincode', 'cat_scorecard', 'dob', 'father', 'mother', 'roll'])
-  const pickableCols = OUR_COLS.filter(c => colValueMap[c.key] && !SKIP.has(c.key))
+  // Skip freetext / identity columns — everything else that has values is pickable.
+  // Patterns cover both canonical keys (OUR_COLS era) and raw upload headers.
+  const SKIP_PATTERN = /name|email|mobile|phone|address|pincode|scorecard|father|mother|roll|responsibilities|achievement|certification|languages|remarks/i
+  const pickableCols = (allColumnDefs || []).filter(c =>
+    colValueMap[c.key] && !SKIP_PATTERN.test(c.key) && !SKIP_PATTERN.test(c.label)
+  )
 
   const values = colKey ? (colValueMap[colKey] || []) : []
 
