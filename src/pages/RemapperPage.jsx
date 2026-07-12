@@ -3,6 +3,7 @@ import { useTemplates } from '../lib/useStudents'
 import { useStudentsContext } from '../lib/StudentsContext'
 import { useBatch } from '../lib/BatchContext'
 import { autoMapColumns, OUR_COLS, getVal } from '../lib/columns'
+import { geminiAutoMap } from '../lib/gemini'
 import { exportRemapped } from '../lib/csv'
 import { parseCohortId, PROGRAMMES } from '../lib/batch'
 import { PageHeader, Btn, Badge, Input, Select, Spinner, Modal } from '../components/UI'
@@ -19,8 +20,10 @@ export default function RemapperPage() {
   const { scopedCohorts } = useBatch()
 
   // Step 1 — columns
-  const [rawCols, setRawCols]   = useState('')
-  const [mappings, setMappings] = useState(null)
+  const [rawCols, setRawCols]       = useState('')
+  const [mappings, setMappings]     = useState(null)
+  const [autoMapping, setAutoMapping] = useState(false)
+  const [autoMapErr, setAutoMapErr]   = useState('')
 
   // Step 3 — selection
   const SELECTION_MODES = [
@@ -45,9 +48,25 @@ export default function RemapperPage() {
     [rawCols]
   )
 
-  const doAutoMap = () => {
+  const doAutoMap = async () => {
     if (!companyCols.length) return
-    setMappings(autoMapColumns(companyCols))
+    setAutoMapErr('')
+    const geminiKey = import.meta.env.VITE_GEMINI_KEY
+    if (!geminiKey) {
+      setMappings(autoMapColumns(companyCols))
+      return
+    }
+    setAutoMapping(true)
+    try {
+      const result = await geminiAutoMap(companyCols, OUR_COLS)
+      setMappings(result)
+    } catch (e) {
+      console.error('Gemini auto-map failed, falling back to synonym match:', e)
+      setAutoMapErr('AI mapping failed — used keyword fallback instead.')
+      setMappings(autoMapColumns(companyCols))
+    } finally {
+      setAutoMapping(false)
+    }
   }
 
   const setMapping = (i, key) => {
@@ -153,12 +172,18 @@ export default function RemapperPage() {
                   outline: 'none', lineHeight: 1.6, boxSizing: 'border-box',
                 }}
               />
-              <div style={{ marginTop: 10, display: 'flex', gap: 8, alignItems: 'center' }}>
-                <Btn variant="primary" onClick={doAutoMap} disabled={!companyCols.length}>
-                  <Wand2 size={13} /> Auto-map {companyCols.length ? `${companyCols.length} columns` : ''}
+              <div style={{ marginTop: 10, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                <Btn variant="primary" onClick={doAutoMap} disabled={!companyCols.length || autoMapping}>
+                  {autoMapping
+                    ? <><Spinner size={13} /> Mapping…</>
+                    : <><Wand2 size={13} /> Auto-map {companyCols.length ? `${companyCols.length} columns` : ''}</>
+                  }
                 </Btn>
-                {companyCols.length > 0 && (
+                {companyCols.length > 0 && !autoMapping && (
                   <span style={{ fontSize: 12, color: 'var(--text-3)' }}>{companyCols.length} columns detected</span>
+                )}
+                {autoMapErr && (
+                  <span style={{ fontSize: 12, color: 'var(--amber-text)' }}>{autoMapErr}</span>
                 )}
               </div>
             </div>

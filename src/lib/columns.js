@@ -163,14 +163,14 @@ export const OUR_COLS = [
 
 export const SYNONYMS = {
   roll:        ['roll', 'roll no', 'roll number', 'enrollment', 'enroll', 'student id', 'student code', 'reg no', 'registration'],
-  name:        ['name', 'full name', 'student name', 'candidate name', 'applicant name', 'participant name'],
+  name:        ['name', 'full name', 'student name', 'candidate name', 'applicant name', 'participant name', 'name of student', 'name of candidate'],
   firstName:   ['first name', 'given name', 'fname'],
   lastName:    ['last name', 'surname', 'family name', 'lname'],
   gender:      ['gender', 'sex'],
   dob:         ['dob', 'birth', 'date of birth', 'birthdate', 'birth date'],
   age:         ['age', 'age in years'],
   cat_score:   ['cat score', 'cat raw score', 'cat marks'],
-  cat:         ['cat percentile', 'cat %ile', 'percentile', 'cat perc', 'cat %', 'cat score percentile'],
+  cat:         ['cat percentile', 'cat %ile', 'percentile', 'cat perc', 'cat %', 'cat score percentile', 'cat score %', 'cat entrance', 'cat entrance score'],
   category:    ['category', 'caste', 'reservation', 'social category', 'caste category'],
   pwd:         ['pwd', 'disability', 'differently abled', 'handicapped', 'pwbd'],
   state:       ['state', 'domicile', 'home state', 'state of domicile', 'domicile state'],
@@ -189,11 +189,11 @@ export const SYNONYMS = {
   ug_college:  ['ug college', 'college', 'graduation college', 'undergrad college', 'institute'],
   ug_uni:      ['university', 'ug university', 'affiliated university', 'ug uni'],
   ug_city:     ['graduation city', 'college city', 'ug city', 'college location'],
-  ugpct:       ['ug %', 'ug percent', 'graduation %', 'graduation percent', 'cgpa', 'gpa', 'ug score', 'ug marks', 'ug gpa', 'aggregate'],
+  ugpct:       ['ug %', 'ug percent', 'graduation %', 'graduation percent', 'cgpa', 'gpa', 'ug score', 'ug marks', 'ug gpa', 'aggregate', 'graduation marks', 'graduation score', 'graduation percentage', 'bachelors %', 'degree %'],
   pg1:         ['pg', 'pg degree', 'post grad', 'postgrad', 'mba', 'mtech', 'ms', 'post graduate', 'masters'],
   pg1_inst:    ['pg institute', 'pg college', 'pg school', 'pg institution'],
   pg1pct:      ['pg %', 'pg percent', 'pg score', 'pg marks', 'pg gpa'],
-  wx:          ['work ex', 'work experience', 'total work ex', 'experience', 'exp', 'total exp', 'months of experience', 'work exp', 'total experience', 'work experience months'],
+  wx:          ['work ex', 'work experience', 'total work ex', 'experience', 'exp', 'total exp', 'months of experience', 'work exp', 'total experience', 'work experience months', 'work experience in months', 'total work experience', 'we months', 'prior experience'],
   c1_name:     ['company 1', 'company name', 'current company', 'employer', 'previous employer', 'c1', 'first company', 'organisation', 'organization'],
   c1_desig:    ['designation', 'designation c1', 'last designation', 'title', 'job title', 'role', 'position'],
   c1_domain:   ['domain', 'domain c1', 'work domain', 'functional area', 'function'],
@@ -236,15 +236,29 @@ export function normalize(s) {
 }
 
 export function autoMapColumns(companyCols) {
+  const usedKeys = new Set()
   return companyCols.map(col => {
     const n = normalize(col)
     let matched = null
+    let bestScore = 0
+
     for (const [key, syns] of Object.entries(SYNONYMS)) {
-      if (syns.some(s => n.includes(normalize(s)) || normalize(s).includes(n))) {
-        matched = key
-        break
+      if (usedKeys.has(key)) continue
+      for (const s of syns) {
+        const ns = normalize(s)
+        let score = 0
+        if (n === ns) score = 3              // exact match
+        else if (n === ns || ns === n) score = 3
+        else if (n.split(' ').join('') === ns.split(' ').join('')) score = 2  // same words different spacing
+        else if (n === ns) score = 3
+        // whole-word containment — avoid "name" matching "company name"
+        else if (new RegExp(`(?:^| )${ns.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:$| )`).test(n)) score = 2
+        else if (new RegExp(`(?:^| )${n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:$| )`).test(ns)) score = 1
+
+        if (score > bestScore) { bestScore = score; matched = key }
       }
     }
+    if (matched) usedKeys.add(matched)
     return { companyCol: col, ourKey: matched, auto: !!matched }
   })
 }

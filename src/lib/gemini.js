@@ -139,6 +139,54 @@ Additional rules:
   return forcedHeader ? forceFirstLine(message, forcedHeader) : message
 }
 
+export async function geminiAutoMap(companyCols, ourCols) {
+  const colList = ourCols.map(c => `${c.key}: ${c.label}`).join('\n')
+  const prompt = `You are mapping company CSV column headers to a canonical student database schema for IIFT Delhi MBA placements.
+
+COMPANY COLUMNS (what the company sent):
+${companyCols.map((c, i) => `${i}: ${c}`).join('\n')}
+
+OUR CANONICAL COLUMNS (key: label):
+${colList}
+
+Rules:
+- Match each company column to the single best canonical key, or null if no reasonable match.
+- "Student Name" / "Name" / "Candidate" → name
+- "CAT" / "CAT %" / "CAT Percentile" / "Percentile" → cat
+- "10th" / "X Marks" / "SSC" / "Matric" → x10pct
+- "12th" / "XII Marks" / "HSC" / "Intermediate" / "Senior Secondary" → x12pct
+- "Graduation" / "UG %" / "CGPA" / "GPA" / "Aggregate" → ugpct
+- "Work Experience" / "WE" / "Work Ex" / "Experience (months)" → wx
+- "Category" / "Caste" → category
+- "Gender" / "Sex" → gender
+- "Email" → email; "Official Email" → official_email
+- "Mobile" / "Phone" / "Contact" → mobile
+- "State" / "Domicile" → state
+- "DOB" / "Birth Date" → dob
+- "Section" / "Division" → roll (closest proxy; note in confidence)
+- Company columns about SIP/Summer internship → sip_company, sip_role, sip_stipend, sip_sector, sip_location, sip_date, sip_status
+- If a column is about a previous employer/company → c1_name, c2_name, c3_name
+- If ambiguous, pick the most specific match.
+- Never map two company columns to the same canonical key (pick the best fit for each, null the rest).
+
+Return ONLY a JSON array with one entry per company column, in the same order:
+[
+  { "companyCol": "Student Name", "ourKey": "name", "confidence": "high" },
+  { "companyCol": "CAT Percentile", "ourKey": "cat", "confidence": "high" },
+  ...
+]
+confidence: "high" | "medium" | "low"
+`
+  const json = await callGemini(prompt)
+  const parsed = JSON.parse(json)
+  return parsed.map(item => ({
+    companyCol: item.companyCol,
+    ourKey: item.ourKey || null,
+    auto: !!item.ourKey,
+    confidence: item.confidence || 'medium',
+  }))
+}
+
 export async function parseShortlist(rawText, students) {
   const lookup = students.map(s => ({
     roll: s['Roll No.'] || s.roll || '',
