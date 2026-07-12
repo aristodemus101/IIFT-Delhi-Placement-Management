@@ -41,9 +41,9 @@ export default function OppCard({ opp, isAdmin, onOpen, onDelete }) {
 
       <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, lineHeight: 1.3, marginBottom: 2 }}>{opp.title || 'Untitled'}</div>
-            <div style={{ fontSize: 12, color: 'var(--text-2)' }}>{opp.organization || '—'}</div>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, lineHeight: 1.3, marginBottom: 2, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{opp.title || 'Untitled'}</div>
+            <div style={{ fontSize: 12, color: 'var(--text-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{opp.organization || '—'}</div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3, flexShrink: 0 }}>
             {(opp.stipend || opp.ctc) && (
