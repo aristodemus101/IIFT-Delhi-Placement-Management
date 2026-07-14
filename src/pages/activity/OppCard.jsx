@@ -62,6 +62,9 @@ export default function OppCard({ opp, isAdmin, onOpen, onDelete }) {
           {displaySubtype && <Badge color="gray">{displaySubtype}</Badge>}
           <Badge color={BATCH_COLOR[ap]}>{BATCH_LABEL[ap] || ap}</Badge>
           {opp.via && <Badge color="amber">{opp.via}</Badge>}
+          {opp.via === 'Case Comp' && opp.currentRound > 0 && (
+            <Badge color="blue">Round {opp.currentRound}</Badge>
+          )}
           <Badge color={STATUS_COLOR[opp.status] || 'gray'}>{STATUS_LABEL[opp.status] || opp.status}</Badge>
           {opp.location && <Badge color="gray">{opp.location}</Badge>}
           <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-3)' }}>{dateStr}</span>

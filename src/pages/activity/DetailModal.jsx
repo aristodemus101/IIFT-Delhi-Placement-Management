@@ -14,14 +14,14 @@ import { blankOpportunity } from '../../lib/useOpportunities'
 import { getActivityDisplayLabel, typeHasVia, typeHasSubtype } from '../../config/activityTaxonomy'
 
 import {
-  MessageSquare, Users, Award, Bell, FileText, XCircle, Plus,
+  MessageSquare, Users, Award, Bell, FileText, XCircle, Plus, Trophy,
 } from 'lucide-react'
 import { getVal } from '../../lib/columns'
 
-const ICON_MAP = { MessageSquare, Users, Award, Sheet, Bell, FileText, XCircle, Plus }
+const ICON_MAP = { MessageSquare, Users, Award, Sheet, Bell, FileText, XCircle, Plus, Trophy }
 
 const NEEDS_PASTE = new Set([
-  'release_shortlist', 'post_interview', 'post_final_selection', 'post_submission',
+  'release_shortlist', 'post_interview', 'post_final_selection', 'post_submission', 'post_round',
 ])
 const MESSAGE_ONLY = new Set([
   'generate_announcement', 'generate_shortlist_msg', 'generate_interview_msg',
@@ -29,7 +29,7 @@ const MESSAGE_ONLY = new Set([
 ])
 const TRACKER_ACTIONS = new Set([
   'create_eoi_tracker', 'create_shortlist_tracker', 'create_interview_tracker',
-  'create_final_tracker', 'create_attendance_tracker',
+  'create_final_tracker', 'create_attendance_tracker', 'create_round_tracker',
 ])
 
 export default function DetailModal({ opp, isAdmin, user, students, sheetsConnected, createTracker, addStageTab, propose, getCohortCycle, onClose }) {
@@ -104,7 +104,9 @@ function InfoTab({ opp, isAdmin, setStageFlow, setEditOpen }) {
     { label: 'Tracker',  url: opp.tracker_link },
   ].filter(l => l.url)
 
-  const configEntry    = OPPORTUNITY_ACTIONS[displayType] || OPPORTUNITY_ACTIONS[opp.type]
+  // Case Comp is stored as via='Case Comp' on a Hiring opp — check via first so
+  // it gets its own action set instead of the generic Hiring list.
+  const configEntry    = OPPORTUNITY_ACTIONS[opp.via] || OPPORTUNITY_ACTIONS[displayType] || OPPORTUNITY_ACTIONS[opp.type]
   const allActionKeys  = Object.keys(ACTION_META)
   const configuredKeys = configEntry?.actions || allActionKeys
   const visibleKeys    = showAll ? allActionKeys : configuredKeys
@@ -200,7 +202,18 @@ function StagesTab({ stages }) {
             {i < stages.length - 1 && <div style={{ width: 2, flex: 1, minHeight: 16, background: 'var(--border)', marginTop: 2 }} />}
           </div>
           <div style={{ flex: 1, paddingBottom: 12 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>{STAGE_TYPES[s.type] || s.type}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+              <span style={{ fontSize: 13, fontWeight: 600 }}>
+                {s.type === 'round'
+                  ? (s.roundLabel || `Round ${s.roundNumber || '?'}`)
+                  : (STAGE_TYPES[s.type] || s.type)}
+              </span>
+              {s.type === 'round' && s.studentCount > 0 && (
+                <span style={{ fontSize: 11, color: 'var(--text-3)', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 20, padding: '1px 8px' }}>
+                  {s.studentCount} advanced
+                </span>
+              )}
+            </div>
             {s.message && <MessageBox message={s.message} />}
             {s.trackerLink && <a href={s.trackerLink} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: 'var(--accent)' }}>Tracker →</a>}
             <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 4 }}>
@@ -292,6 +305,8 @@ function StageFlowModal({ opp, flow, user, students, sheetsConnected, createTrac
   const [trackerCreating, setTrackerCreating] = useState(false)
   const [busy, setBusy]               = useState(false)
   const [err, setErr]                 = useState('')
+  // post_round specific
+  const [roundLabel, setRoundLabel]   = useState('')
 
   const resolveStudents = () => {
     if (studentMode === 'all') return students
@@ -335,9 +350,14 @@ function StageFlowModal({ opp, flow, user, students, sheetsConnected, createTrac
   const handleGenerateMessage = async () => {
     setBusy(true); setErr('')
     try {
+      const resolvedRoundLabel = roundLabel || `Round ${(opp.currentRound || 0) + 1}`
       const extra = { whatsappGroupLink: waLink, trackerLink, actionType: actionKey }
       if (actionKey === 'post_final_selection') {
         extra.selectedStudents = matched.map(s => `${s.name} (${s.roll})${s.role ? ' — ' + s.role : ''}`).join('\n')
+      }
+      if (actionKey === 'post_round') {
+        extra.roundLabel = resolvedRoundLabel
+        extra.selectedStudents = matched.map(s => `${s.name} (${s.roll})`).join('\n')
       }
       setMessage(await generateWhatsAppMessage(opp, actionKey, extra))
       setStep('message')
@@ -358,6 +378,7 @@ function StageFlowModal({ opp, flow, user, students, sheetsConnected, createTrac
       const statusByAction = {
         release_shortlist: 'shortlisted', post_interview: 'interviewing',
         post_final_selection: 'selected', post_submission: 'shortlisted',
+        post_round: 'shortlisted',
       }
       for (const s of matched) {
         await setDoc(
@@ -395,9 +416,12 @@ function StageFlowModal({ opp, flow, user, students, sheetsConnected, createTrac
           })
         }
       }
-      await advanceStage(opp.id, actionKey, {
+      const stageType = actionKey === 'post_round' ? 'round' : actionKey
+      const roundNumber = actionKey === 'post_round' ? (opp.currentRound || 0) + 1 : undefined
+      await advanceStage(opp.id, stageType, {
         message, trackerLink, whatsappGroupLink: waLink, studentCount: matched.length,
         pendingApproval: actionKey === 'post_final_selection',
+        ...(actionKey === 'post_round' && { roundLabel: roundLabel || `Round ${roundNumber}`, roundNumber }),
       }, user)
       onClose()
     } catch (e) { setErr(e.message) }
@@ -448,10 +472,25 @@ function StageFlowModal({ opp, flow, user, students, sheetsConnected, createTrac
         </div>
       )}
       {step === 'paste' && (
-        <PasteStep rawText={rawText} setRawText={setRawText} busy={busy} err={err}
-          placeholder={`Paste the ${stageLabel.toLowerCase()} text here…\n\nInclude names, roll numbers, any links etc.`}
-          onNext={handleParseShortlist} nextLabel="Match to Student DB →" onClose={onClose}
-        />
+        <>
+          {actionKey === 'post_round' && (
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-3)', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Round Label <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 11 }}>(e.g. Problem Statement, Round 1, Semi-Final, Finals)</span>
+              </label>
+              <input
+                value={roundLabel}
+                onChange={e => setRoundLabel(e.target.value)}
+                placeholder={`Round ${(opp.currentRound || 0) + 1}`}
+                style={{ width: '100%', height: 36, border: '1px solid var(--accent)', borderRadius: 8, background: 'var(--surface2)', color: 'var(--text)', padding: '0 12px', fontSize: 13, fontFamily: 'var(--font-sans)', boxSizing: 'border-box' }}
+              />
+            </div>
+          )}
+          <PasteStep rawText={rawText} setRawText={setRawText} busy={busy} err={err}
+            placeholder={`Paste the list of students who advanced to ${roundLabel || `Round ${(opp.currentRound || 0) + 1}`}…\n\nInclude names, roll numbers etc.`}
+            onNext={handleParseShortlist} nextLabel="Match to Student DB →" onClose={onClose}
+          />
+        </>
       )}
       {step === 'review' && (
         <ReviewStep {...reviewProps} onBack={() => setStep('paste')} onNext={handleGenerateMessage} />

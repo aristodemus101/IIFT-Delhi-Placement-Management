@@ -63,8 +63,9 @@ export const OPPORTUNITY_ACTIONS = {
       'generate_announcement',
       'create_eoi_tracker',
       'generate_reminder',
-      'post_submission',
-      'post_final_selection',
+      'post_round',              // add a new round (Problem Statement, Round 1, Finals…)
+      'create_round_tracker',    // tracker sheet for the current round
+      'post_final_selection',    // final winners → triggers placement approval
       'generate_final_msg',
       'mark_closed',
     ],
@@ -179,6 +180,19 @@ export const ACTION_META = {
     description: 'Deadline or attendance reminder message',
     icon:        'Bell',
     color:       'amber',
+  },
+  post_round: {
+    label:       'Post Round',
+    description: 'Add a new case comp round (Problem Statement, Round 1, Finals…) and record who advanced',
+    icon:        'Trophy',
+    color:       'purple',
+  },
+  create_round_tracker: {
+    label:       'Create Round Tracker',
+    description: 'Google Sheet tab for the current round: Roll | Name | Email | Advanced (Yes/No)',
+    icon:        'Sheet',
+    color:       'green',
+    tracker:     { sheetTitle: 'Round', colHeader: 'Advanced to Next Round' },
   },
   post_submission: {
     label:       'Post Submission Round',

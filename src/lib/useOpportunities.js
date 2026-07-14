@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import {
   collection, query, orderBy, onSnapshot,
   addDoc, updateDoc, deleteDoc,
-  doc, serverTimestamp,
+  doc, serverTimestamp, increment,
 } from 'firebase/firestore'
 import { db } from './firebase'
 
@@ -13,6 +13,7 @@ export const STAGE_TYPES = {
   shortlist:    'Shortlist Released',
   interview:    'Interview Round',
   selected:     'Final Selection',
+  round:        'Case Comp Round',         // dynamic label stored in roundLabel field
 }
 
 // Canonical blank opportunity — every doc always has these keys
@@ -37,6 +38,7 @@ export function blankOpportunity() {
     description:  '',
     notes:        '',
     status:       'open',
+    currentRound: 0,   // incremented each time post_round is used (Case Comps)
   }
 }
 
@@ -141,6 +143,13 @@ export async function advanceStage(oppId, stageType, stageData, user) {
   if (statusMap[stageType]) {
     await updateDoc(doc(db, 'opportunities', oppId), {
       status: statusMap[stageType],
+      updatedAt: serverTimestamp(),
+    })
+  }
+  // For case comp rounds, increment the currentRound counter on the opp doc
+  if (stageType === 'round') {
+    await updateDoc(doc(db, 'opportunities', oppId), {
+      currentRound: increment(1),
       updatedAt: serverTimestamp(),
     })
   }
