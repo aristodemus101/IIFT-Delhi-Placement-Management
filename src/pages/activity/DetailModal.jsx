@@ -21,7 +21,7 @@ import { getVal } from '../../lib/columns'
 const ICON_MAP = { MessageSquare, Users, Award, Sheet, Bell, FileText, XCircle, Plus, Trophy }
 
 const NEEDS_PASTE = new Set([
-  'release_shortlist', 'post_interview', 'post_final_selection', 'post_submission', 'post_round',
+  'release_shortlist', 'post_interview', 'post_final_selection', 'post_submission',
 ])
 const MESSAGE_ONLY = new Set([
   'generate_announcement', 'generate_shortlist_msg', 'generate_interview_msg',
@@ -350,14 +350,9 @@ function StageFlowModal({ opp, flow, user, students, sheetsConnected, createTrac
   const handleGenerateMessage = async () => {
     setBusy(true); setErr('')
     try {
-      const resolvedRoundLabel = roundLabel || `Round ${(opp.currentRound || 0) + 1}`
       const extra = { whatsappGroupLink: waLink, trackerLink, actionType: actionKey }
       if (actionKey === 'post_final_selection') {
         extra.selectedStudents = matched.map(s => `${s.name} (${s.roll})${s.role ? ' — ' + s.role : ''}`).join('\n')
-      }
-      if (actionKey === 'post_round') {
-        extra.roundLabel = resolvedRoundLabel
-        extra.selectedStudents = matched.map(s => `${s.name} (${s.roll})`).join('\n')
       }
       setMessage(await generateWhatsAppMessage(opp, actionKey, extra))
       setStep('message')
@@ -375,10 +370,19 @@ function StageFlowModal({ opp, flow, user, students, sheetsConnected, createTrac
   const handleSave = async () => {
     setBusy(true); setErr('')
     try {
+      if (actionKey === 'post_round') {
+        const roundNumber = (opp.currentRound || 0) + 1
+        await advanceStage(opp.id, 'round', {
+          roundLabel: roundLabel || `Round ${roundNumber}`,
+          roundNumber,
+          studentCount: 0,
+        }, user)
+        onClose()
+        return
+      }
       const statusByAction = {
         release_shortlist: 'shortlisted', post_interview: 'interviewing',
         post_final_selection: 'selected', post_submission: 'shortlisted',
-        post_round: 'shortlisted',
       }
       for (const s of matched) {
         await setDoc(
@@ -416,12 +420,9 @@ function StageFlowModal({ opp, flow, user, students, sheetsConnected, createTrac
           })
         }
       }
-      const stageType = actionKey === 'post_round' ? 'round' : actionKey
-      const roundNumber = actionKey === 'post_round' ? (opp.currentRound || 0) + 1 : undefined
-      await advanceStage(opp.id, stageType, {
+      await advanceStage(opp.id, actionKey, {
         message, trackerLink, whatsappGroupLink: waLink, studentCount: matched.length,
         pendingApproval: actionKey === 'post_final_selection',
-        ...(actionKey === 'post_round' && { roundLabel: roundLabel || `Round ${roundNumber}`, roundNumber }),
       }, user)
       onClose()
     } catch (e) { setErr(e.message) }
@@ -460,7 +461,28 @@ function StageFlowModal({ opp, flow, user, students, sheetsConnected, createTrac
 
   return (
     <Modal open onClose={onClose} title={stageLabel} width={700}>
-      {step === 'confirm' && (
+      {step === 'confirm' && actionKey === 'post_round' && (
+        <div>
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-3)', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Round Label <span style={{ fontWeight: 400, textTransform: 'none' }}>(e.g. Problem Statement, Round 1, Semi-Final, Finals)</span>
+            </label>
+            <input
+              value={roundLabel}
+              onChange={e => setRoundLabel(e.target.value)}
+              placeholder={`Round ${(opp.currentRound || 0) + 1}`}
+              autoFocus
+              style={{ width: '100%', height: 36, border: '1px solid var(--accent)', borderRadius: 8, background: 'var(--surface2)', color: 'var(--text)', padding: '0 12px', fontSize: 13, fontFamily: 'var(--font-sans)', boxSizing: 'border-box' }}
+            />
+          </div>
+          {err && <div style={{ fontSize: 13, color: 'var(--red-text)', marginBottom: 8 }}>{err}</div>}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <Btn onClick={onClose}>Cancel</Btn>
+            <Btn variant="primary" onClick={handleSave} disabled={busy}>{busy ? 'Saving…' : 'Record Round →'}</Btn>
+          </div>
+        </div>
+      )}
+      {step === 'confirm' && actionKey !== 'post_round' && (
         <div>
           <p style={{ fontSize: 13, color: 'var(--text-2)', marginBottom: 4, lineHeight: 1.6 }}>{meta.description}</p>
           <p style={{ fontSize: 13, color: 'var(--text-2)', marginBottom: 16 }}>Gemini will use the current opportunity details to generate the message.</p>
@@ -472,25 +494,9 @@ function StageFlowModal({ opp, flow, user, students, sheetsConnected, createTrac
         </div>
       )}
       {step === 'paste' && (
-        <>
-          {actionKey === 'post_round' && (
-            <div style={{ marginBottom: 14 }}>
-              <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-3)', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                Round Label <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 11 }}>(e.g. Problem Statement, Round 1, Semi-Final, Finals)</span>
-              </label>
-              <input
-                value={roundLabel}
-                onChange={e => setRoundLabel(e.target.value)}
-                placeholder={`Round ${(opp.currentRound || 0) + 1}`}
-                style={{ width: '100%', height: 36, border: '1px solid var(--accent)', borderRadius: 8, background: 'var(--surface2)', color: 'var(--text)', padding: '0 12px', fontSize: 13, fontFamily: 'var(--font-sans)', boxSizing: 'border-box' }}
-              />
-            </div>
-          )}
-          <PasteStep rawText={rawText} setRawText={setRawText} busy={busy} err={err}
-            placeholder={`Paste the list of students who advanced to ${roundLabel || `Round ${(opp.currentRound || 0) + 1}`}…\n\nInclude names, roll numbers etc.`}
-            onNext={handleParseShortlist} nextLabel="Match to Student DB →" onClose={onClose}
-          />
-        </>
+        <PasteStep rawText={rawText} setRawText={setRawText} busy={busy} err={err}
+          onNext={handleParseShortlist} nextLabel="Match to Student DB →" onClose={onClose}
+        />
       )}
       {step === 'review' && (
         <ReviewStep {...reviewProps} onBack={() => setStep('paste')} onNext={handleGenerateMessage} />
