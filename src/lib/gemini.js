@@ -42,7 +42,7 @@ Use null for any field not mentioned. Do not add extra keys.
   "title": "short title string",
   "type": "one of: Hiring | Live Project | Campus Engagement",
   "subtype": "one of: ${CAMPUS_ENGAGEMENT_SUBTYPE_OPTIONS.join(' | ')} | null",
-  "via": "one of: Case Comp | PPO | Hackathon | Referral | Direct | null",
+  "via": "one of: PPT | Case Comp | PPO | Hackathon | Referral | Direct | null",
   "organization": "company or organiser name",
   "applicability": "one of: summer | final | both",
   "roles": ["array of role strings, empty array if none"],
@@ -55,10 +55,15 @@ Use null for any field not mentioned. Do not add extra keys.
   "eoi_link": "Google Form URL if present, else null",
   "apply_link": "direct application URL if present (different from EOI form), else null",
   "tracker_link": "Google Sheets tracker URL if present, else null",
-  "description": "1-2 sentence summary of the opportunity, max 280 chars"
+  "description": "1-2 sentence summary of the opportunity, max 280 chars",
+  "spoc": "committee member name mentioned as POC or SPOC, or null",
+  "expected_hires": "integer number of expected hires/offers if mentioned, or null",
+  "process_date": "date of the recruitment process/interview day in YYYY-MM-DD format, or null",
+  "process_mode": "one of: Online | Offline | Hybrid | null — based on whether the process is in-person or virtual"
 }
 
 Rules:
+- If it is a pre-placement talk or PPT, keep "type" as "Hiring" and set "via" to "PPT".
 - If it is a case competition, keep "type" as "Hiring" and set "via" to "Case Comp".
 - If it is a guest lecture, workshop, webinar, alumni session, company visit, panel discussion, seminar, conference, networking session, or similar, set "type" to "Campus Engagement" and fill "subtype".
 - Use "Campus Engagement" whenever the text is about a non-hiring campus event.

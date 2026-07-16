@@ -38,6 +38,16 @@ function normalizeParsedOpportunity(result) {
     parsed.subtype = '' // subtype is irrelevant for Hiring / Live Project
   }
 
+  // Sanitize numeric field from Gemini (may come as string)
+  if (parsed.expected_hires != null) {
+    const n = parseInt(parsed.expected_hires, 10)
+    parsed.expected_hires = isNaN(n) ? null : n
+  }
+  // Sanitize process_mode
+  if (parsed.process_mode && !['Online', 'Offline', 'Hybrid'].includes(parsed.process_mode)) {
+    parsed.process_mode = ''
+  }
+
   if (rawType && !TYPES.includes(rawType)) {
     if (lowerType.includes('case')) {
       parsed.via = parsed.via || 'Case Comp'
