@@ -17,7 +17,7 @@ export const CAMPUS_ENGAGEMENT_SUBTYPE_OPTIONS = [
 ]
 
 // Via only applies to Hiring and Live Project, not Campus Engagement
-export const VIA_OPTIONS = ['Case Comp', 'PPO', 'Hackathon', 'Referral', 'Direct']
+export const VIA_OPTIONS = ['PPT', 'Case Comp', 'PPO', 'Hackathon', 'Referral', 'Direct']
 
 export const ACTIVITY_TYPE_META = {
   Hiring: { icon: GraduationCap, color: 'green', label: 'Hiring' },
@@ -122,6 +122,10 @@ export function getActivityDisplayLabel(opp) {
 export function getActivityAnnouncementHeader(opp) {
   const type = normalizeActivityType(opp?.type)
   const subject = String(opp?.organization || opp?.title || 'Opportunity').trim()
+
+  if (String(opp?.via || '').trim() === 'PPT') {
+    return `Pre-Placement Talk | ${subject}`
+  }
 
   if (String(opp?.via || '').trim() === 'Case Comp') {
     return `Case Comp | ${subject}`
