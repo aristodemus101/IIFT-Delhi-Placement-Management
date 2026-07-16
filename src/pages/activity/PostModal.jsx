@@ -150,6 +150,10 @@ const BASE_FIELD_DEFS = [
   { key: 'tracker_link',  label: 'Tracker Link',  type: 'text' },
   { key: 'description',   label: 'Description',   type: 'textarea' },
   { key: 'notes',         label: 'Internal Notes', type: 'textarea' },
+  { key: 'spoc',          label: 'SPOC',           type: 'text',   hint: 'Committee member POC' },
+  { key: 'expected_hires', label: 'Expected Hires', type: 'number' },
+  { key: 'process_date',  label: 'Process Date',   type: 'date' },
+  { key: 'process_mode',  label: 'Process Mode',   type: 'select', options: ['', 'Offline', 'Online', 'Hybrid'] },
 ]
 
 const SUBTYPE_DEF = { key: 'subtype', label: 'Subtype', type: 'select', options: ['', ...CAMPUS_ENGAGEMENT_SUBTYPE_OPTIONS] }
@@ -205,7 +209,10 @@ export function PreviewStep({ parsed, setParsed, busy, err, onBack, onNext, next
                 <textarea value={display} onChange={e => set(f.key, e.target.value, f)}
                   style={{ flex: 1, minHeight: 60, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface2)', color: 'var(--text)', padding: '6px 10px', fontSize: 13, resize: 'vertical', fontFamily: 'var(--font-sans)' }} />
               ) : (
-                <input value={display} onChange={e => set(f.key, e.target.value, f)}
+                <input
+                  type={f.type === 'number' ? 'number' : f.type === 'date' ? 'date' : 'text'}
+                  value={display}
+                  onChange={e => set(f.key, f.type === 'number' ? (e.target.value === '' ? null : Number(e.target.value)) : e.target.value, f)}
                   placeholder={f.hint || ''}
                   style={{ flex: 1, height: 32, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface2)', color: 'var(--text)', padding: '0 10px', fontSize: 13, fontFamily: 'var(--font-sans)' }} />
               )}

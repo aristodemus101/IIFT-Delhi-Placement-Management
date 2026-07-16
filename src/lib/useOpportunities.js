@@ -9,11 +9,14 @@ import { db } from './firebase'
 export const OPP_STATUS = ['open', 'shortlisted', 'interviewing', 'closed']
 
 export const STAGE_TYPES = {
-  opportunity:  'Opportunity Posted',
-  shortlist:    'Shortlist Released',
-  interview:    'Interview Round',
-  selected:     'Final Selection',
-  round:        'Case Comp Round',         // dynamic label stored in roundLabel field
+  opportunity:       'Opportunity Posted',
+  ppt:               'Pre-Placement Talk',
+  applications_open: 'Applications Open',
+  shortlist:         'Shortlist Released',
+  gd_pi:             'GD / PI Round',
+  interview:         'Interview Round',
+  selected:          'Final Selection',
+  round:             'Case Comp Round',    // dynamic label stored in roundLabel field
 }
 
 // Canonical blank opportunity — every doc always has these keys
@@ -34,11 +37,15 @@ export function blankOpportunity() {
     eligibility:  '',
     eoi_link:     '',
     apply_link:   '',
-    tracker_link: '',
-    description:  '',
-    notes:        '',
-    status:       'open',
-    currentRound: 0,   // incremented each time post_round is used (Case Comps)
+    tracker_link:  '',
+    description:   '',
+    notes:         '',
+    status:        'open',
+    currentRound:  0,      // incremented each time post_round is used (Case Comps)
+    spoc:          '',     // committee member POC
+    expected_hires: null,  // number
+    process_date:  '',     // YYYY-MM-DD
+    process_mode:  '',     // Online | Offline | Hybrid
   }
 }
 
@@ -130,9 +137,11 @@ export async function postOpportunity(data, user) {
 
 export async function advanceStage(oppId, stageType, stageData, user) {
   const statusMap = {
-    shortlist:  'shortlisted',
-    interview:  'interviewing',
-    selected:   'closed',
+    applications_open: 'open',
+    shortlist:         'shortlisted',
+    gd_pi:             'interviewing',
+    interview:         'interviewing',
+    selected:          'closed',
   }
   await addDoc(collection(db, 'opportunities', oppId, 'stages'), {
     type: stageType,

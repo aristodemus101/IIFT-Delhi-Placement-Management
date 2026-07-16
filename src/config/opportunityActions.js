@@ -42,11 +42,13 @@ export const OPPORTUNITY_ACTIONS = {
     label: 'Hiring',
     actions: [
       'generate_announcement',
+      'post_ppt',                   // record PPT details (date, mode, attendance)
+      'open_applications',          // mark applications as open
       'create_eoi_tracker',
       'release_shortlist',
       'create_shortlist_tracker',
       'generate_shortlist_msg',
-      'post_interview',
+      'post_gd_pi',                 // GD / PI round with student matching
       'create_interview_tracker',
       'generate_interview_msg',
       'post_final_selection',       // triggers placement approval flow for Final batch
@@ -115,6 +117,24 @@ export const OPPORTUNITY_ACTIONS = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const ACTION_META = {
+  post_ppt: {
+    label:       'Record PPT',
+    description: 'Log the Pre-Placement Talk — date, mode (Online/Offline/Hybrid), and attendance count',
+    icon:        'Presentation',
+    color:       'blue',
+  },
+  open_applications: {
+    label:       'Open Applications',
+    description: 'Mark applications as open and record the deadline',
+    icon:        'FileText',
+    color:       'green',
+  },
+  post_gd_pi: {
+    label:       'Post GD / PI Round',
+    description: 'Paste list of students called for GD/PI → Gemini matches to DB',
+    icon:        'Users',
+    color:       'amber',
+  },
   generate_announcement: {
     label:       'Generate Announcement',
     description: 'WhatsApp-ready opening blast for this opportunity',

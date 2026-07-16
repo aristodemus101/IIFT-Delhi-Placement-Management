@@ -14,15 +14,16 @@ import { blankOpportunity } from '../../lib/useOpportunities'
 import { getActivityDisplayLabel, typeHasVia, typeHasSubtype } from '../../config/activityTaxonomy'
 
 import {
-  MessageSquare, Users, Award, Bell, FileText, XCircle, Plus, Trophy,
+  MessageSquare, Users, Award, Bell, FileText, XCircle, Plus, Trophy, Presentation,
 } from 'lucide-react'
 import { getVal } from '../../lib/columns'
 
-const ICON_MAP = { MessageSquare, Users, Award, Sheet, Bell, FileText, XCircle, Plus, Trophy }
+const ICON_MAP = { MessageSquare, Users, Award, Sheet, Bell, FileText, XCircle, Plus, Trophy, Presentation }
 
 const NEEDS_PASTE = new Set([
-  'release_shortlist', 'post_interview', 'post_final_selection', 'post_submission',
+  'release_shortlist', 'post_interview', 'post_gd_pi', 'post_final_selection', 'post_submission',
 ])
+const SIMPLE_FORM = new Set(['post_ppt', 'open_applications', 'post_round'])
 const MESSAGE_ONLY = new Set([
   'generate_announcement', 'generate_shortlist_msg', 'generate_interview_msg',
   'generate_final_msg', 'generate_reminder', 'generate_event_msg',
@@ -93,8 +94,12 @@ function InfoTab({ opp, isAdmin, setStageFlow, setEditOpen }) {
     { label: 'Duration',      value: opp.duration },
     { label: 'Location',      value: opp.location },
     { label: 'Deadline',      value: opp.deadline },
-    { label: 'Eligibility',   value: opp.eligibility },
-    { label: 'Posted by',     value: opp.postedBy?.name },
+    { label: 'Eligibility',    value: opp.eligibility },
+    { label: 'SPOC',           value: opp.spoc },
+    { label: 'Expected Hires', value: opp.expected_hires != null ? String(opp.expected_hires) : null },
+    { label: 'Process Date',   value: opp.process_date },
+    { label: 'Process Mode',   value: opp.process_mode },
+    { label: 'Posted by',      value: opp.postedBy?.name },
     { label: 'Posted on',     value: opp.createdAt?.toDate?.()?.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' }) },
   ].filter(r => r.value)
 
@@ -190,6 +195,8 @@ function InfoTab({ opp, isAdmin, setStageFlow, setEditOpen }) {
   )
 }
 
+const pill = { fontSize: 11, color: 'var(--text-3)', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 20, padding: '1px 8px' }
+
 function StagesTab({ stages }) {
   if (!stages.length) return <div style={{ color: 'var(--text-3)', fontSize: 13, padding: '20px 0' }}>No stages recorded yet.</div>
 
@@ -202,16 +209,29 @@ function StagesTab({ stages }) {
             {i < stages.length - 1 && <div style={{ width: 2, flex: 1, minHeight: 16, background: 'var(--border)', marginTop: 2 }} />}
           </div>
           <div style={{ flex: 1, paddingBottom: 12 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
               <span style={{ fontSize: 13, fontWeight: 600 }}>
                 {s.type === 'round'
                   ? (s.roundLabel || `Round ${s.roundNumber || '?'}`)
                   : (STAGE_TYPES[s.type] || s.type)}
               </span>
+              {s.type === 'ppt' && s.pptDate && (
+                <span style={{ fontSize: 11, color: 'var(--text-3)' }}>{s.pptDate}</span>
+              )}
+              {s.type === 'ppt' && s.pptMode && (
+                <span style={pill}>{s.pptMode}</span>
+              )}
+              {s.type === 'ppt' && s.studentCount > 0 && (
+                <span style={pill}>{s.studentCount} attended</span>
+              )}
+              {s.type === 'applications_open' && s.deadline && (
+                <span style={{ fontSize: 11, color: 'var(--amber-text)', fontWeight: 600 }}>Deadline: {s.deadline}</span>
+              )}
               {s.type === 'round' && s.studentCount > 0 && (
-                <span style={{ fontSize: 11, color: 'var(--text-3)', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 20, padding: '1px 8px' }}>
-                  {s.studentCount} advanced
-                </span>
+                <span style={pill}>{s.studentCount} advanced</span>
+              )}
+              {['shortlist', 'gd_pi', 'interview'].includes(s.type) && s.studentCount > 0 && (
+                <span style={pill}>{s.studentCount} students</span>
               )}
             </div>
             {s.message && <MessageBox message={s.message} />}
@@ -292,8 +312,9 @@ function StageFlowModal({ opp, flow, user, students, sheetsConnected, createTrac
   const isTrackerOnly = TRACKER_ACTIONS.has(actionKey)
   const isMarkClosed  = actionKey === 'mark_closed'
   const needsPaste    = NEEDS_PASTE.has(actionKey)
+  const isSimpleForm  = SIMPLE_FORM.has(actionKey)
 
-  const initialStep = isTrackerOnly ? 'tracker' : isMessageOnly ? 'confirm' : needsPaste ? 'paste' : 'confirm'
+  const initialStep = isTrackerOnly ? 'tracker' : isSimpleForm ? 'confirm' : isMessageOnly ? 'confirm' : needsPaste ? 'paste' : 'confirm'
 
   const [step, setStep]               = useState(initialStep)
   const [rawText, setRawText]         = useState('')
@@ -305,8 +326,17 @@ function StageFlowModal({ opp, flow, user, students, sheetsConnected, createTrac
   const [trackerCreating, setTrackerCreating] = useState(false)
   const [busy, setBusy]               = useState(false)
   const [err, setErr]                 = useState('')
-  // post_round specific
+  // post_round
   const [roundLabel, setRoundLabel]   = useState('')
+  // post_ppt
+  const [pptDate, setPptDate]         = useState('')
+  const [pptMode, setPptMode]         = useState('Offline')
+  const [pptAttendance, setPptAttendance] = useState('')
+  // open_applications
+  const [appDeadline, setAppDeadline] = useState(opp.deadline || '')
+
+  const inputStyle = { width: '100%', height: 36, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface2)', color: 'var(--text)', padding: '0 12px', fontSize: 13, fontFamily: 'var(--font-sans)', boxSizing: 'border-box' }
+  const labelStyle = { fontSize: 11, fontWeight: 700, color: 'var(--text-3)', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }
 
   const resolveStudents = () => {
     if (studentMode === 'all') return students
@@ -370,6 +400,22 @@ function StageFlowModal({ opp, flow, user, students, sheetsConnected, createTrac
   const handleSave = async () => {
     setBusy(true); setErr('')
     try {
+      if (actionKey === 'post_ppt') {
+        await advanceStage(opp.id, 'ppt', {
+          pptDate, pptMode,
+          studentCount: pptAttendance ? parseInt(pptAttendance, 10) : 0,
+        }, user)
+        onClose()
+        return
+      }
+      if (actionKey === 'open_applications') {
+        await advanceStage(opp.id, 'applications_open', { deadline: appDeadline }, user)
+        if (appDeadline) {
+          await updateDoc(doc(db, 'opportunities', opp.id), { deadline: appDeadline, updatedAt: serverTimestamp() })
+        }
+        onClose()
+        return
+      }
       if (actionKey === 'post_round') {
         const roundNumber = (opp.currentRound || 0) + 1
         await advanceStage(opp.id, 'round', {
@@ -382,7 +428,7 @@ function StageFlowModal({ opp, flow, user, students, sheetsConnected, createTrac
       }
       const statusByAction = {
         release_shortlist: 'shortlisted', post_interview: 'interviewing',
-        post_final_selection: 'selected', post_submission: 'shortlisted',
+        post_gd_pi: 'interviewing', post_final_selection: 'selected', post_submission: 'shortlisted',
       }
       for (const s of matched) {
         await setDoc(
@@ -420,7 +466,8 @@ function StageFlowModal({ opp, flow, user, students, sheetsConnected, createTrac
           })
         }
       }
-      await advanceStage(opp.id, actionKey, {
+      const stageType = actionKey === 'post_gd_pi' ? 'gd_pi' : actionKey
+      await advanceStage(opp.id, stageType, {
         message, trackerLink, whatsappGroupLink: waLink, studentCount: matched.length,
         pendingApproval: actionKey === 'post_final_selection',
       }, user)
@@ -461,6 +508,47 @@ function StageFlowModal({ opp, flow, user, students, sheetsConnected, createTrac
 
   return (
     <Modal open onClose={onClose} title={stageLabel} width={700}>
+      {step === 'confirm' && actionKey === 'post_ppt' && (
+        <div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+            {[
+              { label: 'PPT Date', el: <input type="date" value={pptDate} onChange={e => setPptDate(e.target.value)} style={inputStyle} /> },
+              { label: 'Mode', el: (
+                <select value={pptMode} onChange={e => setPptMode(e.target.value)} style={inputStyle}>
+                  <option>Offline</option>
+                  <option>Online</option>
+                  <option>Hybrid</option>
+                </select>
+              )},
+              { label: 'Attendance (no. of students)', el: <input type="number" min={0} value={pptAttendance} onChange={e => setPptAttendance(e.target.value)} placeholder="e.g. 120" style={inputStyle} /> },
+            ].map(({ label, el }) => (
+              <div key={label} style={{ gridColumn: label.startsWith('Attendance') ? '1 / -1' : undefined }}>
+                <label style={labelStyle}>{label}</label>
+                {el}
+              </div>
+            ))}
+          </div>
+          {err && <div style={{ fontSize: 13, color: 'var(--red-text)', marginBottom: 8 }}>{err}</div>}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <Btn onClick={onClose}>Cancel</Btn>
+            <Btn variant="primary" onClick={handleSave} disabled={busy}>{busy ? 'Saving…' : 'Record PPT →'}</Btn>
+          </div>
+        </div>
+      )}
+      {step === 'confirm' && actionKey === 'open_applications' && (
+        <div>
+          <p style={{ fontSize: 13, color: 'var(--text-2)', marginBottom: 12, lineHeight: 1.6 }}>Mark applications as open and optionally update the deadline.</p>
+          <div style={{ marginBottom: 16 }}>
+            <label style={labelStyle}>Application Deadline (optional)</label>
+            <input type="date" value={appDeadline} onChange={e => setAppDeadline(e.target.value)} style={{ ...inputStyle, width: 200 }} />
+          </div>
+          {err && <div style={{ fontSize: 13, color: 'var(--red-text)', marginBottom: 8 }}>{err}</div>}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <Btn onClick={onClose}>Cancel</Btn>
+            <Btn variant="primary" onClick={handleSave} disabled={busy}>{busy ? 'Saving…' : 'Open Applications →'}</Btn>
+          </div>
+        </div>
+      )}
       {step === 'confirm' && actionKey === 'post_round' && (
         <div>
           <div style={{ marginBottom: 16 }}>
