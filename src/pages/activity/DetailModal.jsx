@@ -11,7 +11,7 @@ import { BATCH_LABEL, STATUS_LABEL, typeColor, TypeIcon, normalizeOpportunityTyp
 import { PasteStep, MessageStep, MessageBox, PreviewStep } from './PostModal'
 import { serverTimestamp } from 'firebase/firestore'
 import { blankOpportunity } from '../../lib/useOpportunities'
-import { getActivityDisplayLabel, typeHasVia, typeHasSubtype } from '../../config/activityTaxonomy'
+import { getActivityDisplayLabel, typeHasVia, typeHasSubtype, typeIsCaseComp, typeIsHiringDrive, normalizeActivityType } from '../../config/activityTaxonomy'
 
 import {
   MessageSquare, Users, Award, Bell, FileText, XCircle, Plus, Trophy, Presentation,
@@ -81,7 +81,9 @@ export default function DetailModal({ opp, isAdmin, user, students, sheetsConnec
 
 function InfoTab({ opp, isAdmin, setStageFlow, setEditOpen }) {
   const [showAll, setShowAll] = useState(false)
-  const displayType = normalizeOpportunityType(opp.type)
+  const displayType = normalizeOpportunityType(opp.type, opp.via)
+  const isCaseComp = typeIsCaseComp(displayType)
+  const isHiring = typeIsHiringDrive(displayType)
 
   const rows = [
     { label: 'Type',          value: getActivityDisplayLabel(opp) },
@@ -95,10 +97,17 @@ function InfoTab({ opp, isAdmin, setStageFlow, setEditOpen }) {
     { label: 'Location',      value: opp.location },
     { label: 'Deadline',      value: opp.deadline },
     { label: 'Eligibility',    value: opp.eligibility },
-    { label: 'SPOC',           value: opp.spoc },
-    { label: 'Expected Hires', value: opp.expected_hires != null ? String(opp.expected_hires) : null },
-    { label: 'Process Date',   value: opp.process_date },
-    { label: 'Process Mode',   value: opp.process_mode },
+    ...(isCaseComp ? [
+      { label: 'Tracks',    value: opp.tracks?.join(', ') },
+      { label: 'Team Size', value: opp.team_size },
+      { label: 'Prize / PPI', value: opp.prize },
+    ] : []),
+    ...(isHiring ? [
+      { label: 'SPOC',           value: opp.spoc },
+      { label: 'Expected Hires', value: opp.expected_hires != null ? String(opp.expected_hires) : null },
+      { label: 'Process Date',   value: opp.process_date },
+      { label: 'Process Mode',   value: opp.process_mode },
+    ] : []),
     { label: 'Posted by',      value: opp.postedBy?.name },
     { label: 'Posted on',     value: opp.createdAt?.toDate?.()?.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' }) },
   ].filter(r => r.value)
@@ -109,9 +118,9 @@ function InfoTab({ opp, isAdmin, setStageFlow, setEditOpen }) {
     { label: 'Tracker',  url: opp.tracker_link },
   ].filter(l => l.url)
 
-  // Case Comp is stored as via='Case Comp' on a Hiring opp — check via first so
-  // it gets its own action set instead of the generic Hiring list.
-  const configEntry    = OPPORTUNITY_ACTIONS[opp.via] || OPPORTUNITY_ACTIONS[displayType] || OPPORTUNITY_ACTIONS[opp.type]
+  // Resolve effective type — handles old docs with type='Hiring', via='Case Comp'
+  const effectiveType  = normalizeActivityType(opp.type, opp.via)
+  const configEntry    = OPPORTUNITY_ACTIONS[effectiveType] || OPPORTUNITY_ACTIONS[opp.type]
   const allActionKeys  = Object.keys(ACTION_META)
   const configuredKeys = configEntry?.actions || allActionKeys
   const visibleKeys    = showAll ? allActionKeys : configuredKeys

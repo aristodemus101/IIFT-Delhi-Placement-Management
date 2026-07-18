@@ -15,6 +15,7 @@ export const STAGE_TYPES = {
   shortlist:         'Shortlist Released',
   gd_pi:             'GD / PI Round',
   interview:         'Interview Round',
+  launch:            'Launch Event',       // webinar/campus launch for Case Comps
   selected:          'Final Selection',
   round:             'Case Comp Round',    // dynamic label stored in roundLabel field
 }
@@ -42,10 +43,13 @@ export function blankOpportunity() {
     notes:         '',
     status:        'open',
     currentRound:  0,      // incremented each time post_round is used (Case Comps)
-    spoc:          '',     // committee member POC
-    expected_hires: null,  // number
-    process_date:  '',     // YYYY-MM-DD
-    process_mode:  '',     // Online | Offline | Hybrid
+    spoc:           '',    // committee member POC (Hiring only)
+    expected_hires: null,  // number (Hiring only)
+    process_date:   '',    // YYYY-MM-DD (Hiring only)
+    process_mode:   '',    // Online | Offline | Hybrid (Hiring only)
+    tracks:         [],    // Case Comp tracks e.g. ['Strategy', 'Finance', 'Analytics']
+    prize:          '',    // Case Comp prize/PPI details
+    team_size:      '',    // e.g. '2-3 members'
   }
 }
 

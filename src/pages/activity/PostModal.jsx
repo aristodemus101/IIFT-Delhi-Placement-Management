@@ -12,6 +12,8 @@ import {
   normalizeCampusEngagementSubtype,
   typeHasVia,
   typeHasSubtype,
+  typeIsCaseComp,
+  typeIsHiringDrive,
 } from '../../config/activityTaxonomy'
 
 const VALID_APPLICABILITY = new Set(['summer', 'final', 'both'])
@@ -47,10 +49,14 @@ function normalizeParsedOpportunity(result) {
   if (parsed.process_mode && !['Online', 'Offline', 'Hybrid'].includes(parsed.process_mode)) {
     parsed.process_mode = ''
   }
+  // Sanitize tracks — Gemini may return string or array
+  if (parsed.tracks && !Array.isArray(parsed.tracks)) {
+    parsed.tracks = String(parsed.tracks).split(',').map(s => s.trim()).filter(Boolean)
+  }
 
   if (rawType && !TYPES.includes(rawType)) {
-    if (lowerType.includes('case')) {
-      parsed.via = parsed.via || 'Case Comp'
+    if (lowerType.includes('case') || lowerType.includes('competition') || lowerType.includes('challenge') || lowerType.includes('hackathon')) {
+      parsed.type = 'Case Comp'
     } else if (lowerType.includes('live')) {
       parsed.type = 'Live Project'
     } else if (lowerType.includes('event') || lowerType.includes('workshop') || lowerType.includes('lecture') || lowerType.includes('webinar') || lowerType.includes('alumni')) {
@@ -160,20 +166,31 @@ const BASE_FIELD_DEFS = [
   { key: 'tracker_link',  label: 'Tracker Link',  type: 'text' },
   { key: 'description',   label: 'Description',   type: 'textarea' },
   { key: 'notes',         label: 'Internal Notes', type: 'textarea' },
-  { key: 'spoc',          label: 'SPOC',           type: 'text',   hint: 'Committee member POC' },
-  { key: 'expected_hires', label: 'Expected Hires', type: 'number' },
-  { key: 'process_date',  label: 'Process Date',   type: 'date' },
-  { key: 'process_mode',  label: 'Process Mode',   type: 'select', options: ['', 'Offline', 'Online', 'Hybrid'] },
+]
+
+const HIRING_FIELD_DEFS = [
+  { key: 'spoc',           label: 'SPOC',           type: 'text',   hint: 'Committee member POC' },
+  { key: 'expected_hires', label: 'Expected Hires',  type: 'number' },
+  { key: 'process_date',   label: 'Process Date',    type: 'date' },
+  { key: 'process_mode',   label: 'Process Mode',    type: 'select', options: ['', 'Offline', 'Online', 'Hybrid'] },
+]
+
+const CASE_COMP_FIELD_DEFS = [
+  { key: 'tracks',    label: 'Tracks',     type: 'text', hint: 'comma separated e.g. Strategy, Finance, Analytics', transform: v => Array.isArray(v) ? v.join(', ') : (v || ''), parse: v => v.split(',').map(s => s.trim()).filter(Boolean) },
+  { key: 'team_size', label: 'Team Size',  type: 'text', hint: 'e.g. 2-3 members' },
+  { key: 'prize',     label: 'Prize / PPI',type: 'text', hint: 'e.g. Campus winner gets PPI' },
 ]
 
 const SUBTYPE_DEF = { key: 'subtype', label: 'Subtype', type: 'select', options: ['', ...CAMPUS_ENGAGEMENT_SUBTYPE_OPTIONS] }
-const VIA_DEF     = { key: 'via',     label: 'Via',     type: 'select', options: ['', ...VIA_OPTIONS] }
+const VIA_DEF     = { key: 'via',     label: 'Via (placement route)', type: 'select', options: ['', ...VIA_OPTIONS] }
 
 function getFieldDefs(type) {
   const defs = [...BASE_FIELD_DEFS]
   const typeIdx = defs.findIndex(f => f.key === 'type')
-  if (typeHasSubtype(type)) defs.splice(typeIdx + 1, 0, SUBTYPE_DEF)
-  if (typeHasVia(type))     defs.splice(typeIdx + 1, 0, VIA_DEF)
+  if (typeHasSubtype(type))  defs.splice(typeIdx + 1, 0, SUBTYPE_DEF)
+  if (typeHasVia(type))      defs.splice(typeIdx + 1, 0, VIA_DEF)
+  if (typeIsCaseComp(type))  defs.push(...CASE_COMP_FIELD_DEFS)
+  if (typeIsHiringDrive(type)) defs.push(...HIRING_FIELD_DEFS)
   return defs
 }
 

@@ -66,8 +66,8 @@ export const OPPORTUNITY_ACTIONS = {
       'create_eoi_tracker',
       'generate_reminder',
       'post_round',              // add a new round (Problem Statement, Round 1, Finals…)
-      'create_round_tracker',    // tracker sheet for the current round
-      'post_final_selection',    // final winners → triggers placement approval
+      'create_round_tracker',
+      'post_final_selection',    // final winners → triggers placement approval (PPI/offer)
       'generate_final_msg',
       'mark_closed',
     ],

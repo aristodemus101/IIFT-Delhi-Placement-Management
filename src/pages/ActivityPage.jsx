@@ -88,10 +88,10 @@ function ActivityTable({ opps, isAdmin, onOpen, onDelete }) {
                 </td>
                 <td style={{ padding: '10px 14px', whiteSpace: 'nowrap', color: 'var(--text-2)', fontSize: 12 }}>{opp.organization || '—'}</td>
                 <td style={{ padding: '10px 14px', whiteSpace: 'nowrap' }}>
-                  <Badge color={typeColor(opp.type)}>
+                  <Badge color={typeColor(opp.type, opp.via)}>
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                      <TypeIcon type={opp.type} size={10} />
-                      {opp.via ? `${opp.type} · ${opp.via}` : opp.type}
+                      <TypeIcon type={opp.type} via={opp.via} size={10} />
+                      {normalizeOpportunityType(opp.type, opp.via)}
                     </span>
                   </Badge>
                 </td>
@@ -147,7 +147,7 @@ export default function ActivityPage() {
   const [exportOpen, setExportOpen]     = useState(false)
 
   const filtered = useMemo(() => opportunities.filter(o => {
-    if (typeFilter !== 'all' && normalizeOpportunityType(o.type) !== typeFilter) return false
+    if (typeFilter !== 'all' && normalizeOpportunityType(o.type, o.via) !== typeFilter) return false
     if (applicabilityFilter !== 'all') {
       const ap = o.applicability || 'both'
       if (ap !== applicabilityFilter) return false
