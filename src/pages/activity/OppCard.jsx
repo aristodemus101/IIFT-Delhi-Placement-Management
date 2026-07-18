@@ -46,9 +46,7 @@ export default function OppCard({ opp, isAdmin, onOpen, onDelete }) {
             <div style={{ fontSize: 12, color: 'var(--text-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{opp.organization || '—'}</div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3, flexShrink: 0 }}>
-            {(opp.stipend || opp.ctc) && (
-              <div style={{ fontSize: 13, fontWeight: 700 }}>{opp.stipend || opp.ctc}</div>
-            )}
+            {opp.ctc && <div style={{ fontSize: 13, fontWeight: 700 }}>{opp.ctc}</div>}
             {opp.duration && <div style={{ fontSize: 11, color: 'var(--text-3)' }}>{opp.duration}</div>}
           </div>
         </div>
