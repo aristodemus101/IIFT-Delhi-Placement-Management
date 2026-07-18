@@ -570,7 +570,7 @@ function StageFlowModal({ opp, flow, user, students, sheetsConnected, createTrac
           </div>
         </div>
       )}
-      {step === 'confirm' && actionKey !== 'post_round' && (
+      {step === 'confirm' && !SIMPLE_FORM.has(actionKey) && (
         <div>
           <p style={{ fontSize: 13, color: 'var(--text-2)', marginBottom: 4, lineHeight: 1.6 }}>{meta.description}</p>
           <p style={{ fontSize: 13, color: 'var(--text-2)', marginBottom: 16 }}>Gemini will use the current opportunity details to generate the message.</p>
