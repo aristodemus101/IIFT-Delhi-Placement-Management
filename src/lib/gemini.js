@@ -42,7 +42,7 @@ Use null for any field not mentioned. Do not add extra keys.
   "title": "short title string",
   "type": "one of: Hiring | Live Project | Campus Engagement",
   "subtype": "one of: ${CAMPUS_ENGAGEMENT_SUBTYPE_OPTIONS.join(' | ')} | null",
-  "via": "one of: PPT | Case Comp | PPO | Hackathon | Referral | Direct | null",
+  "via": "one of: Case Comp | PPO | Hackathon | Referral | Direct | null",
   "organization": "company or organiser name",
   "applicability": "one of: summer | final | both",
   "roles": ["array of role strings, empty array if none"],
@@ -63,7 +63,6 @@ Use null for any field not mentioned. Do not add extra keys.
 }
 
 Rules:
-- If it is a pre-placement talk or PPT, keep "type" as "Hiring" and set "via" to "PPT".
 - If it is a case competition, keep "type" as "Hiring" and set "via" to "Case Comp".
 - If it is a guest lecture, workshop, webinar, alumni session, company visit, panel discussion, seminar, conference, networking session, or similar, set "type" to "Campus Engagement" and fill "subtype".
 - Use "Campus Engagement" whenever the text is about a non-hiring campus event.

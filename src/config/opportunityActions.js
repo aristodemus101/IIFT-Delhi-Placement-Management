@@ -59,16 +59,6 @@ export const OPPORTUNITY_ACTIONS = {
     ],
   },
 
-  'PPT': {
-    label: 'Pre-Placement Talk',
-    actions: [
-      'generate_announcement',
-      'create_attendance_tracker',
-      'generate_reminder',
-      'mark_closed',
-    ],
-  },
-
   'Case Comp': {
     label: 'Case Competition',
     actions: [
