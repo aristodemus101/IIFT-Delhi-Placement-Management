@@ -286,7 +286,9 @@ function EditModal({ opp, onClose }) {
     setBusy(true); setErr('')
     try {
       const { id, createdAt, postedBy, _whatsappMessage, ...fields } = parsed
-      // Strip fields that don't apply to this opportunity type
+      // Resolve type first (handles legacy docs where type='Hiring', via='Case Comp')
+      fields.type = normalizeActivityType(fields.type, fields.via)
+      // Strip fields that don't apply to the resolved type
       if (!typeHasVia(fields.type))     fields.via = ''
       if (!typeHasSubtype(fields.type)) fields.subtype = ''
       await updateDoc(doc(db, 'opportunities', opp.id), { ...fields, updatedAt: serverTimestamp() })
@@ -465,7 +467,7 @@ function StageFlowModal({ opp, flow, user, students, sheetsConnected, createTrac
             season,
             opportunityId: opp.id,
             opportunityTitle: opp.title || '',
-            opportunityType: normalizeOpportunityType(opp.type) || '',
+            opportunityType: normalizeOpportunityType(opp.type, opp.via) || '',
             placementDetails: {
               company: opp.organization || '',
               role: s.role || '',

@@ -84,7 +84,7 @@ export async function generateWhatsAppMessage(opp, stageType, extra = {}) {
   const isAnnouncement = stageType === 'opportunity' || stageType === 'generate_announcement'
   const normalizedOpp = {
     ...opp,
-    type: normalizeActivityType(opp?.type),
+    type: normalizeActivityType(opp?.type, opp?.via),
     subtype: normalizeCampusEngagementSubtype(opp?.subtype),
   }
   const forcedHeader = isAnnouncement ? getActivityAnnouncementHeader(normalizedOpp) : ''

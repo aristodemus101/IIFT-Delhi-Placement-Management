@@ -63,6 +63,7 @@ export const OPPORTUNITY_ACTIONS = {
     label: 'Case Competition',
     actions: [
       'generate_announcement',
+      'open_applications',       // open registrations / team formation window
       'create_eoi_tracker',
       'generate_reminder',
       'post_round',              // add a new round (Problem Statement, Round 1, Finals…)
@@ -114,8 +115,8 @@ export const ACTION_META = {
     color:       'blue',
   },
   open_applications: {
-    label:       'Open Applications',
-    description: 'Mark applications as open and record the deadline',
+    label:       'Open Applications / Registrations',
+    description: 'Mark applications or registrations as open and record the deadline',
     icon:        'FileText',
     color:       'green',
   },

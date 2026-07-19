@@ -5,6 +5,7 @@ import {
   doc, serverTimestamp, increment,
 } from 'firebase/firestore'
 import { db } from './firebase'
+import { normalizeActivityType } from '../config/activityTaxonomy'
 
 export const OPP_STATUS = ['open', 'shortlisted', 'interviewing', 'closed']
 
@@ -109,12 +110,12 @@ export function useApplicants(oppId) {
 // ── Write helpers ─────────────────────────────────────────────────────────────
 
 function sanitizeOpportunityFields(data) {
-  const isCampusEngagement = String(data.type || '').trim() === 'Campus Engagement'
-  const clean = { ...data }
-  // via is meaningless for Campus Engagement
-  if (isCampusEngagement) clean.via = ''
-  // subtype is meaningless for Hiring / Live Project
-  if (!isCampusEngagement) clean.subtype = ''
+  const resolvedType = normalizeActivityType(data.type, data.via)
+  const clean = { ...data, type: resolvedType }
+  // via is meaningless for Campus Engagement and Case Comp
+  if (resolvedType === 'Campus Engagement' || resolvedType === 'Case Comp') clean.via = ''
+  // subtype is meaningless for Hiring / Live Project / Case Comp
+  if (resolvedType !== 'Campus Engagement') clean.subtype = ''
   // never persist the internal whatsapp draft key
   delete clean._whatsappMessage
   return clean

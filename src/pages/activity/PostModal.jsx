@@ -27,11 +27,12 @@ function normalizeParsedOpportunity(result) {
     parsed.applicability = 'both'
   }
 
+  // Normalize type first — pass via for backwards-compat (type='Hiring', via='Case Comp')
+  parsed.type = normalizeActivityType(parsed.type, parsed.via)
+
   if (parsed.via && !VIA_OPTIONS.includes(parsed.via)) {
     parsed.via = ''
   }
-
-  parsed.type = normalizeActivityType(parsed.type)
 
   if (parsed.type === 'Campus Engagement') {
     parsed.subtype = normalizeCampusEngagementSubtype(parsed.subtype || parsed.engagementType || inferCampusEngagementSubtype(rawType))
@@ -200,13 +201,15 @@ export function PreviewStep({ parsed, setParsed, busy, err, onBack, onNext, next
     setParsed(p => {
       const next = { ...p, [key]: v }
       if (key === 'type') {
-        next.type = normalizeActivityType(v)
-        // Campus Engagement: clear via (irrelevant); default subtype
-        if (next.type === 'Campus Engagement') {
+        next.type = normalizeActivityType(v, p.via)
+        // Case Comp / Campus Engagement: via is not a placement route here
+        if (next.type === 'Case Comp' || next.type === 'Campus Engagement') {
           next.via = ''
+        }
+        // Campus Engagement: default subtype
+        if (next.type === 'Campus Engagement') {
           if (!next.subtype) next.subtype = 'Guest Lecture'
         } else {
-          // Hiring / Live Project: clear subtype (irrelevant)
           next.subtype = ''
         }
       }

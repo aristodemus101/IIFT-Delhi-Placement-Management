@@ -98,11 +98,12 @@ export default function AnalyticsPage() {
     return students.filter(s => ids.has(studentCohort(s)))
   }, [students, scopedCohorts])
 
-  // Build oppId → company map — heatmap only tracks Hiring opportunities
+  // Build oppId → company map — heatmap tracks Hiring and Case Comp (placement-relevant opps)
   const oppMap = useMemo(() => {
     const m = {}
     opps.forEach(o => {
-      if (normalizeActivityType(o.type) === 'Hiring') m[o.id] = o
+      const t = normalizeActivityType(o.type, o.via)
+      if (t === 'Hiring' || t === 'Case Comp') m[o.id] = o
     })
     return m
   }, [opps])
@@ -268,6 +269,8 @@ export default function AnalyticsPage() {
                 {filteredOppIds.map(id => {
                   const o = oppMap[id]
                   const company = o?.organization || o?.title || id
+                  const oppType = normalizeActivityType(o?.type, o?.via)
+                  const isCaseComp = oppType === 'Case Comp'
                   return (
                     <th key={id} style={{
                       position: 'sticky', top: 0, zIndex: 2,
@@ -276,9 +279,11 @@ export default function AnalyticsPage() {
                       padding: '6px 4px', textAlign: 'center', fontWeight: 500,
                       fontSize: 10, color: 'var(--text-2)', minWidth: 72, maxWidth: 90,
                       whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                    }} title={company}>
+                    }} title={`${company} (${oppType})`}>
                       <div style={{ maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', margin: '0 auto' }}>{company}</div>
-                      {o?.via && <div style={{ fontSize: 9, color: 'var(--text-3)', fontWeight: 400 }}>{o.via}</div>}
+                      <div style={{ fontSize: 9, fontWeight: 600, marginTop: 2, color: isCaseComp ? 'var(--amber-text)' : 'var(--green-text)' }}>
+                        {isCaseComp ? 'Case Comp' : 'Hiring'}
+                      </div>
                     </th>
                   )
                 })}

@@ -90,10 +90,16 @@ export function normalizeActivityType(type, via) {
   const raw = String(type || '').trim()
   if (!raw) return 'Hiring'
 
-  if (ACTIVITY_TYPE_OPTIONS.includes(raw)) return raw
+  // Backwards-compat: old docs stored type='Hiring', via='Case Comp'.
+  // 'Case Comp' was never a valid placement route (via value), so this
+  // combination unambiguously means the opp is a Case Comp. Check before
+  // the canonical pass-through so legacy Hiring docs are correctly resolved.
+  // Other canonical types (Campus Engagement, Live Project, Case Comp itself)
+  // are never set alongside via='Case Comp', so this is safe.
+  if (raw === 'Hiring' && String(via || '').trim() === 'Case Comp') return 'Case Comp'
 
-  // Backwards-compat: old docs stored type='Hiring', via='Case Comp'
-  if (String(via || '').trim() === 'Case Comp') return 'Case Comp'
+  // All other canonical types pass through immediately.
+  if (ACTIVITY_TYPE_OPTIONS.includes(raw)) return raw
 
   const alias = TYPE_ALIASES.get(raw.toLowerCase())
   if (alias) return alias
