@@ -3,7 +3,6 @@ import { Copy, Check } from 'lucide-react'
 import { Modal, Btn } from '../../components/UI'
 import { postOpportunity, blankOpportunity } from '../../lib/useOpportunities'
 import { parseOpportunity, generateWhatsAppMessage } from '../../lib/gemini'
-import { TYPES } from './OppCard'
 import {
   CAMPUS_ENGAGEMENT_SUBTYPE_OPTIONS,
   inferCampusEngagementSubtype,
@@ -21,7 +20,6 @@ const VALID_APPLICABILITY = new Set(['summer', 'final', 'both'])
 function normalizeParsedOpportunity(result) {
   const parsed = { ...blankOpportunity(), ...result }
   const rawType = String(parsed.type || '').trim()
-  const lowerType = rawType.toLowerCase()
 
   if (parsed.applicability && !VALID_APPLICABILITY.has(parsed.applicability)) {
     parsed.applicability = 'both'
@@ -53,21 +51,6 @@ function normalizeParsedOpportunity(result) {
   // Sanitize tracks — Gemini may return string or array
   if (parsed.tracks && !Array.isArray(parsed.tracks)) {
     parsed.tracks = String(parsed.tracks).split(',').map(s => s.trim()).filter(Boolean)
-  }
-
-  if (rawType && !TYPES.includes(rawType)) {
-    if (lowerType.includes('case') || lowerType.includes('competition') || lowerType.includes('challenge') || lowerType.includes('hackathon')) {
-      parsed.type = 'Case Comp'
-    } else if (lowerType.includes('live')) {
-      parsed.type = 'Live Project'
-    } else if (lowerType.includes('event') || lowerType.includes('workshop') || lowerType.includes('lecture') || lowerType.includes('webinar') || lowerType.includes('alumni')) {
-      parsed.type = 'Campus Engagement'
-      parsed.subtype = normalizeCampusEngagementSubtype(parsed.subtype || inferCampusEngagementSubtype(rawType))
-    } else if (lowerType.includes('intern') || lowerType.includes('sip')) {
-      parsed.type = 'Hiring'
-    } else {
-      parsed.type = 'Hiring'
-    }
   }
 
   return parsed

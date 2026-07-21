@@ -441,6 +441,7 @@ function StageFlowModal({ opp, flow, user, students, sheetsConnected, createTrac
         release_shortlist: 'shortlisted', post_interview: 'interviewing',
         post_gd_pi: 'interviewing', post_final_selection: 'selected', post_submission: 'shortlisted',
       }
+      const proposeErrors = []
       for (const s of matched) {
         await setDoc(
           doc(db, 'opportunities', opp.id, 'applicants', s.roll || s.email),
@@ -457,25 +458,34 @@ function StageFlowModal({ opp, flow, user, students, sheetsConnected, createTrac
           // Derive cohort and its active cycle from student doc
           const cohortId = dbStudent.cohort || null
           const season = getCohortCycle ? getCohortCycle(cohortId) : 'final'
-          await propose({
-            type: 'place_from_activity',
-            studentId: dbStudent._id,
-            studentName: s.name || getVal(dbStudent, 'name') || `${getVal(dbStudent, 'firstName') || ''} ${getVal(dbStudent, 'lastName') || ''}`.trim(),
-            studentRoll: s.roll || getVal(dbStudent, 'roll') || '',
-            company: opp.organization || '',
-            cohort: cohortId,
-            season,
-            opportunityId: opp.id,
-            opportunityTitle: opp.title || '',
-            opportunityType: normalizeOpportunityType(opp.type, opp.via) || '',
-            placementDetails: {
+          try {
+            await propose({
+              type: 'place_from_activity',
+              studentId: dbStudent._id,
+              studentName: s.name || getVal(dbStudent, 'name') || `${getVal(dbStudent, 'firstName') || ''} ${getVal(dbStudent, 'lastName') || ''}`.trim(),
+              studentRoll: s.roll || getVal(dbStudent, 'roll') || '',
               company: opp.organization || '',
-              role: s.role || '',
-              via: `Activity — ${opp.title || ''}`,
-              package: opp.ctc || opp.stipend || '',
-            },
-          })
+              cohort: cohortId,
+              season,
+              opportunityId: opp.id,
+              opportunityTitle: opp.title || '',
+              opportunityType: normalizeOpportunityType(opp.type, opp.via) || '',
+              placementDetails: {
+                company: opp.organization || '',
+                role: s.role || '',
+                via: `Activity — ${opp.title || ''}`,
+                package: opp.ctc || opp.stipend || '',
+              },
+            })
+          } catch (proposeErr) {
+            proposeErrors.push(`${s.name || s.roll}: ${proposeErr.message}`)
+          }
         }
+      }
+      if (proposeErrors.length) {
+        setErr(`Saved stage, but ${proposeErrors.length} placement proposal(s) failed:\n${proposeErrors.join('\n')}`)
+        setBusy(false)
+        return
       }
       const stageType = actionKey === 'post_gd_pi' ? 'gd_pi' : actionKey
       await advanceStage(opp.id, stageType, {
