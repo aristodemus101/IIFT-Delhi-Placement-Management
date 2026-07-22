@@ -4,6 +4,7 @@ import { Modal, Btn } from '../../components/UI'
 import { postOpportunity, blankOpportunity } from '../../lib/useOpportunities'
 import { parseOpportunity, generateWhatsAppMessage } from '../../lib/gemini'
 import {
+  ACTIVITY_TYPE_OPTIONS,
   CAMPUS_ENGAGEMENT_SUBTYPE_OPTIONS,
   inferCampusEngagementSubtype,
   VIA_OPTIONS,
@@ -133,7 +134,7 @@ export function PasteStep({ rawText, setRawText, busy, err, placeholder, onNext,
 // Base fields always shown
 const BASE_FIELD_DEFS = [
   { key: 'title',         label: 'Title',         type: 'text' },
-  { key: 'type',          label: 'Type',          type: 'select', options: TYPES },
+  { key: 'type',          label: 'Type',          type: 'select', options: ACTIVITY_TYPE_OPTIONS },
   // subtype shown only for Campus Engagement (injected dynamically)
   // via shown only for Hiring / Live Project (injected dynamically)
   { key: 'organization',  label: 'Organization',  type: 'text' },

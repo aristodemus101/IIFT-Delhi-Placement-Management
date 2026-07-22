@@ -78,15 +78,17 @@ function ActivityTable({ opps, isAdmin, onOpen, onDelete }) {
                 onClick={() => onOpen(opp)}
                 onMouseEnter={e => Array.from(e.currentTarget.cells).forEach(c => c.style.background = 'color-mix(in srgb, var(--surface2) 75%, transparent)')}
                 onMouseLeave={e => Array.from(e.currentTarget.cells).forEach(c => c.style.background = '')}>
-                <td style={{ padding: '10px 14px', whiteSpace: 'nowrap', maxWidth: 260 }}>
-                  <div style={{ fontWeight: 600, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 240 }}>{opp.title || 'Untitled'}</div>
+                <td style={{ padding: '10px 14px', maxWidth: 260, overflow: 'hidden' }}>
+                  <div style={{ fontWeight: 600, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{opp.title || 'Untitled'}</div>
                   {opp.roles?.length > 0 && (
-                    <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 2 }}>
+                    <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {opp.roles.slice(0, 2).join(' · ')}{opp.roles.length > 2 ? ` +${opp.roles.length - 2}` : ''}
                     </div>
                   )}
                 </td>
-                <td style={{ padding: '10px 14px', whiteSpace: 'nowrap', color: 'var(--text-2)', fontSize: 12 }}>{opp.organization || '—'}</td>
+                <td style={{ padding: '10px 14px', maxWidth: 200, overflow: 'hidden' }}>
+                  <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text-2)', fontSize: 12 }}>{opp.organization || '—'}</div>
+                </td>
                 <td style={{ padding: '10px 14px', whiteSpace: 'nowrap' }}>
                   <Badge color={typeColor(opp.type, opp.via)}>
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
