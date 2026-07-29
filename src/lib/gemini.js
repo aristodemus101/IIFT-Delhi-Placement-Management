@@ -88,19 +88,6 @@ export async function generateWhatsAppMessage(opp, stageType, extra = {}) {
     subtype: normalizeCampusEngagementSubtype(opp?.subtype),
   }
   const forcedHeader = isAnnouncement ? getActivityAnnouncementHeader(normalizedOpp) : ''
-  const messageStyle = normalizedOpp.type === 'Campus Engagement'
-    ? `
-Campus engagement message style:
-- Use a clean announcement with one line describing the engagement type first.
-- Include the speaker/organization if present.
-- Include venue, time, date, and registration or tracker links if present.
-- Keep the same section order every time: header, greeting, engagement summary, details, action required, closing line.
-`
-    : `
-Opportunity message style:
-- Use a clean announcement with the same section order every time: header, greeting, summary, roles, compensation, location, duration, links, deadline, closing line.
-- Keep the wording concise and professional.
-`
   const promptPayload = {
     ...normalizedOpp,
     ...extra,
@@ -109,39 +96,109 @@ Opportunity message style:
     via: normalizedOpp.via || '',
   }
   const prompt = `
-You are drafting a WhatsApp announcement for IIFT Delhi placement committee.
-Follow these formatting rules exactly and do not deviate:
+You are drafting official WhatsApp bulletin messages for the Placement Committee of IIFT Delhi. Every message must read exactly like it was written by the Placement Committee—not by AI.
 
-STRUCTURE (in this exact order, every time):
-1. Header line (bold, forced if provided)
-2. Blank line
-3. "Dear Batch,"
-4. Blank line
-5. The description / body of the announcement — written directly, NO label like "Description:" or "Type:" before it
-6. Key details (roles, compensation, location, duration, links, deadline — each on its own line, bold label)
-7. "*Mandatory for everyone.*"
-8. Action required (if any)
-9. "*All CRCAD Rules Apply*"
+HEADER FORMAT (first line, always):
+*Company Name || Purpose*
 
-TONE:
-- Stern and directive. No soft language. Use imperative sentences.
-- Do not use words like "exciting", "pleased", "delighted", "opportunity to grow".
-- Do not write "Description:", "Type:", "Subtype:", or any raw field name as a label.
-
-Now write a WhatsApp message for stage: "${stageLabel}"
-
-Opportunity details (use only what's relevant and non-null):
-${JSON.stringify(promptPayload, null, 2)}
-
-${extra.whatsappGroupLink ? `WhatsApp group link: ${extra.whatsappGroupLink}` : ''}
-${extra.selectedStudents ? `Selected students:\n${extra.selectedStudents}` : ''}
+Examples:
+Goldman Sachs || Summer Internship Application
+DE Shaw || PPT
+Flipkart WiRED X || Reminder
+IndiaMART || Shortlist
+PwC || Whitepaper Competition
 
 ${forcedHeader ? `First line must be exactly: *${forcedHeader}*` : ''}
-${messageStyle}
 
-Additional rules:
-- Use *bold* for section labels and the header only
-- Return ONLY the message text — no explanation, no markdown code block, no preamble
+Then a blank line, then: "Dear Batch,"
+
+INFORMATION HIERARCHY (include only what is relevant and non-null):
+1. Purpose
+2. Role(s)
+3. Division(s)
+4. Location (if relevant)
+5. CTC / Stipend (if provided)
+6. Eligibility (if provided)
+7. Application Link
+8. Tracker / Doubt Sheet
+9. Deadline
+10. Important Instructions
+11. JD attached (if applicable)
+
+LINKS — always on separate lines:
+*Application Link:*
+https://...
+
+*Tracker & Doubt Sheet:*
+https://...
+
+DEADLINES — always highlighted:
+*Deadline:* *29th July | 3:00 PM (Strict)*
+Use "(Strict)" where appropriate.
+
+INSTRUCTIONS — short bullet points only:
+- Apply using your personal email ID.
+- Join by 5:50 PM.
+- Keep your camera ON.
+- Rename yourself as FirstName_LastName.
+- Carry a Government ID.
+- Reporting Time: 8:30 AM.
+- Attendance is mandatory.
+
+SHORTLIST FORMAT (when stage is shortlist):
+Dear Batch,
+
+The profiles have been shared with the company. Based on the same, the following candidates have been shortlisted.
+
+(Names / Tracker link)
+
+WhatsApp Group:
+(link)
+
+*All CRCAD Rules Apply*
+
+PPT / WEBINAR FORMAT (when stage is PPT or webinar):
+Include: Date, Time, Platform, Meeting Link/ID, mandatory instructions.
+If already live, write: "The session is currently live." — do not announce it as upcoming.
+
+WRITING STYLE:
+- Professional and concise.
+- WhatsApp-friendly.
+- No emojis.
+- No marketing language.
+- No long paragraphs.
+- Use *bold* only for important information (deadlines, roles, section labels, header).
+- Prefer short bullet points wherever appropriate.
+- Maintain a Placement Committee tone.
+
+PREFERRED PHRASES:
+- Kindly
+- Please note
+- Interested students are requested to...
+- Apply before the deadline.
+- JDs are attached below.
+- More details are available in the attached document.
+
+BANNED PHRASES (never use):
+- We are delighted...
+- We are pleased...
+- Hope everyone is doing well...
+- Any AI-style filler or enthusiastic wording.
+- Do not write "Description:", "Type:", "Subtype:", or any raw field name as a label.
+- Do not copy company emails verbatim — extract only actionable information.
+
+CLOSING (mandatory, last line of every message, nothing after this):
+*All CRCAD Rules Apply*
+
+Now write the bulletin for stage: "${stageLabel}"
+
+Opportunity details (use only what is relevant and non-null):
+${JSON.stringify(promptPayload, null, 2)}
+
+${extra.whatsappGroupLink ? `WhatsApp Group:\n${extra.whatsappGroupLink}` : ''}
+${extra.selectedStudents ? `Selected students:\n${extra.selectedStudents}` : ''}
+
+Return ONLY the message text — no explanation, no markdown code block, no preamble.
 `
   const message = await callGemini(prompt)
   return forcedHeader ? forceFirstLine(message, forcedHeader) : message
