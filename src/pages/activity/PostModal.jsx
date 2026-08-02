@@ -131,52 +131,95 @@ export function PasteStep({ rawText, setRawText, busy, err, placeholder, onNext,
   )
 }
 
-// Base fields always shown
-const BASE_FIELD_DEFS = [
-  { key: 'title',         label: 'Title',         type: 'text' },
-  { key: 'type',          label: 'Type',          type: 'select', options: ACTIVITY_TYPE_OPTIONS },
-  // subtype shown only for Campus Engagement (injected dynamically)
-  // via shown only for Hiring / Live Project (injected dynamically)
-  { key: 'organization',  label: 'Organization',  type: 'text' },
-  { key: 'applicability', label: 'Applicability', type: 'select', options: [{ value: 'summer', label: 'Summer' }, { value: 'final', label: 'Final' }, { value: 'both', label: 'Both' }] },
-  { key: 'roles',         label: 'Roles',         type: 'text', hint: 'comma separated', transform: v => Array.isArray(v) ? v.join(', ') : v, parse: v => v.split(',').map(s => s.trim()).filter(Boolean) },
-  { key: 'stipend',       label: 'Stipend',       type: 'text' },
-  { key: 'ctc',           label: 'CTC',           type: 'text' },
-  { key: 'duration',      label: 'Duration',      type: 'text' },
-  { key: 'location',      label: 'Location',      type: 'text' },
-  { key: 'deadline',      label: 'Deadline',      type: 'text' },
-  { key: 'eligibility',   label: 'Eligibility',   type: 'text' },
-  { key: 'eoi_link',      label: 'EOI Link',      type: 'text' },
-  { key: 'apply_link',    label: 'Apply Link',    type: 'text' },
-  { key: 'tracker_link',  label: 'Tracker Link',  type: 'text' },
-  { key: 'description',   label: 'Description',   type: 'textarea' },
-  { key: 'notes',         label: 'Internal Notes', type: 'textarea' },
-]
+// Shared defs used across multiple types
+const APPLICABILITY_DEF  = { key: 'applicability', label: 'Applicability', type: 'select', options: [{ value: 'summer', label: 'Summer' }, { value: 'final', label: 'Final' }, { value: 'both', label: 'Both' }] }
+const ROLES_DEF          = { key: 'roles',         label: 'Roles',         type: 'text', hint: 'comma separated', transform: v => Array.isArray(v) ? v.join(', ') : v, parse: v => v.split(',').map(s => s.trim()).filter(Boolean) }
+const DEADLINE_DEF       = { key: 'deadline',      label: 'Deadline',      type: 'text' }
+const EOI_DEF            = { key: 'eoi_link',      label: 'EOI Link',      type: 'text' }
+const APPLY_DEF          = { key: 'apply_link',    label: 'Apply Link',    type: 'text' }
+const TRACKER_DEF        = { key: 'tracker_link',  label: 'Tracker Link',  type: 'text' }
+const DESCRIPTION_DEF    = { key: 'description',   label: 'Description',   type: 'textarea' }
+const NOTES_DEF          = { key: 'notes',         label: 'Internal Notes', type: 'textarea' }
+const SUBTYPE_DEF        = { key: 'subtype',       label: 'Subtype',       type: 'select', options: ['', ...CAMPUS_ENGAGEMENT_SUBTYPE_OPTIONS] }
+const VIA_DEF            = { key: 'via',           label: 'Via (placement route)', type: 'select', options: ['', ...VIA_OPTIONS] }
+const TEAM_SIZE_DEF      = { key: 'team_size',     label: 'Team Size',     type: 'text', hint: 'e.g. 2-3 members' }
 
-const HIRING_FIELD_DEFS = [
-  { key: 'spoc',           label: 'SPOC',           type: 'text',   hint: 'Committee member POC' },
-  { key: 'expected_hires', label: 'Expected Hires',  type: 'number' },
-  { key: 'process_date',   label: 'Process Date',    type: 'date' },
-  { key: 'process_mode',   label: 'Process Mode',    type: 'select', options: ['', 'Offline', 'Online', 'Hybrid'] },
-]
+const TYPE_DEF = { key: 'type', label: 'Type', type: 'select', options: ACTIVITY_TYPE_OPTIONS }
+const ORG_DEF  = { key: 'organization', label: 'Organization', type: 'text' }
 
-const CASE_COMP_FIELD_DEFS = [
-  { key: 'tracks',    label: 'Tracks',     type: 'text', hint: 'comma separated e.g. Strategy, Finance, Analytics', transform: v => Array.isArray(v) ? v.join(', ') : (v || ''), parse: v => v.split(',').map(s => s.trim()).filter(Boolean) },
-  { key: 'team_size', label: 'Team Size',  type: 'text', hint: 'e.g. 2-3 members' },
-  { key: 'prize',     label: 'Prize / PPI',type: 'text', hint: 'e.g. Campus winner gets PPI' },
-]
-
-const SUBTYPE_DEF = { key: 'subtype', label: 'Subtype', type: 'select', options: ['', ...CAMPUS_ENGAGEMENT_SUBTYPE_OPTIONS] }
-const VIA_DEF     = { key: 'via',     label: 'Via (placement route)', type: 'select', options: ['', ...VIA_OPTIONS] }
+// Per-type field definitions — only fields relevant to that type
+const FIELD_DEFS_BY_TYPE = {
+  'Hiring': [
+    { key: 'title',         label: 'Title',         type: 'text' },
+    TYPE_DEF,
+    VIA_DEF,
+    ORG_DEF,
+    APPLICABILITY_DEF,
+    ROLES_DEF,
+    { key: 'stipend',       label: 'Stipend',       type: 'text' },
+    { key: 'ctc',           label: 'CTC',           type: 'text' },
+    { key: 'location',      label: 'Location',      type: 'text' },
+    DEADLINE_DEF,
+    { key: 'eligibility',   label: 'Eligibility',   type: 'text' },
+    EOI_DEF,
+    APPLY_DEF,
+    TRACKER_DEF,
+    { key: 'spoc',           label: 'SPOC',           type: 'text', hint: 'Committee member POC' },
+    { key: 'expected_hires', label: 'Expected Hires',  type: 'number' },
+    { key: 'process_date',   label: 'Process Date',    type: 'date' },
+    { key: 'process_mode',   label: 'Process Mode',    type: 'select', options: ['', 'Offline', 'Online', 'Hybrid'] },
+    DESCRIPTION_DEF,
+    NOTES_DEF,
+  ],
+  'Case Comp': [
+    { key: 'title',         label: 'Title',         type: 'text' },
+    TYPE_DEF,
+    ORG_DEF,
+    APPLICABILITY_DEF,
+    TEAM_SIZE_DEF,
+    { key: 'tracks',    label: 'Tracks',     type: 'text', hint: 'comma separated e.g. Strategy, Finance, Analytics', transform: v => Array.isArray(v) ? v.join(', ') : (v || ''), parse: v => v.split(',').map(s => s.trim()).filter(Boolean) },
+    { key: 'prize',     label: 'Prize / PPI', type: 'text', hint: 'e.g. Campus winner gets PPI' },
+    DEADLINE_DEF,
+    EOI_DEF,
+    APPLY_DEF,
+    TRACKER_DEF,
+    DESCRIPTION_DEF,
+    NOTES_DEF,
+  ],
+  'Live Project': [
+    { key: 'title',         label: 'Title',         type: 'text' },
+    TYPE_DEF,
+    VIA_DEF,
+    ORG_DEF,
+    APPLICABILITY_DEF,
+    ROLES_DEF,
+    { key: 'stipend',       label: 'Stipend',       type: 'text' },
+    { key: 'duration',      label: 'Duration',      type: 'text' },
+    { key: 'location',      label: 'Location',      type: 'text' },
+    DEADLINE_DEF,
+    { key: 'eligibility',   label: 'Eligibility',   type: 'text' },
+    EOI_DEF,
+    APPLY_DEF,
+    TRACKER_DEF,
+    DESCRIPTION_DEF,
+    NOTES_DEF,
+  ],
+  'Campus Engagement': [
+    { key: 'title',         label: 'Title',         type: 'text' },
+    TYPE_DEF,
+    SUBTYPE_DEF,
+    ORG_DEF,
+    APPLICABILITY_DEF,
+    { key: 'location',      label: 'Venue / Platform', type: 'text', hint: 'e.g. Audi, Zoom, Google Meet' },
+    DEADLINE_DEF,
+    DESCRIPTION_DEF,
+    NOTES_DEF,
+  ],
+}
 
 function getFieldDefs(type) {
-  const defs = [...BASE_FIELD_DEFS]
-  const typeIdx = defs.findIndex(f => f.key === 'type')
-  if (typeHasSubtype(type))  defs.splice(typeIdx + 1, 0, SUBTYPE_DEF)
-  if (typeHasVia(type))      defs.splice(typeIdx + 1, 0, VIA_DEF)
-  if (typeIsCaseComp(type))  defs.push(...CASE_COMP_FIELD_DEFS)
-  if (typeIsHiringDrive(type)) defs.push(...HIRING_FIELD_DEFS)
-  return defs
+  const normalizedType = normalizeActivityType(type)
+  return FIELD_DEFS_BY_TYPE[normalizedType] || FIELD_DEFS_BY_TYPE['Hiring']
 }
 
 export function PreviewStep({ parsed, setParsed, busy, err, onBack, onNext, nextLabel = 'Generate WhatsApp Message →', backLabel = '← Edit Text' }) {

@@ -99,14 +99,16 @@ export async function generateWhatsAppMessage(opp, stageType, extra = {}) {
 You are drafting official WhatsApp bulletin messages for the Placement Committee of IIFT Delhi. Every message must read exactly like it was written by the Placement Committee—not by AI.
 
 HEADER FORMAT (first line, always):
-*Company Name || Purpose*
+*Purpose | Company Name*
 
 Examples:
-Goldman Sachs || Summer Internship Application
-DE Shaw || PPT
-Flipkart WiRED X || Reminder
-IndiaMART || Shortlist
-PwC || Whitepaper Competition
+SIP Opportunity | Goldman Sachs
+PPT | DE Shaw
+Reminder | Flipkart WiRED X
+Shortlist | IndiaMART
+Case Comp | PwC Whitepaper Competition
+Guest Lecture | McKinsey & Company
+Live Project | Asian Paints
 
 ${forcedHeader ? `First line must be exactly: *${forcedHeader}*` : ''}
 

@@ -84,38 +84,52 @@ function InfoTab({ opp, isAdmin, setStageFlow, setEditOpen }) {
   const displayType = normalizeOpportunityType(opp.type, opp.via)
   const isCaseComp = typeIsCaseComp(displayType)
   const isHiring = typeIsHiringDrive(displayType)
+  const isCampusEngagement = displayType === 'Campus Engagement'
 
-  const rows = [
+  const baseRows = [
     { label: 'Type',          value: getActivityDisplayLabel(opp) },
     { label: 'Organization',  value: opp.organization },
     { label: 'Applicable to', value: BATCH_LABEL[opp.applicability] || opp.applicability },
     { label: 'Status',        value: STATUS_LABEL[opp.status] || opp.status },
-    { label: 'Roles',         value: opp.roles?.join(', ') },
-    { label: 'Stipend',       value: opp.stipend },
-    { label: 'CTC',           value: opp.ctc },
-    { label: 'Duration',      value: opp.duration },
-    { label: 'Location',      value: opp.location },
-    { label: 'Deadline',      value: opp.deadline },
+  ]
+
+  const hiringRows = isHiring ? [
+    { label: 'Roles',          value: opp.roles?.join(', ') },
+    { label: 'Stipend',        value: opp.stipend },
+    { label: 'CTC',            value: opp.ctc },
+    { label: 'Duration',       value: opp.duration },
+    { label: 'Location',       value: opp.location },
+    { label: 'Deadline',       value: opp.deadline },
     { label: 'Eligibility',    value: opp.eligibility },
-    ...(isCaseComp ? [
-      { label: 'Tracks',    value: opp.tracks?.join(', ') },
-      { label: 'Team Size', value: opp.team_size },
-      { label: 'Prize / PPI', value: opp.prize },
-    ] : []),
-    ...(isHiring ? [
-      { label: 'SPOC',           value: opp.spoc },
-      { label: 'Expected Hires', value: opp.expected_hires != null ? String(opp.expected_hires) : null },
-      { label: 'Process Date',   value: opp.process_date },
-      { label: 'Process Mode',   value: opp.process_mode },
-    ] : []),
-    { label: 'Posted by',      value: opp.postedBy?.name },
-    { label: 'Posted on',     value: opp.createdAt?.toDate?.()?.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' }) },
-  ].filter(r => r.value)
+    { label: 'SPOC',           value: opp.spoc },
+    { label: 'Expected Hires', value: opp.expected_hires != null ? String(opp.expected_hires) : null },
+    { label: 'Process Date',   value: opp.process_date },
+    { label: 'Process Mode',   value: opp.process_mode },
+  ] : []
+
+  const caseCompRows = isCaseComp ? [
+    { label: 'Team Size',    value: opp.team_size },
+    { label: 'Tracks',      value: opp.tracks?.join(', ') },
+    { label: 'Prize / PPI', value: opp.prize },
+    { label: 'Deadline',    value: opp.deadline },
+  ] : []
+
+  const campusRows = isCampusEngagement ? [
+    { label: 'Venue / Platform', value: opp.location },
+    { label: 'Deadline',         value: opp.deadline },
+  ] : []
+
+  const metaRows = [
+    { label: 'Posted by', value: opp.postedBy?.name },
+    { label: 'Posted on', value: opp.createdAt?.toDate?.()?.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' }) },
+  ]
+
+  const rows = [...baseRows, ...hiringRows, ...caseCompRows, ...campusRows, ...metaRows].filter(r => r.value)
 
   const links = [
-    { label: 'EOI Form', url: opp.eoi_link },
-    { label: 'Apply',    url: opp.apply_link },
-    { label: 'Tracker',  url: opp.tracker_link },
+    ...(isCaseComp || isHiring ? [{ label: 'EOI Form', url: opp.eoi_link }] : []),
+    { label: 'Apply',   url: opp.apply_link },
+    { label: 'Tracker', url: opp.tracker_link },
   ].filter(l => l.url)
 
   // Resolve effective type — handles old docs with type='Hiring', via='Case Comp'
