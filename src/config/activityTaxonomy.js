@@ -16,8 +16,11 @@ export const CAMPUS_ENGAGEMENT_SUBTYPE_OPTIONS = [
   'Other',
 ]
 
-// Via = how the student got the offer (on placement record). Not the opp type.
-export const VIA_OPTIONS = ['PPO', 'Referral', 'Direct']
+// Via = how a student gets an offer from this opportunity.
+// PPO: Pre-Placement Offer (after internship or case comp result)
+// Direct: regular campus placement route
+// Referral removed — not a meaningful categorisation at the opportunity level.
+export const VIA_OPTIONS = ['PPO', 'Direct']
 
 export const ACTIVITY_TYPE_META = {
   'Hiring':           { icon: GraduationCap, color: 'green',  label: 'Hiring' },
@@ -32,9 +35,12 @@ export function typeIsHiringDrive(type) {
   return t === 'Hiring' || t === 'Live Project'
 }
 
-// Via (PPO/Referral/Direct) is only relevant on Hiring / Live Project
+// Via (PPO/Direct) is relevant on Hiring, Live Project, AND Case Comp.
+// Case Comps can lead to a PPO or Direct offer (e.g. L'Oreal Brandstorm → PPO).
+// Campus Engagement never has a placement outcome via, so it is excluded.
 export function typeHasVia(type) {
-  return typeIsHiringDrive(type)
+  const t = normalizeActivityType(type)
+  return t === 'Hiring' || t === 'Live Project' || t === 'Case Comp'
 }
 
 // Subtype is only relevant for Campus Engagement
@@ -136,7 +142,9 @@ export function getActivityDisplayLabel(opp) {
     const subtype = normalizeCampusEngagementSubtype(opp?.subtype)
     return subtype ? `${type} · ${subtype}` : type
   }
-  if (type === 'Hiring' && opp?.via) return `${type} · via ${opp.via}`
+  // Show via suffix only for valid placement route values (not legacy 'Case Comp' via strings)
+  const via = VIA_OPTIONS.includes(opp?.via) ? opp.via : ''
+  if ((type === 'Hiring' || type === 'Case Comp') && via) return `${type} · via ${via}`
   return type
 }
 

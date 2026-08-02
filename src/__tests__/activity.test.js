@@ -120,10 +120,11 @@ describe('type predicate helpers', () => {
   })
 
   describe('typeHasVia', () => {
-    it('true for Hiring (placement route relevant)', () => expect(typeHasVia('Hiring')).toBe(true))
+    it('true for Hiring', () => expect(typeHasVia('Hiring')).toBe(true))
     it('true for Live Project', () => expect(typeHasVia('Live Project')).toBe(true))
-    it('false for Case Comp (via not applicable)', () => expect(typeHasVia('Case Comp')).toBe(false))
-    it('false for Campus Engagement', () => expect(typeHasVia('Campus Engagement')).toBe(false))
+    it('true for Case Comp — can lead to PPO/Direct offer', () => expect(typeHasVia('Case Comp')).toBe(true))
+    it('false for Campus Engagement — no placement outcome', () => expect(typeHasVia('Campus Engagement')).toBe(false))
+    it('normalises alias: hackathon → true (Case Comp)', () => expect(typeHasVia('hackathon')).toBe(true))
   })
 
   describe('typeHasSubtype', () => {
@@ -149,9 +150,13 @@ describe('VIA_OPTIONS invariants', () => {
     expect(VIA_OPTIONS).not.toContain('PPT')
   })
 
-  it('contains only placement routes: PPO, Referral, Direct', () => {
-    expect(VIA_OPTIONS).toEqual(expect.arrayContaining(['PPO', 'Referral', 'Direct']))
-    expect(VIA_OPTIONS).toHaveLength(3)
+  it('does not contain Referral — removed as not meaningful at opp level', () => {
+    expect(VIA_OPTIONS).not.toContain('Referral')
+  })
+
+  it('contains exactly PPO and Direct', () => {
+    expect(VIA_OPTIONS).toEqual(expect.arrayContaining(['PPO', 'Direct']))
+    expect(VIA_OPTIONS).toHaveLength(2)
   })
 })
 
@@ -176,8 +181,13 @@ describe('getActivityDisplayLabel', () => {
     expect(getActivityDisplayLabel({ type: 'Campus Engagement', subtype: '' })).toBe('Campus Engagement')
   })
 
-  it('returns Case Comp without via (via ignored)', () => {
-    expect(getActivityDisplayLabel({ type: 'Case Comp', via: 'PPO' })).toBe('Case Comp')
+  it('returns Case Comp · via PPO when via is set (comp leads to PPO)', () => {
+    expect(getActivityDisplayLabel({ type: 'Case Comp', via: 'PPO' })).toBe('Case Comp · via PPO')
+  })
+
+  it('returns Case Comp without suffix when via is empty', () => {
+    expect(getActivityDisplayLabel({ type: 'Case Comp', via: '' })).toBe('Case Comp')
+    expect(getActivityDisplayLabel({ type: 'Case Comp' })).toBe('Case Comp')
   })
 
   it('resolves old doc (type=Hiring, via=Case Comp) → Case Comp label', () => {
@@ -338,9 +348,11 @@ function normalizeParsedOpportunity(result) {
     parsed.via = ''
   }
 
+  // Campus Engagement never has a placement outcome via
   if (parsed.type === 'Campus Engagement') {
     parsed.via = ''
   }
+  // Case Comp can have via (PPO/Direct) — do not clear it
 
   if (parsed.expected_hires != null) {
     const n = parseInt(parsed.expected_hires, 10)
@@ -394,8 +406,23 @@ describe('normalizeParsedOpportunity', () => {
     expect(result.via).toBe('PPO')
   })
 
-  it('clears via for Campus Engagement', () => {
+  it('clears via for Campus Engagement — no placement outcome', () => {
     const result = normalizeParsedOpportunity({ type: 'Campus Engagement', via: 'PPO' })
+    expect(result.via).toBe('')
+  })
+
+  it('keeps valid via for Case Comp — comp can lead to PPO', () => {
+    const result = normalizeParsedOpportunity({ type: 'Case Comp', via: 'PPO' })
+    expect(result.via).toBe('PPO')
+  })
+
+  it('keeps valid via Direct for Case Comp', () => {
+    const result = normalizeParsedOpportunity({ type: 'Case Comp', via: 'Direct' })
+    expect(result.via).toBe('Direct')
+  })
+
+  it('clears Referral via — no longer a valid via option', () => {
+    const result = normalizeParsedOpportunity({ type: 'Hiring', via: 'Referral' })
     expect(result.via).toBe('')
   })
 
@@ -468,21 +495,32 @@ describe('normalizeParsedOpportunity', () => {
 // We test the public contract of sanitizeOpportunityFields by confirming
 // normalizeActivityType + the sanitize rules are consistent:
 describe('sanitizeOpportunityFields contract (type resolution)', () => {
-  it('resolves old doc type before writing via', () => {
-    // Legacy: type='Hiring', via='Case Comp' must be written as type='Case Comp', via=''
+  it('resolves old doc type=Hiring via=Case Comp → Case Comp, via cleared', () => {
+    // Legacy: type='Hiring', via='Case Comp' must resolve type first, then via becomes irrelevant
     const resolvedType = normalizeActivityType('Hiring', 'Case Comp')
     expect(resolvedType).toBe('Case Comp')
-    // Case Comp should not have via
-    expect(typeHasVia(resolvedType)).toBe(false)
+    // Case Comp CAN have via now (PPO/Direct) — but the legacy 'Case Comp' string is not in VIA_OPTIONS
+    expect(VIA_OPTIONS).not.toContain('Case Comp')
   })
 
   it('Campus Engagement never has via', () => {
     expect(typeHasVia('Campus Engagement')).toBe(false)
   })
 
-  it('Hiring and Live Project can have via', () => {
+  it('Hiring, Live Project, and Case Comp can have via', () => {
     expect(typeHasVia('Hiring')).toBe(true)
     expect(typeHasVia('Live Project')).toBe(true)
+    expect(typeHasVia('Case Comp')).toBe(true)
+  })
+
+  it('Referral is no longer a valid via value', () => {
+    // sanitize strips invalid via values — 'Referral' is no longer in VIA_OPTIONS
+    expect(VIA_OPTIONS).not.toContain('Referral')
+  })
+
+  it('PPO is valid via for Case Comp — comp that leads to pre-placement offer', () => {
+    expect(VIA_OPTIONS).toContain('PPO')
+    expect(typeHasVia('Case Comp')).toBe(true)
   })
 })
 

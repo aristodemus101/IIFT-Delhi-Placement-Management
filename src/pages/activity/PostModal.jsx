@@ -35,9 +35,9 @@ function normalizeParsedOpportunity(result) {
 
   if (parsed.type === 'Campus Engagement') {
     parsed.subtype = normalizeCampusEngagementSubtype(parsed.subtype || parsed.engagementType || inferCampusEngagementSubtype(rawType))
-    parsed.via = '' // via is irrelevant for Campus Engagement
+    parsed.via = '' // via not applicable for Campus Engagement — no placement outcome
   } else {
-    parsed.subtype = '' // subtype is irrelevant for Hiring / Live Project
+    parsed.subtype = '' // subtype only meaningful for Campus Engagement
   }
 
   // Sanitize numeric field from Gemini (may come as string)
@@ -174,6 +174,7 @@ const FIELD_DEFS_BY_TYPE = {
   'Case Comp': [
     { key: 'title',         label: 'Title',         type: 'text' },
     TYPE_DEF,
+    { key: 'via', label: 'Leads to (optional)', type: 'select', options: ['', ...VIA_OPTIONS], hint: 'e.g. PPO if winners get a Pre-Placement Offer' },
     ORG_DEF,
     APPLICABILITY_DEF,
     TEAM_SIZE_DEF,

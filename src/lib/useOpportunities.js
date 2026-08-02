@@ -112,9 +112,11 @@ export function useApplicants(oppId) {
 function sanitizeOpportunityFields(data) {
   const resolvedType = normalizeActivityType(data.type, data.via)
   const clean = { ...data, type: resolvedType }
-  // via is meaningless for Campus Engagement and Case Comp
-  if (resolvedType === 'Campus Engagement' || resolvedType === 'Case Comp') clean.via = ''
-  // subtype is meaningless for Hiring / Live Project / Case Comp
+  // via is only meaningful for Hiring, Live Project, Case Comp — not Campus Engagement
+  if (resolvedType === 'Campus Engagement') clean.via = ''
+  // strip invalid via values that are no longer in VIA_OPTIONS (e.g. old 'Referral' docs)
+  if (clean.via && !['PPO', 'Direct'].includes(clean.via)) clean.via = ''
+  // subtype is meaningful only for Campus Engagement
   if (resolvedType !== 'Campus Engagement') clean.subtype = ''
   // never persist the internal whatsapp draft key
   delete clean._whatsappMessage
