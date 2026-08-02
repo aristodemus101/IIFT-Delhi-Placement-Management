@@ -140,23 +140,32 @@ export default function ActivityPage() {
   const { propose } = usePendingChanges()
   const { getCohortCycle } = useBatch()
 
-  const [typeFilter, setTypeFilter]           = useState('all')
+  const [typeFilter, setTypeFilter]                   = useState('all')
   const [applicabilityFilter, setApplicabilityFilter] = useState('all')
-  const [statusFilter, setStatusFilter]       = useState('all')
-  const [detailOpp, setDetailOpp]       = useState(null)
-  const [postOpen, setPostOpen]         = useState(false)
-  const [viewMode, setViewMode]         = useState('card') // 'card' | 'table'
-  const [exportOpen, setExportOpen]     = useState(false)
+  const [statusFilter, setStatusFilter]               = useState('all')
+  const [search, setSearch]                           = useState('')
+  const [detailOpp, setDetailOpp]   = useState(null)
+  const [postOpen, setPostOpen]     = useState(false)
+  const [viewMode, setViewMode]     = useState('card') // 'card' | 'table'
+  const [exportOpen, setExportOpen] = useState(false)
 
-  const filtered = useMemo(() => opportunities.filter(o => {
-    if (typeFilter !== 'all' && normalizeOpportunityType(o.type, o.via) !== typeFilter) return false
-    if (applicabilityFilter !== 'all') {
-      const ap = o.applicability || 'both'
-      if (ap !== applicabilityFilter) return false
-    }
-    if (statusFilter !== 'all' && o.status !== statusFilter) return false
-    return true
-  }), [opportunities, typeFilter, applicabilityFilter, statusFilter])
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    return opportunities.filter(o => {
+      if (typeFilter !== 'all' && normalizeOpportunityType(o.type, o.via) !== typeFilter) return false
+      if (applicabilityFilter !== 'all') {
+        const ap = o.applicability || 'both'
+        if (ap !== applicabilityFilter) return false
+      }
+      if (statusFilter !== 'all' && o.status !== statusFilter) return false
+      if (q && !(
+        (o.title || '').toLowerCase().includes(q) ||
+        (o.organization || '').toLowerCase().includes(q) ||
+        (o.description || '').toLowerCase().includes(q)
+      )) return false
+      return true
+    })
+  }, [opportunities, typeFilter, applicabilityFilter, statusFilter, search])
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -170,16 +179,28 @@ export default function ActivityPage() {
         )}
       />
 
-      <div className="filter-bar" style={{ padding: '10px 24px', borderBottom: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', flexShrink: 0 }}>
-        <Select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} style={{ width: 'auto' }}>
-          <option value="all">All types</option>
-          {ACTIVITY_TYPE_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
-        </Select>
+      <div className="filter-bar" style={{ padding: '10px 24px', borderBottom: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', flexShrink: 0 }}>
+        {/* Type pill tabs */}
+        <div style={{ display: 'flex', gap: 4, background: 'var(--surface2)', borderRadius: 8, padding: 3, border: '1px solid var(--border)' }}>
+          {[{ v: 'all', label: 'All' }, ...ACTIVITY_TYPE_OPTIONS.map(t => ({ v: t, label: t }))].map(({ v, label }) => (
+            <button key={v} onClick={() => setTypeFilter(v)} style={{
+              padding: '4px 10px', fontSize: 12, fontWeight: typeFilter === v ? 700 : 400,
+              border: 'none', borderRadius: 6, cursor: 'pointer',
+              background: typeFilter === v ? 'var(--surface)' : 'transparent',
+              color: typeFilter === v ? 'var(--text)' : 'var(--text-3)',
+              boxShadow: typeFilter === v ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+              transition: 'all 0.12s ease', whiteSpace: 'nowrap',
+            }}>{label}</button>
+          ))}
+        </div>
+
+        <div style={{ width: 1, height: 20, background: 'var(--border)', flexShrink: 0 }} />
+
         <Select value={applicabilityFilter} onChange={e => setApplicabilityFilter(e.target.value)} style={{ width: 'auto' }}>
           <option value="all">All cycles</option>
-          <option value="summer">Summer only</option>
-          <option value="final">Final only</option>
-          <option value="both">Both cycles</option>
+          <option value="summer">Summer</option>
+          <option value="final">Final</option>
+          <option value="both">Both</option>
         </Select>
         <Select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ width: 'auto' }}>
           <option value="all">All statuses</option>
@@ -188,7 +209,14 @@ export default function ActivityPage() {
           <option value="interviewing">Interviewing</option>
           <option value="closed">Closed</option>
         </Select>
-        <span style={{ fontSize: 12, color: 'var(--text-3)', marginLeft: 'auto' }}>
+
+        <input
+          value={search} onChange={e => setSearch(e.target.value)}
+          placeholder="Search…"
+          style={{ height: 30, padding: '0 10px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface2)', color: 'var(--text)', fontSize: 12, fontFamily: 'var(--font-sans)', width: 160, outline: 'none' }}
+        />
+
+        <span style={{ fontSize: 12, color: 'var(--text-3)', marginLeft: 'auto', whiteSpace: 'nowrap' }}>
           {filtered.length} result{filtered.length !== 1 ? 's' : ''}
         </span>
         {/* Export */}

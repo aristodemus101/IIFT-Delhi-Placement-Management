@@ -48,7 +48,8 @@ export default function OppCard({ opp, isAdmin, onOpen, onDelete }) {
             <div style={{ fontSize: 14, fontWeight: 700, lineHeight: 1.3, marginBottom: 2, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{opp.title || 'Untitled'}</div>
             <div style={{ fontSize: 12, color: 'var(--text-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{opp.organization || '—'}</div>
           </div>
-          {opp.duration && (
+          {/* duration only meaningful for Hiring / Live Project */}
+          {opp.duration && (displayType === 'Hiring' || displayType === 'Live Project') && (
             <div style={{ flexShrink: 0, fontSize: 11, color: 'var(--text-3)' }}>{opp.duration}</div>
           )}
         </div>
@@ -61,8 +62,8 @@ export default function OppCard({ opp, isAdmin, onOpen, onDelete }) {
           </Badge>
           {displaySubtype && <Badge color="gray">{displaySubtype}</Badge>}
           <Badge color={BATCH_COLOR[ap]}>{BATCH_LABEL[ap] || ap}</Badge>
-          {/* Show via only on Hiring opps (PPO/Referral/Direct), not on Case Comp */}
-          {!isCaseComp && opp.via && <Badge color="blue">{opp.via}</Badge>}
+          {/* Show via on Hiring and Case Comp when set (e.g. PPO, Direct) */}
+          {opp.via && <Badge color="blue">{opp.via}</Badge>}
           {/* Round counter for Case Comps */}
           {isCaseComp && opp.currentRound > 0 && (
             <Badge color="blue">Round {opp.currentRound}</Badge>
