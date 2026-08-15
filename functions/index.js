@@ -41,7 +41,14 @@ async function assertAdmin(auth) {
   }
 }
 
-exports.pushFilteredToSheet = onCall({ region: 'asia-south1', invoker: 'public' }, async (request) => {
+const ALLOWED_ORIGINS = [
+  'https://iiftd-pc.web.app',
+  'https://iiftd-pc.firebaseapp.com',
+  'http://localhost:5173',
+  'http://localhost:4173',
+]
+
+exports.pushFilteredToSheet = onCall({ region: 'asia-south1', invoker: 'public', cors: ALLOWED_ORIGINS }, async (request) => {
   await assertAdmin(request.auth)
 
   const { rows, headers, label } = request.data
