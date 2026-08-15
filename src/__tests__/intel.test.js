@@ -438,10 +438,37 @@ describe('filterIntelRecords', () => {
     expect(result[0].recruiterName).toBe('KPMG')
   })
 
-  it('filters by sector', () => {
+  it('filters by sector — single string (legacy)', () => {
     const result = filterIntelRecords(records, { sector: 'FMCG' })
     expect(result).toHaveLength(2)
     result.forEach(r => expect(r.sector).toBe('FMCG'))
+  })
+
+  it('filters by sector — single-element array', () => {
+    const result = filterIntelRecords(records, { sector: ['FMCG'] })
+    expect(result).toHaveLength(2)
+    result.forEach(r => expect(r.sector).toBe('FMCG'))
+  })
+
+  it('filters by sector — multi-select array (OR logic across sectors)', () => {
+    const result = filterIntelRecords(records, { sector: ['FMCG', 'BFSI'] })
+    expect(result).toHaveLength(3) // Asian Paints, Dabur (FMCG) + Goldman Sachs (BFSI)
+    expect(result.map(r => r.recruiterName).sort()).toEqual(['Asian Paints', 'Dabur', 'Goldman Sachs'])
+  })
+
+  it('filters by sector — all three sectors', () => {
+    const result = filterIntelRecords(records, { sector: ['FMCG', 'BFSI', 'Consulting'] })
+    expect(result).toHaveLength(4)
+  })
+
+  it('filters by sector — empty array returns all records', () => {
+    const result = filterIntelRecords(records, { sector: [] })
+    expect(result).toHaveLength(5)
+  })
+
+  it('filters by sector — array with empty string ignored', () => {
+    const result = filterIntelRecords(records, { sector: ['', 'FMCG'] })
+    expect(result).toHaveLength(2)
   })
 
   it('filters by program', () => {

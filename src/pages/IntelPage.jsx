@@ -8,7 +8,7 @@ import { softDeleteIntel } from '../lib/intel'
 import { PageHeader, Btn, Badge, Spinner, Input, Select } from '../components/UI'
 import {
   Upload, Plus, List, LayoutGrid, Columns, Search,
-  AlertTriangle, CheckCircle, TrendingUp, Building2,
+  AlertTriangle, CheckCircle, TrendingUp, Building2, ChevronDown, X,
 } from 'lucide-react'
 import IntelTable, { sectorColor } from './intel/IntelTable'
 import CompanyLogo from './intel/CompanyLogo'
@@ -17,6 +17,85 @@ import IntelEditModal from './intel/IntelEditModal'
 import UploadModal from './intel/UploadModal'
 
 const VIEW = { TABLE: 'table', CARDS: 'cards', BENCHMARK: 'benchmark' }
+
+function SectorMultiSelect({ options, selected, onToggle, onClear }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef()
+
+  useEffect(() => {
+    if (!open) return
+    const handler = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  const label = selected.length === 0
+    ? 'All sectors'
+    : selected.length === 1
+      ? selected[0]
+      : `${selected.length} sectors`
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button
+        onClick={() => setOpen(v => !v)}
+        style={{
+          display: 'inline-flex', alignItems: 'center', gap: 5,
+          height: 30, padding: '0 10px', fontSize: 13,
+          border: `1px solid ${selected.length > 0 ? 'var(--accent)' : 'var(--border)'}`,
+          borderRadius: 8, background: selected.length > 0 ? 'var(--accent-bg)' : 'var(--surface2)',
+          color: selected.length > 0 ? 'var(--accent-dark)' : 'var(--text)',
+          cursor: 'pointer', fontFamily: 'var(--font-sans)', whiteSpace: 'nowrap',
+        }}
+      >
+        {label}
+        {selected.length > 0
+          ? <X size={11} onClick={e => { e.stopPropagation(); onClear() }} style={{ cursor: 'pointer', opacity: 0.7 }} />
+          : <ChevronDown size={11} style={{ opacity: 0.5 }} />
+        }
+      </button>
+
+      {open && (
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, marginTop: 4, zIndex: 200,
+          background: 'var(--surface)', border: '1px solid var(--border)',
+          borderRadius: 10, boxShadow: 'var(--shadow)', minWidth: 200, maxHeight: 300,
+          overflowY: 'auto', padding: 4,
+        }}>
+          {options.map(opt => {
+            const checked = selected.includes(opt)
+            return (
+              <button
+                key={opt}
+                onClick={() => onToggle(opt)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  width: '100%', padding: '7px 10px', fontSize: 13,
+                  border: 'none', background: checked ? 'var(--accent-bg)' : 'transparent',
+                  color: checked ? 'var(--accent-dark)' : 'var(--text)',
+                  borderRadius: 7, cursor: 'pointer', textAlign: 'left',
+                  fontFamily: 'var(--font-sans)',
+                }}
+                onMouseEnter={e => { if (!checked) e.currentTarget.style.background = 'var(--surface2)' }}
+                onMouseLeave={e => { if (!checked) e.currentTarget.style.background = 'transparent' }}
+              >
+                <span style={{
+                  width: 14, height: 14, borderRadius: 3, flexShrink: 0,
+                  border: `1.5px solid ${checked ? 'var(--accent)' : 'var(--border)'}`,
+                  background: checked ? 'var(--accent)' : 'transparent',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  {checked && <svg width="9" height="7" viewBox="0 0 9 7" fill="none"><path d="M1 3.5L3.5 6L8 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                </span>
+                {opt}
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
 
 // Param names in the URL
 const P = { search: 'q', college: 'college', year: 'year', cycle: 'cycle', sector: 'sector', program: 'program', iift: 'iift', view: 'view' }
@@ -37,7 +116,9 @@ export default function IntelPage() {
   const college    = searchParams.get(P.college) || ''
   const year       = searchParams.get(P.year)    || ''
   const cycle      = searchParams.get(P.cycle)   || ''
-  const sector     = searchParams.get(P.sector)  || ''
+  // sector is multi-select: stored as comma-separated in URL, parsed to array
+  const sectorRaw  = searchParams.get(P.sector)  || ''
+  const sectors_selected = sectorRaw ? sectorRaw.split(',').filter(Boolean) : []
   const program    = searchParams.get(P.program) || ''
   const iiftFilter = searchParams.get(P.iift)    || ''
   const viewMode   = searchParams.get(P.view)    || VIEW.TABLE
@@ -59,7 +140,13 @@ export default function IntelPage() {
   const setCollege    = v => setParam(P.college, v)
   const setYear       = v => setParam(P.year, v)
   const setCycle      = v => setParam(P.cycle, v)
-  const setSector     = v => setParam(P.sector, v)
+  const toggleSector  = v => {
+    const next = sectors_selected.includes(v)
+      ? sectors_selected.filter(s => s !== v)
+      : [...sectors_selected, v]
+    setParam(P.sector, next.join(','))
+  }
+  const clearSectors  = () => setParam(P.sector, '')
   const setProgram    = v => setParam(P.program, v)
   const setIiftFilter = v => setParam(P.iift, v)
   const setViewMode   = v => setParam(P.view, v === VIEW.TABLE ? '' : v)
@@ -86,8 +173,8 @@ export default function IntelPage() {
   }, [search])
 
   const filtered = useMemo(() => filterIntelRecords(records, {
-    search: debouncedSearch, college, year, cycle, sector, program, iiftFilter,
-  }), [records, debouncedSearch, college, year, cycle, sector, program, iiftFilter])
+    search: debouncedSearch, college, year, cycle, sector: sectors_selected, program, iiftFilter,
+  }), [records, debouncedSearch, college, year, cycle, sectorRaw, program, iiftFilter])
 
   const companies = useMemo(() => aggregateByCompany(filtered), [filtered])
 
@@ -120,7 +207,7 @@ export default function IntelPage() {
     setSearchParams({}, { replace: true })
   }
 
-  const hasFilters = search || college || year || cycle || sector || program || iiftFilter
+  const hasFilters = search || college || year || cycle || sectorRaw || program || iiftFilter
 
   if (error) {
     return (
@@ -210,10 +297,12 @@ export default function IntelPage() {
           {cycles.map(c => <option key={c} value={c}>{c}</option>)}
         </Select>
 
-        <Select value={sector} onChange={e => setSector(e.target.value)} style={{ width: 'auto' }}>
-          <option value="">All sectors</option>
-          {sectors.map(s => <option key={s} value={s}>{s}</option>)}
-        </Select>
+        <SectorMultiSelect
+          options={sectors}
+          selected={sectors_selected}
+          onToggle={toggleSector}
+          onClear={clearSectors}
+        />
 
         <Select value={program} onChange={e => setProgram(e.target.value)} style={{ width: 'auto' }}>
           <option value="">All programs</option>

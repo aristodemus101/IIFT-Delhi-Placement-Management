@@ -121,12 +121,16 @@ export function useIntel({ students = [] } = {}) {
 // Extracted so IntelPage can keep filter state without re-running the subscription.
 export function filterIntelRecords(records, { search, college, year, cycle, sector, program, iiftFilter }) {
   const q = (search || '').toLowerCase().trim()
+  // sector may be a string (legacy / URL param) or an array of strings
+  const sectorSet = Array.isArray(sector)
+    ? new Set(sector.filter(Boolean))
+    : sector ? new Set([sector]) : null
 
   return records.filter(r => {
-    if (college && r.collegeName !== college) return false
-    if (year    && r.placementYear !== Number(year)) return false
-    if (cycle   && (r.placementCycle || '').toLowerCase() !== cycle.toLowerCase()) return false
-    if (sector  && r.sector !== sector) return false
+    if (college    && r.collegeName !== college) return false
+    if (year       && r.placementYear !== Number(year)) return false
+    if (cycle      && (r.placementCycle || '').toLowerCase() !== cycle.toLowerCase()) return false
+    if (sectorSet  && sectorSet.size > 0 && !sectorSet.has(r.sector)) return false
     if (program && r.program !== program) return false
     if (iiftFilter === 'gap'     && r._iiftStatus !== 'gap') return false
     if (iiftFilter === 'at_iift' && r._iiftStatus !== 'at_iift') return false
