@@ -845,8 +845,8 @@ export default function AdminPage() {
                           <Database size={12} /> Clear
                         </Btn>
                       )}
-                      {isMasterAdmin && (
-                        <Btn size="sm" variant="danger" onClick={() => handleDeleteCohort(b.id)} disabled={cohortBusy} title="Permanently delete cohort and all students">
+                      {(isMasterAdmin || count === 0) && isAdmin && (
+                        <Btn size="sm" variant="danger" onClick={() => handleDeleteCohort(b.id)} disabled={cohortBusy} title={count === 0 ? 'Delete empty cohort' : 'Permanently delete cohort and all students'}>
                           <Trash2 size={12} />
                         </Btn>
                       )}
