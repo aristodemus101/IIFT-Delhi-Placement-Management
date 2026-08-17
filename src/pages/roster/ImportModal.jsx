@@ -4,12 +4,21 @@ import CohortPicker from '../../components/CohortPicker'
 import { Btn, Modal, Spinner } from '../../components/UI'
 import { Upload, CheckCircle } from 'lucide-react'
 
-export function ImportCohortNote({ cohortId, students }) {
+export function ImportCohortNote({ cohortId, students, replaceOnImport }) {
   const count = students.filter(s => (s.cohort || 'unknown') === cohortId).length
+  const hasExisting = count > 0
+  const willDuplicate = hasExisting && !replaceOnImport
   return (
-    <div style={{ fontSize: 13, color: 'var(--text-2)', padding: '8px 12px', background: 'var(--surface2)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
-      {count > 0
-        ? <>Adding to existing: <strong>{cohortLabel(cohortId)}</strong> ({count} students already)</>
+    <div style={{
+      fontSize: 13, padding: '8px 12px', borderRadius: 'var(--radius-sm)',
+      border: `1px solid ${willDuplicate ? 'var(--red-border)' : 'var(--border)'}`,
+      background: willDuplicate ? 'var(--red-bg)' : 'var(--surface2)',
+      color: willDuplicate ? 'var(--red-text)' : 'var(--text-2)',
+    }}>
+      {hasExisting
+        ? willDuplicate
+          ? <><strong>Warning:</strong> {count} students already in this cohort. Check "Replace existing" or you will add duplicates.</>
+          : <>Replacing: <strong>{cohortLabel(cohortId)}</strong> ({count} students will be cleared first)</>
         : <>Will create new cohort: <strong>{cohortLabel(cohortId || '…')}</strong></>
       }
     </div>
@@ -79,19 +88,26 @@ export default function ImportModal({
             </div>
           </label>
 
-          <ImportCohortNote cohortId={importCohort || selectedCohort} students={students} />
-
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, color: 'var(--text-2)', padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: replaceOnImport ? 'var(--amber-bg)' : 'var(--surface2)' }}>
             <input type="checkbox" checked={replaceOnImport} onChange={e => setReplaceOnImport(e.target.checked)} />
             Replace existing students in this cohort on import
           </label>
 
-          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-            <Btn onClick={onClose}>Cancel</Btn>
-            <Btn variant="primary" onClick={onChooseFile} disabled={!importCohort}>
-              <Upload size={13} /> Choose File →
-            </Btn>
-          </div>
+          <ImportCohortNote cohortId={importCohort || selectedCohort} students={students} replaceOnImport={replaceOnImport} />
+
+          {(() => {
+            const cohortId = importCohort || selectedCohort
+            const existingCount = students.filter(s => (s.cohort || 'unknown') === cohortId).length
+            const blocked = !!cohortId && existingCount > 0 && !replaceOnImport
+            return (
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                <Btn onClick={onClose}>Cancel</Btn>
+                <Btn variant="primary" onClick={onChooseFile} disabled={!importCohort || blocked} title={blocked ? 'Check "Replace existing" to continue' : undefined}>
+                  <Upload size={13} /> Choose File →
+                </Btn>
+              </div>
+            )
+          })()}
         </div>
       )}
 
