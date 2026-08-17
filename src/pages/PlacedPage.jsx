@@ -294,7 +294,7 @@ export default function PlacedPage() {
       gender:   <span style={{ color: 'var(--text-2)' }}>{getVal(s, 'gender')}</span>,
       cat:      <strong>{parseFloat(getVal(s, 'cat')).toFixed(2) || '—'}</strong>,
       category: <CategoryBadge category={getVal(s, 'category')} />,
-      wx:       <span>{getVal(s, 'wx') || '0'} mo</span>,
+      wx:       <span>{getVal(s, 'wx') ? `${getVal(s, 'wx')} mo` : '—'}</span>,
       company:  canSeePlacement ? (
         <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 20, fontSize: 12, background: selectedSeason === 'summer' ? 'var(--amber-bg)' : 'var(--green-bg)', color: selectedSeason === 'summer' ? 'var(--amber-text)' : 'var(--green-text)', border: `1px solid ${selectedSeason === 'summer' ? 'var(--amber)' : 'var(--green-border)'}`, fontWeight: 500 }}>
           {company}

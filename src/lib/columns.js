@@ -35,7 +35,7 @@ function pickDate(r, ...headers) {
 
 export const OUR_COLS = [
   { key: 'course', label: 'Course', path: r => pick(r, 'Course') },
-  { key: 'roll', label: 'Roll No.', path: r => pick(r, 'Roll No.') },
+  { key: 'roll', label: 'Roll No.', path: r => pick(r, 'Roll No.', 'Roll') },
   { key: 'firstName', label: 'First Name', path: r => pick(r, 'First Name') },
   { key: 'middleName', label: 'Middle Name', path: r => pick(r, 'Middle Name') },
   { key: 'lastName', label: 'Last Name', path: r => pick(r, 'Last Name') },

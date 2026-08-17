@@ -135,8 +135,8 @@ export default function PlaceModal({ student, season, setSeason, cohortCycle, fo
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <div>
-              <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Package</label>
-              <Input value={form.package} onChange={e => setForm(f => ({ ...f, package: e.target.value }))} placeholder="e.g. 32 LPA" style={{ width: '100%' }} />
+              <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>{season === 'summer' ? 'Stipend / month' : 'Package'}</label>
+              <Input value={form.package} onChange={e => setForm(f => ({ ...f, package: e.target.value }))} placeholder={season === 'summer' ? 'e.g. 25,000 or 2.5 LPA/mo' : 'e.g. 32 LPA'} style={{ width: '100%' }} />
             </div>
             <div>
               <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Location</label>
@@ -148,12 +148,12 @@ export default function PlaceModal({ student, season, setSeason, cohortCycle, fo
           </div>
 
           <div>
-            <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Extra notes about CTC structure</label>
+            <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>{season === 'summer' ? 'Roles & Responsibilities' : 'Extra notes about CTC structure'}</label>
             <textarea
               value={form.ctcNotes}
               onChange={e => setForm(f => ({ ...f, ctcNotes: e.target.value }))}
               rows={3}
-              placeholder="Fixed pay, variable, joining bonus, retention, ESOP etc."
+              placeholder={season === 'summer' ? 'Brief description of internship role…' : 'Fixed pay, variable, joining bonus, retention, ESOP etc.'}
               style={{
                 width: '100%', padding: '8px 10px', borderRadius: 'var(--radius-sm)',
                 border: '1px solid var(--border)', background: 'var(--surface)',
