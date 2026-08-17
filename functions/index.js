@@ -4,7 +4,12 @@ const { getFirestore }       = require('firebase-admin/firestore')
 
 initializeApp()
 
-const SHEET_ID = '1vItl6Nbb7_zQNzuXTgooGYXC1ir---msiUf5E-Rkx94'
+// Per-year playground sheet IDs (service account must have editor access on each)
+const PLAYGROUND_SHEET_IDS = {
+  '27': '1vItl6Nbb7_zQNzuXTgooGYXC1ir---msiUf5E-Rkx94',
+  '28': '145E7AxnihIY4KuHfpuLJG2Z0km64oRWk',
+}
+const DEFAULT_SHEET_ID = PLAYGROUND_SHEET_IDS['27']
 
 // Fetch an access token from the GCE metadata server (works in Cloud Run / Gen 2 functions)
 async function getAccessToken() {
@@ -18,8 +23,8 @@ async function getAccessToken() {
 }
 
 // Minimal Sheets API wrapper using plain fetch + access token
-async function sheetsRequest(token, method, path, body) {
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}${path}`
+async function sheetsRequest(token, sheetId, method, path, body) {
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}${path}`
   const res = await fetch(url, {
     method,
     headers: {
@@ -51,9 +56,12 @@ const ALLOWED_ORIGINS = [
 exports.pushFilteredToSheet = onCall({ region: 'asia-south1', invoker: 'public', cors: ALLOWED_ORIGINS }, async (request) => {
   await assertAdmin(request.auth)
 
-  const { rows, headers, label } = request.data
+  const { rows, headers, label, yearCode } = request.data
   if (!Array.isArray(rows) || !rows.length)       throw new HttpsError('invalid-argument', 'No rows provided')
   if (!Array.isArray(headers) || !headers.length) throw new HttpsError('invalid-argument', 'No headers provided')
+
+  // Resolve which sheet to write to based on year code (e.g. '27', '28')
+  const spreadsheetId = (yearCode && PLAYGROUND_SHEET_IDS[yearCode]) || DEFAULT_SHEET_ID
 
   const now      = new Date()
   const timePart = now.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false }).replace(':', '')
@@ -69,7 +77,7 @@ exports.pushFilteredToSheet = onCall({ region: 'asia-south1', invoker: 'public',
   // Create new tab
   let newSheetId
   try {
-    const addRes = await sheetsRequest(token, 'POST', ':batchUpdate', {
+    const addRes = await sheetsRequest(token, spreadsheetId, 'POST', ':batchUpdate', {
       requests: [{ addSheet: { properties: { title: tabName } } }]
     })
     newSheetId = addRes.replies[0].addSheet.properties.sheetId
@@ -79,7 +87,7 @@ exports.pushFilteredToSheet = onCall({ region: 'asia-south1', invoker: 'public',
 
   // Write data
   try {
-    await sheetsRequest(token, 'PUT',
+    await sheetsRequest(token, spreadsheetId, 'PUT',
       `/values/'${tabName}'!A1?valueInputOption=USER_ENTERED`,
       { values: [headers, ...rows] }
     )
@@ -89,7 +97,7 @@ exports.pushFilteredToSheet = onCall({ region: 'asia-south1', invoker: 'public',
 
   // Style header row
   try {
-    await sheetsRequest(token, 'POST', ':batchUpdate', {
+    await sheetsRequest(token, spreadsheetId, 'POST', ':batchUpdate', {
       requests: [
         {
           repeatCell: {
@@ -122,7 +130,8 @@ exports.pushFilteredToSheet = onCall({ region: 'asia-south1', invoker: 'public',
 
   return {
     tabName,
-    sheetUrl: `https://docs.google.com/spreadsheets/d/${SHEET_ID}/edit#gid=${newSheetId}`,
+    sheetUrl: `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit#gid=${newSheetId}`,
     rowCount: rows.length,
+    yearCode: yearCode || '27',
   }
 })

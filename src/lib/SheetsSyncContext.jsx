@@ -16,13 +16,20 @@ export function SheetsSyncProvider({ children }) {
   const [syncing, setSyncing]       = useState(false)
   const [playgroundUrl, setPlaygroundUrl] = useState(null)
   const [playgroundPushing, setPlaygroundPushing] = useState(false)
+  // Per-year playground URLs — keyed by yearCode (e.g. '27', '28')
+  const [playgroundUrls, setPlaygroundUrls] = useState({})
 
-  // Subscribe to playground URL from Firestore so all users see it live
+  // Subscribe to all per-year playground docs so all users see live URLs
   useEffect(() => {
-    const unsub = onSnapshot(doc(db, 'config', 'playground'), snap => {
-      if (snap.exists()) setPlaygroundUrl(snap.data().sheetUrl || null)
-    }, () => {})
-    return unsub
+    const years = ['27', '28']
+    const unsubs = years.map(yr =>
+      onSnapshot(doc(db, 'config', `playground_${yr}`), snap => {
+        if (snap.exists()) {
+          setPlaygroundUrls(prev => ({ ...prev, [yr]: snap.data().sheetUrl || null }))
+        }
+      }, () => {})
+    )
+    return () => unsubs.forEach(u => u())
   }, [])
 
   // Pop a Google consent dialog requesting Sheets + Drive.file scopes.
@@ -69,19 +76,22 @@ export function SheetsSyncProvider({ children }) {
     }
   }, [token, sheetId])
 
-  // pushToPlayground — now uses Cloud Function + service account (no OAuth needed)
-  // rows/headers are passed in from the caller (filtered roster view)
-  const pushToPlayground = useCallback(async ({ rows, headers, label }) => {
+  // pushToPlayground — uses Cloud Function + service account (no OAuth needed)
+  // yearCode: '27' | '28' — selects the right playground sheet
+  const pushToPlayground = useCallback(async ({ rows, headers, label, yearCode }) => {
     setPlaygroundPushing(true)
     try {
-      const result = await callPushFilteredToSheet({ rows, headers, label })
-      const { tabName, sheetUrl, rowCount } = result.data
-      await setDoc(doc(db, 'config', 'playground'), {
+      const result = await callPushFilteredToSheet({ rows, headers, label, yearCode })
+      const { tabName, sheetUrl, rowCount, yearCode: resolvedYear } = result.data
+      const yr = resolvedYear || yearCode || '27'
+      await setDoc(doc(db, 'config', `playground_${yr}`), {
         sheetUrl,
         tabName,
         pushedAt: new Date().toISOString(),
         count: rowCount,
+        yearCode: yr,
       })
+      setPlaygroundUrls(prev => ({ ...prev, [yr]: sheetUrl }))
       setPlaygroundUrl(sheetUrl)
       return { sheetUrl, tabName, count: rowCount }
     } finally {
@@ -110,6 +120,7 @@ export function SheetsSyncProvider({ children }) {
       lastSync,
       syncing,
       playgroundUrl,
+      playgroundUrls, // per-year: { '27': url, '28': url }
       playgroundPushing,
       authorize,
       appendChange,

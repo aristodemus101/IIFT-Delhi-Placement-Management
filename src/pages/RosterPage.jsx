@@ -39,7 +39,10 @@ export default function RosterPage() {
   const { propose, changes } = usePendingChanges()
   const { isAdmin, user } = useAuth()
   const { canDo } = usePermissions()
-  const { playgroundUrl, playgroundPushing, pushToPlayground, connected: sheetsConnected } = useSheetsSync()
+  const { playgroundUrls, playgroundPushing, pushToPlayground, connected: sheetsConnected } = useSheetsSync()
+  // Derive yearCode: prefer explicit year filter, fall back to first scoped cohort's year segment
+  const yearCode = selectedYearCode || (scopedCohorts[0] ? scopedCohorts[0].split('-')[0] : '27')
+  const playgroundUrl = playgroundUrls?.[yearCode] || null
   const { setWorkspaceActions } = useOutletContext()
 
   // Modal / UI state
@@ -290,7 +293,7 @@ export default function RosterPage() {
       const label = `${cohortPart} · ${dateStr}`
       const rows = exportRows.map(r => visibleDefs.map(d => r[d.label] ?? ''))
       const headers = visibleDefs.map(d => d.label)
-      const { sheetUrl, tabName, count } = await pushToPlayground({ rows, headers, label })
+      const { sheetUrl, tabName, count } = await pushToPlayground({ rows, headers, label, yearCode })
       setPlaygroundMsg(`✓ ${count} rows pushed as "${tabName}"`)
       setTimeout(() => setPlaygroundMsg(''), 8000)
     } catch (e) { setPlaygroundMsg('Error: ' + e.message) }
