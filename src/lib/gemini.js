@@ -206,14 +206,38 @@ Return ONLY the message text — no explanation, no markdown code block, no prea
   return forcedHeader ? forceFirstLine(message, forcedHeader) : message
 }
 
+// Extract alternate header names from OUR_COLS path function bodies.
+// pick(r, 'A', 'B', 'C') → ['A', 'B', 'C']
+function extractPickArgs(fn) {
+  try {
+    const src = fn.toString()
+    const matches = [...src.matchAll(/pick\s*\([^)]+\)/g)]
+    const args = []
+    for (const m of matches) {
+      const inner = m[0].replace(/pick\s*\(r\s*,\s*/, '').replace(/\)$/, '')
+      inner.split(',').forEach(s => {
+        const val = s.trim().replace(/^['"]|['"]$/g, '')
+        if (val) args.push(val)
+      })
+    }
+    return [...new Set(args)]
+  } catch {
+    return []
+  }
+}
+
 export async function geminiAutoMap(companyCols, ourCols) {
-  const colList = ourCols.map(c => `${c.key}: ${c.label}`).join('\n')
+  const colList = ourCols.map(c => {
+    const aliases = extractPickArgs(c.path).filter(a => a !== c.label)
+    const aliasStr = aliases.length ? ` (also: ${aliases.slice(0, 4).join(', ')})` : ''
+    return `${c.key}: ${c.label}${aliasStr}`
+  }).join('\n')
   const prompt = `You are mapping company CSV column headers to a canonical student database schema for IIFT Delhi MBA placements.
 
 COMPANY COLUMNS (what the company sent):
 ${companyCols.map((c, i) => `${i}: ${c}`).join('\n')}
 
-OUR CANONICAL COLUMNS (key: label):
+OUR CANONICAL COLUMNS (key: label with known aliases):
 ${colList}
 
 Rules:

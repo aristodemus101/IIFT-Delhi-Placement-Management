@@ -37,6 +37,8 @@ export default function RemapperPage() {
   const [selProgramme, setSelProgramme] = useState('IB')
   const [selSection, setSelSection]   = useState('A')
   const [selEmails, setSelEmails]     = useState('')
+  // 'all' means all scoped cohorts; otherwise a specific cohort id
+  const [selCohort, setSelCohort]   = useState('all')
 
   // Template save
   const [saveModalOpen, setSaveModalOpen] = useState(false)
@@ -86,12 +88,12 @@ export default function RemapperPage() {
     setTimeout(() => setSavedMsg(''), 3000)
   }
 
-  // Base pool — students in the selected cohort scope
-  const scopedIds = new Set(scopedCohorts)
-  const scopedStudents = useMemo(() =>
-    students.filter(s => scopedIds.size > 0 && scopedIds.has(s.cohort || 'unknown')),
-    [students, scopedCohorts]
-  )
+  // Base pool — students in the selected cohort scope (or a specific cohort)
+  const scopedStudents = useMemo(() => {
+    if (!scopedCohorts.length) return []
+    const ids = selCohort === 'all' ? new Set(scopedCohorts) : new Set([selCohort])
+    return students.filter(s => ids.has(s.cohort || 'unknown'))
+  }, [students, scopedCohorts, selCohort])
 
   // Derive available sections from actual student data
   const availableSections = useMemo(() => {
@@ -300,6 +302,27 @@ export default function RemapperPage() {
               Step 3 — Select students &amp; export
             </div>
 
+            {/* Cohort selector — shown only when multiple cohorts are in scope */}
+            {scopedCohorts.length > 1 && (
+              <div style={{ marginBottom: 14, display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-2)', whiteSpace: 'nowrap' }}>Cohort:</span>
+                <select
+                  value={selCohort}
+                  onChange={e => setSelCohort(e.target.value)}
+                  style={{
+                    height: 30, padding: '0 8px', border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-sm)', background: 'var(--surface)',
+                    color: 'var(--text)', fontSize: 13, cursor: 'pointer', outline: 'none',
+                  }}
+                >
+                  <option value="all">All cohorts ({scopedCohorts.length})</option>
+                  {scopedCohorts.map(c => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap' }}>
               {/* Mode selector */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 200 }}>
@@ -387,12 +410,13 @@ export default function RemapperPage() {
                   variant="primary"
                   disabled={!selectedStudents.length}
                   onClick={() => {
-                    const label = selMode === 'ytp' ? 'unplaced'
+                    const modeLabel = selMode === 'ytp' ? 'unplaced'
                       : selMode === 'programme' ? selProgramme.toLowerCase()
                       : selMode === 'section' ? `section_${selSection.toLowerCase()}`
                       : selMode === 'email' ? 'custom'
                       : 'all'
-                    exportRemapped(selectedStudents, mappings, `${scopeLabel.replace(/\s+/g, '_')}_${label}.csv`)
+                    const cohortLabel = selCohort === 'all' ? scopeLabel : selCohort
+                    exportRemapped(selectedStudents, mappings, `${cohortLabel.replace(/\s+/g, '_')}_${modeLabel}.csv`)
                   }}
                 >
                   <Download size={13} /> Export {selectedStudents.length ? `(${selectedStudents.length})` : ''}

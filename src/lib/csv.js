@@ -257,16 +257,14 @@ export async function exportToExcel(rows, filename) {
 }
 
 export function exportRemapped(rows, mappings, filename) {
-  const headers = mappings.map(m => m.companyCol)
+  // Only include columns that are mapped — skip null ourKey entries entirely
+  const activeMappings = mappings.filter(m => m.ourKey)
+  const headers = activeMappings.map(m => m.companyCol)
   const clean = rows.map(s => {
     const obj = {}
-    mappings.forEach(m => {
-      if (m.ourKey) {
-        const col = OUR_COLS.find(c => c.key === m.ourKey)
-        obj[m.companyCol] = col ? (col.path(s) || '') : ''
-      } else {
-        obj[m.companyCol] = ''
-      }
+    activeMappings.forEach(m => {
+      const col = OUR_COLS.find(c => c.key === m.ourKey)
+      obj[m.companyCol] = col ? (col.path(s) || '') : ''
     })
     return obj
   })
