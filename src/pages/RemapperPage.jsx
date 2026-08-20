@@ -386,8 +386,7 @@ export default function RemapperPage() {
           {step > 1 ? (
             <Step1Summary companyCols={companyCols} onEdit={backToStep1} />
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 16, alignItems: 'start' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '18px 20px' }}>
                   <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>
                     Step 1 — Paste company columns
@@ -446,7 +445,6 @@ export default function RemapperPage() {
                     ))}
                   </div>
                 )}
-              </div>
             </div>
           )}
         </div>
