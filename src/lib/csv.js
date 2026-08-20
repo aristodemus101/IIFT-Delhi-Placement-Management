@@ -1,6 +1,5 @@
 // src/lib/csv.js
 import Papa from 'papaparse'
-import { OUR_COLS } from './columns'
 
 // xlsx is ~500 KB — import it dynamically so it only loads when a user
 // actually opens an Excel file or triggers an Excel export.
@@ -263,8 +262,10 @@ export function exportRemapped(rows, mappings, filename) {
   const clean = rows.map(s => {
     const obj = {}
     activeMappings.forEach(m => {
-      const col = OUR_COLS.find(c => c.key === m.ourKey)
-      obj[m.companyCol] = col ? (col.path(s) || '') : ''
+      // ourKey is a raw student doc key (e.g. "Total Work Experience (Months)")
+      // Direct lookup is correct — no OUR_COLS translation needed
+      const val = s[m.ourKey]
+      obj[m.companyCol] = (val !== undefined && val !== null) ? String(val) : ''
     })
     return obj
   })

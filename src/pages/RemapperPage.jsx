@@ -2,13 +2,13 @@ import React, { useState, useMemo, useRef, useEffect } from 'react'
 import { useTemplates } from '../lib/useStudents'
 import { useStudentsContext } from '../lib/StudentsContext'
 import { useBatch } from '../lib/BatchContext'
-import { autoMapColumns, OUR_COLS, getVal } from '../lib/columns'
+import { autoMapColumnsToRaw, getCohortColumns, OUR_COLS } from '../lib/columns'
 import { geminiAutoMap } from '../lib/gemini'
 import { exportRemapped } from '../lib/csv'
 import { parseCohortId, PROGRAMMES } from '../lib/batch'
-import { PageHeader, Btn, Badge, Input, Select, Spinner, Modal } from '../components/UI'
+import { PageHeader, Btn, Input, Spinner, Modal } from '../components/UI'
 import {
-  ArrowRight, ArrowLeft, Wand2, Download, Save, Trash2,
+  ArrowLeft, Wand2, Download, Save, Trash2,
   LayoutTemplate, CheckCircle, Users, RotateCcw, Lock, ChevronRight,
 } from 'lucide-react'
 
@@ -18,11 +18,12 @@ function getSection(s) {
 
 // ─── Step progress bar ────────────────────────────────────────────────────────
 
+const STEP_LABELS = ['Pick cohort', 'Paste columns', 'Verify mappings', 'Select & export']
+
 function StepBar({ step }) {
-  const steps = ['Paste columns', 'Verify mappings', 'Select & export']
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 0, marginBottom: 20 }}>
-      {steps.map((label, i) => {
+      {STEP_LABELS.map((label, i) => {
         const n = i + 1
         const done   = n < step
         const active = n === step
@@ -50,11 +51,11 @@ function StepBar({ step }) {
                 {label}
               </span>
             </div>
-            {i < steps.length - 1 && (
+            {i < STEP_LABELS.length - 1 && (
               <div style={{
                 flex: 1, height: 2, margin: '0 10px',
                 background: done ? 'var(--green)' : 'var(--border)',
-                minWidth: 24,
+                minWidth: 16,
               }} />
             )}
           </React.Fragment>
@@ -64,25 +65,57 @@ function StepBar({ step }) {
   )
 }
 
-// ─── Step 1 summary card (shown when step > 1) ───────────────────────────────
+// ─── Locked step placeholder ──────────────────────────────────────────────────
 
-function Step1Summary({ companyCols, onEdit }) {
+function LockedStep({ n, label }) {
+  return (
+    <div style={{
+      background: 'var(--surface2)', border: '1px solid var(--border)',
+      borderRadius: 'var(--radius)', padding: '14px 18px',
+      display: 'flex', alignItems: 'center', gap: 10, opacity: 0.55,
+    }}>
+      <Lock size={13} color="var(--text-3)" />
+      <span style={{ fontSize: 13, color: 'var(--text-3)' }}>Step {n} — {label}</span>
+    </div>
+  )
+}
+
+// ─── Summary cards for completed steps ───────────────────────────────────────
+
+function Step1Summary({ selCohorts, cohortCols, onEdit }) {
+  const label = selCohorts.length === 0 ? 'no cohort'
+    : selCohorts.length === 1 ? selCohorts[0]
+    : `${selCohorts.length} cohorts`
   return (
     <div style={{
       background: 'var(--surface)', border: '1px solid var(--green-border)',
       borderRadius: 'var(--radius)', padding: '14px 18px',
       display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16,
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         <CheckCircle size={15} color="var(--green)" style={{ flexShrink: 0 }} />
-        <div>
-          <span style={{ fontSize: 13, fontWeight: 600 }}>Step 1 — Columns pasted</span>
-          <span style={{ fontSize: 12, color: 'var(--text-3)', marginLeft: 10 }}>
-            {companyCols.length} column{companyCols.length !== 1 ? 's' : ''}
-          </span>
-        </div>
-        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', maxWidth: 420 }}>
-          {companyCols.slice(0, 5).map(c => (
+        <span style={{ fontSize: 13, fontWeight: 600 }}>Step 1 — {label}</span>
+        <span style={{ fontSize: 12, color: 'var(--text-3)' }}>{cohortCols.length} columns available</span>
+      </div>
+      <Btn size="sm" variant="ghost" onClick={onEdit}>
+        <ArrowLeft size={12} /> Change cohort
+      </Btn>
+    </div>
+  )
+}
+
+function Step2Summary({ companyCols, onEdit }) {
+  return (
+    <div style={{
+      background: 'var(--surface)', border: '1px solid var(--green-border)',
+      borderRadius: 'var(--radius)', padding: '14px 18px',
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <CheckCircle size={15} color="var(--green)" style={{ flexShrink: 0 }} />
+        <span style={{ fontSize: 13, fontWeight: 600 }}>Step 2 — {companyCols.length} company columns</span>
+        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', maxWidth: 380 }}>
+          {companyCols.slice(0, 4).map(c => (
             <span key={c} style={{
               fontSize: 11, fontFamily: 'var(--font-mono)',
               padding: '1px 6px', borderRadius: 3,
@@ -90,8 +123,8 @@ function Step1Summary({ companyCols, onEdit }) {
               color: 'var(--text-2)', whiteSpace: 'nowrap',
             }}>{c}</span>
           ))}
-          {companyCols.length > 5 && (
-            <span style={{ fontSize: 11, color: 'var(--text-3)' }}>+{companyCols.length - 5} more</span>
+          {companyCols.length > 4 && (
+            <span style={{ fontSize: 11, color: 'var(--text-3)' }}>+{companyCols.length - 4} more</span>
           )}
         </div>
       </div>
@@ -102,9 +135,7 @@ function Step1Summary({ companyCols, onEdit }) {
   )
 }
 
-// ─── Step 2 summary card (shown when step > 2) ───────────────────────────────
-
-function Step2Summary({ mappings, onEdit }) {
+function Step3Summary({ mappings, onEdit }) {
   const autoCount   = mappings.filter(m => m.auto && m.ourKey).length
   const manualCount = mappings.filter(m => !m.auto && m.ourKey).length
   const skipCount   = mappings.filter(m => !m.ourKey).length
@@ -112,11 +143,11 @@ function Step2Summary({ mappings, onEdit }) {
     <div style={{
       background: 'var(--surface)', border: '1px solid var(--green-border)',
       borderRadius: 'var(--radius)', padding: '14px 18px',
-      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16,
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         <CheckCircle size={15} color="var(--green)" style={{ flexShrink: 0 }} />
-        <span style={{ fontSize: 13, fontWeight: 600 }}>Step 2 — Mappings confirmed</span>
+        <span style={{ fontSize: 13, fontWeight: 600 }}>Step 3 — Mappings confirmed</span>
         <span style={{ padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 500, background: 'var(--green-bg)', color: 'var(--green-text)', border: '1px solid var(--green-border)' }}>
           ✓ {autoCount} auto
         </span>
@@ -138,22 +169,7 @@ function Step2Summary({ mappings, onEdit }) {
   )
 }
 
-// ─── Locked step placeholder ──────────────────────────────────────────────────
-
-function LockedStep({ n, label }) {
-  return (
-    <div style={{
-      background: 'var(--surface2)', border: '1px solid var(--border)',
-      borderRadius: 'var(--radius)', padding: '14px 18px',
-      display: 'flex', alignItems: 'center', gap: 10, opacity: 0.55,
-    }}>
-      <Lock size={13} color="var(--text-3)" />
-      <span style={{ fontSize: 13, color: 'var(--text-3)' }}>Step {n} — {label}</span>
-    </div>
-  )
-}
-
-// ─── Main page ────────────────────────────────────────────────────────────────
+// ─── Selection mode constants ─────────────────────────────────────────────────
 
 const SELECTION_MODES = [
   { value: 'all',       label: 'All students' },
@@ -163,79 +179,111 @@ const SELECTION_MODES = [
   { value: 'email',     label: 'By email list' },
 ]
 
+// ─── Main page ────────────────────────────────────────────────────────────────
+
 export default function RemapperPage() {
   const { students, loading } = useStudentsContext()
   const { templates, saveTemplate, deleteTemplate } = useTemplates()
   const { scopedCohorts } = useBatch()
 
-  // ── Wizard step (1 | 2 | 3) ──────────────────────────────────────────────
+  // ── Wizard step (1 | 2 | 3 | 4) ─────────────────────────────────────────
   const [step, setStep] = useState(1)
 
-  // ── Step 1 state ─────────────────────────────────────────────────────────
+  // ── Step 1 state: which cohorts to draw columns from ─────────────────────
+  // Multi-select: set of cohort ids. Empty = none chosen yet.
+  const [selCohorts, setSelCohorts] = useState([])
+
+  // ── Step 2 state: company columns (raw text) ──────────────────────────────
   const [rawCols, setRawCols]         = useState('')
   const [autoMapping, setAutoMapping] = useState(false)
   const [autoMapErr, setAutoMapErr]   = useState('')
 
-  // ── Step 2 state ─────────────────────────────────────────────────────────
+  // ── Step 3 state: mappings ────────────────────────────────────────────────
   const [mappings, setMappings] = useState(null)
 
-  // ── Step 3 state ─────────────────────────────────────────────────────────
+  // ── Step 4 state: student selection ──────────────────────────────────────
   const [selMode, setSelMode]           = useState('all')
   const [selProgramme, setSelProgramme] = useState('IB')
   const [selSection, setSelSection]     = useState('A')
   const [selEmails, setSelEmails]       = useState('')
-  const [selCohort, setSelCohort]       = useState('all')
 
   // ── Template save modal ──────────────────────────────────────────────────
   const [saveModalOpen, setSaveModalOpen] = useState(false)
-  // templateName intentionally persists between modal opens — cleared only on successful save
   const [templateName, setTemplateName]   = useState('')
   const [savedMsg, setSavedMsg]           = useState('')
 
-  // ── Confirm dialog state (used for destructive back/reset actions) ───────
+  // ── Confirm dialog ───────────────────────────────────────────────────────
   const [confirmDialog, setConfirmDialog] = useState(null)
-  // confirmDialog: { message, onConfirm } | null
 
   const step1Ref = useRef(null)
   const step2Ref = useRef(null)
   const step3Ref = useRef(null)
+  const step4Ref = useRef(null)
 
-  // Scroll to active step on advance
   useEffect(() => {
-    const ref = step === 1 ? step1Ref : step === 2 ? step2Ref : step3Ref
-    ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    const refs = [null, step1Ref, step2Ref, step3Ref, step4Ref]
+    refs[step]?.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }, [step])
+
+  // ── Seed selCohorts from scoped cohorts on first load ────────────────────
+  useEffect(() => {
+    if (scopedCohorts.length > 0 && selCohorts.length === 0) {
+      // Default: if only one cohort in scope, pre-select it
+      if (scopedCohorts.length === 1) setSelCohorts([scopedCohorts[0]])
+    }
+  }, [scopedCohorts]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Derive actual column headers from selected cohorts ────────────────────
+  const cohortCols = useMemo(() => {
+    if (!selCohorts.length) return []
+    return getCohortColumns(students, selCohorts)
+  }, [students, selCohorts])
 
   const companyCols = useMemo(() =>
     rawCols.split(/[\n,]+/).map(s => s.trim()).filter(Boolean),
     [rawCols]
   )
 
-  // ── Auto-map (Step 1 → Step 2) ───────────────────────────────────────────
+  const scopeLabel = selCohorts.length === 1
+    ? selCohorts[0]
+    : selCohorts.length > 1
+      ? `${selCohorts.length} cohorts`
+      : scopedCohorts.length === 1
+        ? scopedCohorts[0]
+        : `${scopedCohorts.length} cohorts`
 
+  // ── Toggle cohort selection ───────────────────────────────────────────────
+  const toggleCohort = (cohortId) => {
+    setSelCohorts(prev =>
+      prev.includes(cohortId) ? prev.filter(c => c !== cohortId) : [...prev, cohortId]
+    )
+  }
+
+  // ── Step 1 → 2 ───────────────────────────────────────────────────────────
+  const confirmCohort = () => setStep(2)
+
+  // ── Step 2: auto-map ─────────────────────────────────────────────────────
   const doAutoMap = async () => {
-    if (!companyCols.length) return
+    if (!companyCols.length || !cohortCols.length) return
     setAutoMapErr('')
     const geminiKey = import.meta.env.VITE_GEMINI_KEY
     setAutoMapping(true)
     try {
       const result = geminiKey
-        ? await geminiAutoMap(companyCols, OUR_COLS)
-        : autoMapColumns(companyCols)
+        ? await geminiAutoMap(companyCols, cohortCols)
+        : autoMapColumnsToRaw(companyCols, cohortCols)
       setMappings(result)
-      setStep(2)
+      setStep(3)
     } catch (e) {
-      console.error('Gemini auto-map failed, falling back to synonym match:', e)
+      console.error('Gemini auto-map failed, falling back to fuzzy match:', e)
       setAutoMapErr('AI mapping failed — used keyword fallback instead.')
-      setMappings(autoMapColumns(companyCols))
-      setStep(2)
+      setMappings(autoMapColumnsToRaw(companyCols, cohortCols))
+      setStep(3)
     } finally {
       setAutoMapping(false)
     }
   }
 
-  // If mappings already exist and the user clicks auto-map again (back in step 1),
-  // warn them first.
   const handleAutoMap = () => {
     if (mappings) {
       setConfirmDialog({
@@ -248,18 +296,17 @@ export default function RemapperPage() {
   }
 
   const setMapping = (i, key) => {
-    setMappings(prev => prev.map((m, idx) => idx === i ? { ...m, ourKey: key, auto: false } : m))
+    setMappings(prev => prev.map((m, idx) => idx === i ? { ...m, ourKey: key || null, auto: false } : m))
   }
 
   // ── Template ops ─────────────────────────────────────────────────────────
-
   const loadTemplate = (t) => {
     const doLoad = () => {
       setMappings(t.mappings)
       setRawCols(t.mappings.map(m => m.companyCol).join('\n'))
-      setStep(2)
+      setStep(3)
     }
-    if (mappings && step >= 2) {
+    if (mappings && step >= 3) {
       setConfirmDialog({
         message: `Loading "${t.name}" will replace your current mappings. Continue?`,
         onConfirm: doLoad,
@@ -273,14 +320,14 @@ export default function RemapperPage() {
     if (!templateName.trim()) return
     await saveTemplate(templateName.trim(), mappings)
     setSavedMsg(`Template "${templateName}" saved`)
-    setTemplateName('')  // clear name on successful save
+    setTemplateName('')
     setSaveModalOpen(false)
     setTimeout(() => setSavedMsg(''), 3000)
   }
 
   // ── Navigation ───────────────────────────────────────────────────────────
 
-  // Step 1 → back from step 2: keep rawCols, clear mappings
+  // Back 2 → 1: clears mappings (they were derived from cohort cols which may change)
   const backToStep1 = () => {
     setConfirmDialog({
       message: 'Going back will clear your current mappings. Continue?',
@@ -288,17 +335,26 @@ export default function RemapperPage() {
     })
   }
 
-  // Step 2 → back from step 3: no destructive change, no confirm needed
-  const backToStep2 = () => setStep(2)
+  // Back 3 → 2: clears mappings, no other state lost
+  const backToStep2 = () => {
+    setConfirmDialog({
+      message: 'Going back will clear your current mappings. Continue?',
+      onConfirm: () => { setMappings(null); setStep(2) },
+    })
+  }
 
-  // Step 2 → forward to step 3
-  const confirmMappings = () => setStep(3)
+  // Back 4 → 3: safe, no state lost
+  const backToStep3 = () => setStep(3)
+
+  // Step 3 → 4
+  const confirmMappings = () => setStep(4)
 
   // Full reset
   const doReset = () => {
     setConfirmDialog({
-      message: 'Start over? All columns, mappings, and selections will be cleared.',
+      message: 'Start over? All selections, columns, and mappings will be cleared.',
       onConfirm: () => {
+        setSelCohorts(scopedCohorts.length === 1 ? [scopedCohorts[0]] : [])
         setRawCols('')
         setMappings(null)
         setAutoMapErr('')
@@ -306,20 +362,18 @@ export default function RemapperPage() {
         setSelProgramme('IB')
         setSelSection('A')
         setSelEmails('')
-        setSelCohort('all')
         setSavedMsg('')
         setStep(1)
       },
     })
   }
 
-  // ── Student selection (Step 3) ────────────────────────────────────────────
+  // ── Student selection (Step 4) ────────────────────────────────────────────
 
   const scopedStudents = useMemo(() => {
-    if (!scopedCohorts.length) return []
-    const ids = selCohort === 'all' ? new Set(scopedCohorts) : new Set([selCohort])
+    const ids = new Set(selCohorts.length ? selCohorts : scopedCohorts)
     return students.filter(s => ids.has(s.cohort || 'unknown'))
-  }, [students, scopedCohorts, selCohort])
+  }, [students, selCohorts, scopedCohorts])
 
   const availableSections = useMemo(() => {
     const s = new Set(scopedStudents.map(getSection).filter(Boolean))
@@ -340,8 +394,8 @@ export default function RemapperPage() {
         )
         if (!emailSet.size) return []
         return scopedStudents.filter(s => {
-          const official = (getVal(s, 'official_email') || '').toLowerCase()
-          const personal = (getVal(s, 'email') || '').toLowerCase()
+          const official = (s['Official Email ID (d27/ba27)'] || s['Official Institute Email ID'] || '').toLowerCase()
+          const personal = (s['Personal Email ID'] || s['email'] || '').toLowerCase()
           return emailSet.has(official) || emailSet.has(personal)
         })
       }
@@ -349,12 +403,6 @@ export default function RemapperPage() {
         return scopedStudents
     }
   }, [scopedStudents, selMode, selProgramme, selSection, selEmails])
-
-  const scopeLabel = scopedCohorts.length === 1
-    ? scopedCohorts[0]
-    : scopedCohorts.length > 1
-      ? `${scopedCohorts.length} cohorts`
-      : 'no cohort'
 
   const autoCount   = mappings ? mappings.filter(m => m.auto && m.ourKey).length : 0
   const manualCount = mappings ? mappings.filter(m => !m.auto && m.ourKey).length : 0
@@ -381,54 +429,72 @@ export default function RemapperPage() {
           )}
         </div>
 
-        {/* ── Step 1 ───────────────────────────────────────────────────── */}
+        {/* ── Step 1: Pick cohort ────────────────────────────────────────── */}
         <div ref={step1Ref}>
           {step > 1 ? (
-            <Step1Summary companyCols={companyCols} onEdit={backToStep1} />
+            <Step1Summary selCohorts={selCohorts} cohortCols={cohortCols} onEdit={backToStep1} />
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '18px 20px' }}>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>
-                    Step 1 — Paste company columns
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Step 1 — Pick cohort
+              </div>
+              <p style={{ fontSize: 13, color: 'var(--text-2)', lineHeight: 1.6, margin: 0 }}>
+                Select the cohort(s) you're exporting for. The remapper will use their actual column headers in the mapping step.
+              </p>
+
+              {/* Cohort toggles */}
+              {scopedCohorts.length === 0 ? (
+                <div style={{ fontSize: 13, color: 'var(--text-3)' }}>No cohorts in scope. Use the cohort picker in the sidebar first.</div>
+              ) : (
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  {scopedCohorts.map(c => {
+                    const selected = selCohorts.includes(c)
+                    const count = students.filter(s => s.cohort === c).length
+                    return (
+                      <button key={c} onClick={() => toggleCohort(c)} style={{
+                        padding: '8px 16px', borderRadius: 'var(--radius-sm)', cursor: 'pointer',
+                        border: `2px solid ${selected ? 'var(--accent)' : 'var(--border)'}`,
+                        background: selected ? 'var(--accent-bg)' : 'var(--surface)',
+                        color: selected ? 'var(--accent)' : 'var(--text-2)',
+                        fontWeight: selected ? 600 : 400, fontSize: 13,
+                        display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2,
+                        transition: 'border-color 0.1s, background 0.1s',
+                      }}>
+                        <span>{c}</span>
+                        <span style={{ fontSize: 11, color: selected ? 'var(--accent)' : 'var(--text-3)', fontWeight: 400 }}>{count} students · {getCohortColumns(students, [c]).length} cols</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+
+              {/* Column preview for selected cohorts */}
+              {selCohorts.length > 0 && cohortCols.length > 0 && (
+                <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '12px 14px' }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 8 }}>
+                    {cohortCols.length} columns available for mapping
                   </div>
-                  <p style={{ fontSize: 13, color: 'var(--text-2)', marginBottom: 10, lineHeight: 1.6 }}>
-                    Paste the header row from the company's template (comma or newline separated)
-                  </p>
-                  <textarea
-                    value={rawCols}
-                    onChange={e => setRawCols(e.target.value)}
-                    placeholder={'Student Name\nCAT Percentile\nWork Experience (months)\n10th Marks\n12th Marks\nGraduation %\nCategory\n...'}
-                    style={{
-                      width: '100%', height: 160, padding: '10px 12px',
-                      border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
-                      background: 'var(--surface)', color: 'var(--text)',
-                      fontSize: 13, fontFamily: 'var(--font-mono)', resize: 'vertical',
-                      outline: 'none', lineHeight: 1.6, boxSizing: 'border-box',
-                    }}
-                  />
-                  <div style={{ marginTop: 10, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                    <Btn variant="primary" onClick={handleAutoMap} disabled={!companyCols.length || autoMapping}>
-                      {autoMapping
-                        ? <><Spinner size={13} /> Mapping…</>
-                        : <><Wand2 size={13} /> Auto-map {companyCols.length ? `${companyCols.length} columns` : ''}</>
-                      }
-                    </Btn>
-                    {companyCols.length > 0 && !autoMapping && (
-                      <span style={{ fontSize: 12, color: 'var(--text-3)' }}>{companyCols.length} columns detected</span>
-                    )}
-                    {autoMapErr && (
-                      <span style={{ fontSize: 12, color: 'var(--amber-text)' }}>{autoMapErr}</span>
-                    )}
+                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', maxHeight: 120, overflowY: 'auto' }}>
+                    {cohortCols.map(col => (
+                      <span key={col} style={{
+                        fontSize: 11, fontFamily: 'var(--font-mono)',
+                        padding: '2px 6px', borderRadius: 3,
+                        background: 'var(--surface)', border: '1px solid var(--border)',
+                        color: 'var(--text-2)', whiteSpace: 'nowrap',
+                      }}>{col}</span>
+                    ))}
                   </div>
                 </div>
+              )}
 
-                {/* Saved Templates */}
-                {templates.length > 0 && (
-                  <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '18px 20px' }}>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 12 }}>
-                      <LayoutTemplate size={12} style={{ marginRight: 6, verticalAlign: 'middle' }} />
-                      Saved Templates
-                    </div>
+              {/* Saved Templates */}
+              {templates.length > 0 && (
+                <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>
+                    <LayoutTemplate size={12} style={{ marginRight: 6, verticalAlign: 'middle' }} />
+                    Saved Templates
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
                     {templates.map(t => (
                       <div key={t._id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
                         <div>
@@ -444,23 +510,78 @@ export default function RemapperPage() {
                       </div>
                     ))}
                   </div>
-                )}
+                </div>
+              )}
+
+              <div>
+                <Btn variant="primary" onClick={confirmCohort} disabled={selCohorts.length === 0 || cohortCols.length === 0}>
+                  Use these columns <ChevronRight size={13} />
+                </Btn>
+              </div>
             </div>
           )}
         </div>
 
-        {/* ── Step 2 ───────────────────────────────────────────────────── */}
+        {/* ── Step 2: Paste company columns ─────────────────────────────── */}
         <div ref={step2Ref}>
           {step === 1 ? (
-            <LockedStep n={2} label="Verify mappings" />
+            <LockedStep n={2} label="Paste company columns" />
           ) : step > 2 ? (
-            <Step2Summary mappings={mappings} onEdit={backToStep2} />
+            <Step2Summary companyCols={companyCols} onEdit={backToStep2} />
           ) : (
-            /* step === 2 */
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Step 2 — Paste company columns
+              </div>
+              <p style={{ fontSize: 13, color: 'var(--text-2)', margin: 0, lineHeight: 1.6 }}>
+                Paste the header row from the company's template (comma or newline separated). Auto-map will match them against <strong>{cohortCols.length}</strong> columns from <strong>{selCohorts.join(', ')}</strong>.
+              </p>
+              <textarea
+                value={rawCols}
+                onChange={e => setRawCols(e.target.value)}
+                placeholder={'Student Name\nCAT Percentile\nWork Experience (months)\n10th Marks\n12th Marks\nGraduation %\nCategory\n...'}
+                style={{
+                  width: '100%', height: 160, padding: '10px 12px',
+                  border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
+                  background: 'var(--surface)', color: 'var(--text)',
+                  fontSize: 13, fontFamily: 'var(--font-mono)', resize: 'vertical',
+                  outline: 'none', lineHeight: 1.6, boxSizing: 'border-box',
+                }}
+              />
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                <Btn variant="primary" onClick={handleAutoMap} disabled={!companyCols.length || autoMapping}>
+                  {autoMapping
+                    ? <><Spinner size={13} /> Mapping…</>
+                    : <><Wand2 size={13} /> Auto-map {companyCols.length ? `${companyCols.length} columns` : ''}</>
+                  }
+                </Btn>
+                {companyCols.length > 0 && !autoMapping && (
+                  <span style={{ fontSize: 12, color: 'var(--text-3)' }}>{companyCols.length} columns detected</span>
+                )}
+                {autoMapErr && (
+                  <span style={{ fontSize: 12, color: 'var(--amber-text)' }}>{autoMapErr}</span>
+                )}
+              </div>
+              <div style={{ paddingTop: 4, borderTop: '1px solid var(--border)' }}>
+                <Btn variant="ghost" onClick={backToStep1}>
+                  <ArrowLeft size={13} /> Change cohort
+                </Btn>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ── Step 3: Verify mappings ────────────────────────────────────── */}
+        <div ref={step3Ref}>
+          {step < 3 ? (
+            <LockedStep n={3} label="Verify mappings" />
+          ) : step > 3 ? (
+            <Step3Summary mappings={mappings} onEdit={backToStep3} />
+          ) : (
             <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  Step 2 — Verify mappings
+                  Step 3 — Verify mappings
                 </div>
                 <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                   <span style={{ padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 500, background: 'var(--green-bg)', color: 'var(--green-text)', border: '1px solid var(--green-border)' }}>
@@ -479,13 +600,13 @@ export default function RemapperPage() {
                 </div>
               </div>
 
-              <div style={{ overflowY: 'auto', maxHeight: 380 }}>
+              <div style={{ overflowY: 'auto', maxHeight: 400 }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                   <thead>
                     <tr>
-                      <th style={{ textAlign: 'left', padding: '6px 8px', fontSize: 11, color: 'var(--text-3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', background: 'var(--surface2)', borderBottom: '1px solid var(--border)' }}>Company Column</th>
-                      <th style={{ width: 28, background: 'var(--surface2)', borderBottom: '1px solid var(--border)' }}></th>
-                      <th style={{ textAlign: 'left', padding: '6px 8px', fontSize: 11, color: 'var(--text-3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', background: 'var(--surface2)', borderBottom: '1px solid var(--border)' }}>Our Field</th>
+                      <th style={{ textAlign: 'left', padding: '6px 8px', fontSize: 11, color: 'var(--text-3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', background: 'var(--surface2)', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0 }}>Company Column</th>
+                      <th style={{ width: 28, background: 'var(--surface2)', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0 }}></th>
+                      <th style={{ textAlign: 'left', padding: '6px 8px', fontSize: 11, color: 'var(--text-3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', background: 'var(--surface2)', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0 }}>Our Column ({selCohorts.join(' + ')})</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -507,7 +628,7 @@ export default function RemapperPage() {
                         <td style={{ padding: '7px 8px' }}>
                           <select
                             value={m.ourKey || ''}
-                            onChange={e => setMapping(i, e.target.value || null)}
+                            onChange={e => setMapping(i, e.target.value)}
                             style={{
                               width: '100%', height: 30, padding: '0 8px', border: '1px solid var(--border)',
                               borderRadius: 'var(--radius-sm)', background: 'var(--surface)', color: 'var(--text)',
@@ -515,8 +636,8 @@ export default function RemapperPage() {
                             }}
                           >
                             <option value="">— skip this column —</option>
-                            {OUR_COLS.map(col => (
-                              <option key={col.key} value={col.key}>{col.label}</option>
+                            {cohortCols.map(col => (
+                              <option key={col} value={col}>{col}</option>
                             ))}
                           </select>
                         </td>
@@ -532,9 +653,8 @@ export default function RemapperPage() {
                 </div>
               )}
 
-              {/* Step 2 actions */}
               <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between', alignItems: 'center', paddingTop: 4, borderTop: '1px solid var(--border)' }}>
-                <Btn variant="ghost" onClick={backToStep1}>
+                <Btn variant="ghost" onClick={backToStep2}>
                   <ArrowLeft size={13} /> Edit columns
                 </Btn>
                 <div style={{ display: 'flex', gap: 8 }}>
@@ -550,36 +670,15 @@ export default function RemapperPage() {
           )}
         </div>
 
-        {/* ── Step 3 ───────────────────────────────────────────────────── */}
-        <div ref={step3Ref}>
-          {step < 3 ? (
-            <LockedStep n={3} label="Select students & export" />
+        {/* ── Step 4: Select students & export ──────────────────────────── */}
+        <div ref={step4Ref}>
+          {step < 4 ? (
+            <LockedStep n={4} label="Select students & export" />
           ) : (
             <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '18px 20px' }}>
               <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 14 }}>
-                Step 3 — Select students &amp; export
+                Step 4 — Select students &amp; export
               </div>
-
-              {/* Cohort selector — shown only when multiple cohorts are in scope */}
-              {scopedCohorts.length > 1 && (
-                <div style={{ marginBottom: 14, display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-2)', whiteSpace: 'nowrap' }}>Cohort:</span>
-                  <select
-                    value={selCohort}
-                    onChange={e => setSelCohort(e.target.value)}
-                    style={{
-                      height: 30, padding: '0 8px', border: '1px solid var(--border)',
-                      borderRadius: 'var(--radius-sm)', background: 'var(--surface)',
-                      color: 'var(--text)', fontSize: 13, cursor: 'pointer', outline: 'none',
-                    }}
-                  >
-                    <option value="all">All cohorts ({scopedCohorts.length})</option>
-                    {scopedCohorts.map(c => (
-                      <option key={c} value={c}>{c}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
 
               <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap' }}>
                 {/* Mode selector */}
@@ -673,7 +772,7 @@ export default function RemapperPage() {
                         : selMode === 'section' ? `section_${selSection.toLowerCase()}`
                         : selMode === 'email' ? 'custom'
                         : 'all'
-                      const cohortLabel = selCohort === 'all' ? scopeLabel : selCohort
+                      const cohortLabel = selCohorts.length === 1 ? selCohorts[0] : scopeLabel
                       exportRemapped(selectedStudents, mappings, `${cohortLabel.replace(/\s+/g, '_')}_${modeLabel}.csv`)
                     }}
                   >
@@ -685,9 +784,8 @@ export default function RemapperPage() {
                 </div>
               </div>
 
-              {/* Step 3 back nav */}
               <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--border)' }}>
-                <Btn variant="ghost" onClick={backToStep2}>
+                <Btn variant="ghost" onClick={backToStep3}>
                   <ArrowLeft size={13} /> Edit mappings
                 </Btn>
               </div>

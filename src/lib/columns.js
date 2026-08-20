@@ -235,6 +235,72 @@ export function normalize(s) {
   return s.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim()
 }
 
+// Internal fields that live on student docs but are not data columns.
+const INTERNAL_FIELD_PREFIXES = ['_']
+const INTERNAL_FIELD_EXACT = new Set([
+  'id', 'cohort', 'createdAt', 'updatedAt', 'createdBy', 'updatedBy',
+  'importBatch', '_id',
+])
+
+/**
+ * Derive the actual column header strings present on student docs in the given
+ * cohort(s). Samples up to `sampleSize` docs per cohort, takes the union of
+ * all non-internal keys, returns them sorted.
+ *
+ * Returns an array of raw string column names (e.g. "Total Work Experience (Months)").
+ * These are the exact keys stored in Firestore, ready to use as `s[key]` lookups.
+ */
+export function getCohortColumns(students, cohortIds, sampleSize = 5) {
+  const ids = new Set(cohortIds)
+  const seen = new Set()
+  const result = []
+  for (const s of students) {
+    if (!ids.has(s.cohort)) continue
+    for (const k of Object.keys(s)) {
+      if (seen.has(k)) continue
+      if (INTERNAL_FIELD_PREFIXES.some(p => k.startsWith(p))) continue
+      if (INTERNAL_FIELD_EXACT.has(k)) continue
+      seen.add(k)
+      result.push(k)
+    }
+  }
+  return result.sort()
+}
+
+/**
+ * Fuzzy-match company column headers to raw cohort column strings.
+ * Used as the offline fallback when Gemini is unavailable.
+ * Unlike autoMapColumns (which maps to OUR_COLS canonical keys), this maps
+ * directly to the raw header strings from getCohortColumns.
+ */
+export function autoMapColumnsToRaw(companyCols, rawTargetCols) {
+  const usedTargets = new Set()
+  return companyCols.map(col => {
+    const n = normalize(col)
+    let matched = null
+    let bestScore = 0
+    for (const target of rawTargetCols) {
+      if (usedTargets.has(target)) continue
+      const nt = normalize(target)
+      let score = 0
+      if (n === nt) score = 4
+      else if (n.replace(/\s/g, '') === nt.replace(/\s/g, '')) score = 3
+      else if (nt.includes(n) || n.includes(nt)) score = 2
+      // token overlap
+      else {
+        const tokN = new Set(n.split(' ').filter(t => t.length >= 3))
+        const tokT = new Set(nt.split(' ').filter(t => t.length >= 3))
+        const overlap = [...tokN].filter(t => tokT.has(t)).length
+        if (overlap > 0) score = overlap
+      }
+      if (score > bestScore) { bestScore = score; matched = target }
+    }
+    if (matched && bestScore >= 2) usedTargets.add(matched)
+    else matched = null
+    return { companyCol: col, ourKey: matched, auto: !!matched }
+  })
+}
+
 export function autoMapColumns(companyCols) {
   const usedKeys = new Set()
   return companyCols.map(col => {

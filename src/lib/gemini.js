@@ -206,76 +206,58 @@ Return ONLY the message text — no explanation, no markdown code block, no prea
   return forcedHeader ? forceFirstLine(message, forcedHeader) : message
 }
 
-// Extract alternate header names from OUR_COLS path function bodies.
-// pick(r, 'A', 'B', 'C') → ['A', 'B', 'C']
-function extractPickArgs(fn) {
-  try {
-    const src = fn.toString()
-    const matches = [...src.matchAll(/pick\s*\([^)]+\)/g)]
-    const args = []
-    for (const m of matches) {
-      const inner = m[0].replace(/pick\s*\(r\s*,\s*/, '').replace(/\)$/, '')
-      inner.split(',').forEach(s => {
-        const val = s.trim().replace(/^['"]|['"]$/g, '')
-        if (val) args.push(val)
-      })
-    }
-    return [...new Set(args)]
-  } catch {
-    return []
-  }
-}
+/**
+ * Auto-map company column headers to raw student doc column strings.
+ * rawTargetCols: string[] — actual column names from getCohortColumns()
+ */
+export async function geminiAutoMap(companyCols, rawTargetCols) {
+  const prompt = `You are mapping company CSV column headers to actual student database columns for IIFT Delhi MBA placements.
 
-export async function geminiAutoMap(companyCols, ourCols) {
-  const colList = ourCols.map(c => {
-    const aliases = extractPickArgs(c.path).filter(a => a !== c.label)
-    const aliasStr = aliases.length ? ` (also: ${aliases.slice(0, 4).join(', ')})` : ''
-    return `${c.key}: ${c.label}${aliasStr}`
-  }).join('\n')
-  const prompt = `You are mapping company CSV column headers to a canonical student database schema for IIFT Delhi MBA placements.
-
-COMPANY COLUMNS (what the company sent):
+COMPANY COLUMNS (what the company sent — map each of these):
 ${companyCols.map((c, i) => `${i}: ${c}`).join('\n')}
 
-OUR CANONICAL COLUMNS (key: label with known aliases):
-${colList}
+OUR ACTUAL DATABASE COLUMNS (exact strings stored in Firestore — these are the valid target values):
+${rawTargetCols.map((c, i) => `${i}: ${c}`).join('\n')}
 
 Rules:
-- Match each company column to the single best canonical key, or null if no reasonable match.
-- "Student Name" / "Name" / "Candidate" → name
-- "CAT" / "CAT %" / "CAT Percentile" / "Percentile" → cat
-- "10th" / "X Marks" / "SSC" / "Matric" → x10pct
-- "12th" / "XII Marks" / "HSC" / "Intermediate" / "Senior Secondary" → x12pct
-- "Graduation" / "UG %" / "CGPA" / "GPA" / "Aggregate" → ugpct
-- "Work Experience" / "WE" / "Work Ex" / "Experience (months)" → wx
-- "Category" / "Caste" → category
-- "Gender" / "Sex" → gender
-- "Email" → email; "Official Email" → official_email
-- "Mobile" / "Phone" / "Contact" → mobile
-- "State" / "Domicile" → state
-- "DOB" / "Birth Date" → dob
-- "Section" / "Division" → roll (closest proxy; note in confidence)
-- Company columns about SIP/Summer internship → sip_company, sip_role, sip_stipend, sip_sector, sip_location, sip_date, sip_status
-- If a column is about a previous employer/company → c1_name, c2_name, c3_name
-- If ambiguous, pick the most specific match.
-- Never map two company columns to the same canonical key (pick the best fit for each, null the rest).
+- Match each company column to the single best database column string, or null if no reasonable match.
+- Use fuzzy matching: "Student Name" → "Full Name", "CAT %" → "CAT Percentile", "Work Ex" → "Total Work Experience (Months)" etc.
+- The ourKey value MUST be one of the exact strings from "OUR ACTUAL DATABASE COLUMNS" above. Do not invent new values.
+- If a company column matches nothing in our database, set ourKey to null.
+- Never map two company columns to the same database column.
+- "Name" / "Student Name" / "Candidate" → the Full Name column
+- "CAT" / "CAT %" / "Percentile" → the CAT Percentile column
+- "Work Experience" / "WE" / "Work Ex" / "Work Ex (months)" → the work experience months column
+- "10th" / "X Marks" / "SSC" / "Matric" / "Class X" → the Class X / 10th score column
+- "12th" / "XII" / "HSC" / "Intermediate" / "Class XII" → the Class XII / 12th score column
+- "Graduation" / "UG %" / "CGPA" / "GPA" → the UG/graduation score column
+- "Gender" / "Sex" → the Gender column
+- "DOB" / "Birth Date" / "Date of Birth" → the Date of Birth column
+- "Category" / "Caste" / "Reservation" → the Category column
+- "Email" (personal) → the personal email column; "Official Email" → the official/institute email column
+- "Mobile" / "Phone" / "Contact" / "WhatsApp" → the mobile number column
 
-Return ONLY a JSON array with one entry per company column, in the same order:
+Return ONLY a JSON array, one entry per company column, same order:
 [
-  { "companyCol": "Student Name", "ourKey": "name", "confidence": "high" },
-  { "companyCol": "CAT Percentile", "ourKey": "cat", "confidence": "high" },
+  { "companyCol": "Student Name", "ourKey": "Full Name", "confidence": "high" },
+  { "companyCol": "Unknown Col", "ourKey": null, "confidence": "low" },
   ...
 ]
 confidence: "high" | "medium" | "low"
 `
   const json = await callGemini(prompt)
   const parsed = JSON.parse(json)
-  return parsed.map(item => ({
-    companyCol: item.companyCol,
-    ourKey: item.ourKey || null,
-    auto: !!item.ourKey,
-    confidence: item.confidence || 'medium',
-  }))
+  // Validate: ourKey must be one of the rawTargetCols or null
+  const validSet = new Set(rawTargetCols)
+  return parsed.map(item => {
+    const key = (item.ourKey && validSet.has(item.ourKey)) ? item.ourKey : null
+    return {
+      companyCol: item.companyCol,
+      ourKey: key,
+      auto: !!key,
+      confidence: item.confidence || 'medium',
+    }
+  })
 }
 
 export async function parseShortlist(rawText, students) {
