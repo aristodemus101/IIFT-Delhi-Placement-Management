@@ -81,16 +81,21 @@ export default function AdminPage() {
   // which would silently overwrite in-progress edits)
   const pageConfigSeeded   = React.useRef(false)
   const actionConfigSeeded = React.useRef(false)
+  // Snapshots of what is actually saved in Firestore — used to detect unsaved changes
+  const [savedPagePerms, setSavedPagePerms]     = useState({})
+  const [savedActionPerms, setSavedActionPerms] = useState({})
   useEffect(() => {
     if (!pageConfigSeeded.current && pageConfig && Object.keys(pageConfig).length > 0) {
       pageConfigSeeded.current = true
       setPagePerms(pageConfig)
+      setSavedPagePerms(pageConfig)
     }
   }, [pageConfig])
   useEffect(() => {
     if (!actionConfigSeeded.current && actionConfig && Object.keys(actionConfig).length > 0) {
       actionConfigSeeded.current = true
       setActionPerms(actionConfig)
+      setSavedActionPerms(actionConfig)
     }
   }, [actionConfig])
 
@@ -117,11 +122,18 @@ export default function AdminPage() {
     try {
       await setDoc(doc(db, 'config', 'pageAccess'),   pagePerms)
       await setDoc(doc(db, 'config', 'actionAccess'), actionPerms)
+      setSavedPagePerms(pagePerms)
+      setSavedActionPerms(actionPerms)
       setAccessMsg('Saved.')
       setTimeout(() => setAccessMsg(''), 3000)
     } catch (e) { setAccessMsg('Error: ' + e.message) }
     setAccessBusy(false)
   }
+
+  const accessPermsDirty = (
+    JSON.stringify(pagePerms)   !== JSON.stringify(savedPagePerms) ||
+    JSON.stringify(actionPerms) !== JSON.stringify(savedActionPerms)
+  )
 
   const toggleAccessRole = (map, setMap, key, role, hardcodedDefaults) => {
     // Admin is always locked; cannot remove admin from any permission
@@ -745,7 +757,7 @@ export default function AdminPage() {
             </div>
 
             <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 12 }}>
-              <Btn variant="primary" onClick={saveAccessPerms} disabled={accessBusy}>
+              <Btn variant="primary" onClick={saveAccessPerms} disabled={accessBusy || !accessPermsDirty}>
                 <CheckCircle size={13} /> {accessBusy ? 'Saving…' : 'Save Access Rules'}
               </Btn>
               {accessMsg && <span style={{ fontSize: 13, color: accessMsg.startsWith('Error') ? 'var(--red-text)' : 'var(--green-text)' }}>{accessMsg}</span>}
