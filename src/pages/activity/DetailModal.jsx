@@ -1,7 +1,7 @@
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import { doc, updateDoc, setDoc } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
-import { Trash2, ExternalLink, Copy, Check } from 'lucide-react'
+import { Trash2, ExternalLink, Copy, Check, Search, UserPlus } from 'lucide-react'
 import { Sheet } from 'lucide-react'
 import { Modal, Btn, Badge } from '../../components/UI'
 import { useStages, useApplicants, advanceStage, STAGE_TYPES } from '../../lib/useOpportunities'
@@ -18,11 +18,28 @@ import {
 } from 'lucide-react'
 import { getVal } from '../../lib/columns'
 
+const SECTOR_OPTIONS = [
+  'Automotive',
+  'Banking & Financial Services',
+  'Consulting & Professional Services',
+  'FMCG & Consumer Products',
+  'Industrial, Manufacturing & Conglomerates',
+  'Leadership Programmes & Others',
+  'Logistics, Trade & Supply Chain',
+  'Pharma, Healthcare & Life Sciences',
+  'Real Estate & Infrastructure',
+  'Retail, Lifestyle & E-Commerce',
+  'Technology & Telecom',
+]
+const LOCATION_OPTIONS = ['Domestic', 'International']
+
 const ICON_MAP = { MessageSquare, Users, Award, Sheet, Bell, FileText, XCircle, Plus, Trophy, Presentation }
 
 const NEEDS_PASTE = new Set([
-  'release_shortlist', 'post_interview', 'post_gd_pi', 'post_final_selection', 'post_submission',
+  'release_shortlist', 'post_interview', 'post_gd_pi', 'post_submission',
 ])
+// post_final_selection is handled separately — direct picker flow
+const FINAL_SELECTION = 'post_final_selection'
 const SIMPLE_FORM = new Set(['post_ppt', 'open_applications', 'post_round'])
 const MESSAGE_ONLY = new Set([
   'generate_announcement', 'generate_shortlist_msg', 'generate_interview_msg',
@@ -333,17 +350,25 @@ function StageFlowModal({ opp, flow, user, students, sheetsConnected, createTrac
   const stageLabel    = meta.label || actionKey
   const trackerConfig = meta.tracker || null
 
-  const isMessageOnly = MESSAGE_ONLY.has(actionKey)
-  const isTrackerOnly = TRACKER_ACTIONS.has(actionKey)
-  const isMarkClosed  = actionKey === 'mark_closed'
-  const needsPaste    = NEEDS_PASTE.has(actionKey)
-  const isSimpleForm  = SIMPLE_FORM.has(actionKey)
+  const isMessageOnly    = MESSAGE_ONLY.has(actionKey)
+  const isTrackerOnly    = TRACKER_ACTIONS.has(actionKey)
+  const isMarkClosed     = actionKey === 'mark_closed'
+  const needsPaste       = NEEDS_PASTE.has(actionKey)
+  const isSimpleForm     = SIMPLE_FORM.has(actionKey)
+  const isFinalSelection = actionKey === FINAL_SELECTION
 
-  const initialStep = isTrackerOnly ? 'tracker' : isSimpleForm ? 'confirm' : isMessageOnly ? 'confirm' : needsPaste ? 'paste' : 'confirm'
+  const initialStep = isTrackerOnly ? 'tracker'
+    : isSimpleForm   ? 'confirm'
+    : isMessageOnly  ? 'confirm'
+    : isFinalSelection ? 'select'
+    : needsPaste     ? 'paste'
+    : 'confirm'
 
   const [step, setStep]               = useState(initialStep)
   const [rawText, setRawText]         = useState('')
   const [matched, setMatched]         = useState([])
+  // selectedFinal: [{studentDoc, role, sector, location, package, date}]
+  const [selectedFinal, setSelectedFinal] = useState([])
   const [studentMode, setStudentMode] = useState('matched')
   const [message, setMessage]         = useState('')
   const [waLink, setWaLink]           = useState('')
@@ -376,7 +401,32 @@ function StageFlowModal({ opp, flow, user, students, sheetsConnected, createTrac
 
   const handleParseShortlist = async () => {
     setBusy(true); setErr('')
-    try { const result = await parseShortlist(rawText, students); setMatched(result); setStep('review') }
+    try {
+      const result = await parseShortlist(rawText, students)
+      setMatched(result)
+      if (isFinalSelection) {
+        // Convert Gemini-matched students into selectedFinal shape so handleSave works uniformly
+        const converted = result.map(s => {
+          const dbStudent = students.find(st => {
+            const roll  = getVal(st, 'roll')
+            const email = getVal(st, 'official_email')
+            return (roll && roll === s.roll) || (email && email === s.email)
+          }) || s
+          return {
+            studentDoc: dbStudent,
+            role:     s.role || '',
+            sector:   '',
+            location: 'Domestic',
+            package:  opp.ctc || opp.stipend || '',
+            date:     new Date().toISOString().slice(0, 10),
+          }
+        })
+        setSelectedFinal(converted)
+        setStep('select') // go back to select view so user can see/edit details
+      } else {
+        setStep('review')
+      }
+    }
     catch (e) { setErr(e.message) }
     setBusy(false)
   }
@@ -406,8 +456,14 @@ function StageFlowModal({ opp, flow, user, students, sheetsConnected, createTrac
     setBusy(true); setErr('')
     try {
       const extra = { whatsappGroupLink: waLink, trackerLink, actionType: actionKey }
-      if (actionKey === 'post_final_selection') {
-        extra.selectedStudents = matched.map(s => `${s.name} (${s.roll})${s.role ? ' — ' + s.role : ''}`).join('\n')
+      if (isFinalSelection) {
+        extra.selectedStudents = selectedFinal
+          .map(f => {
+            const name = getVal(f.studentDoc, 'name') || ''
+            const roll = getVal(f.studentDoc, 'roll') || ''
+            return `${name} (${roll})${f.role ? ' — ' + f.role : ''}${f.location ? ' · ' + f.location : ''}`
+          })
+          .join('\n')
       }
       setMessage(await generateWhatsAppMessage(opp, actionKey, extra))
       setStep('message')
@@ -455,29 +511,30 @@ function StageFlowModal({ opp, flow, user, students, sheetsConnected, createTrac
         release_shortlist: 'shortlisted', post_interview: 'interviewing',
         post_gd_pi: 'interviewing', post_final_selection: 'selected', post_submission: 'shortlisted',
       }
+
+      // For final selection, use selectedFinal list (direct picker); for others use matched (Gemini paste)
+      const studentsToProcess = isFinalSelection ? selectedFinal.map(f => ({ ...f.studentDoc, role: f.role })) : matched
+
       const proposeErrors = []
-      for (const s of matched) {
+      for (const s of studentsToProcess) {
+        const roll  = getVal(s, 'roll')  || s.roll  || ''
+        const email = getVal(s, 'official_email') || s.email || ''
+        const docId = roll || email || crypto.randomUUID()
         await setDoc(
-          doc(db, 'opportunities', opp.id, 'applicants', s.roll || s.email),
-          { ...s, status: statusByAction[actionKey] || 'shortlisted', updatedAt: new Date() },
+          doc(db, 'opportunities', opp.id, 'applicants', docId),
+          { roll, email, name: getVal(s, 'name') || s.name || '', role: s.role || '', status: statusByAction[actionKey] || 'shortlisted', updatedAt: new Date() },
           { merge: true }
         )
-        if (actionKey === 'post_final_selection') {
-          const dbStudent = students.find(st => {
-            const roll  = getVal(st, 'roll')
-            const email = getVal(st, 'official_email')
-            return (roll && roll === s.roll) || (email && email === s.email)
-          })
-          if (!dbStudent) continue
-          // Derive cohort and its active cycle from student doc
-          const cohortId = dbStudent.cohort || null
+        if (isFinalSelection) {
+          const sel = selectedFinal.find(f => f.studentDoc._id === s._id) || {}
+          const cohortId = s.cohort || null
           const season = getCohortCycle ? getCohortCycle(cohortId) : 'final'
           try {
             await propose({
               type: 'place_from_activity',
-              studentId: dbStudent._id,
-              studentName: s.name || getVal(dbStudent, 'name') || `${getVal(dbStudent, 'firstName') || ''} ${getVal(dbStudent, 'lastName') || ''}`.trim(),
-              studentRoll: s.roll || getVal(dbStudent, 'roll') || '',
+              studentId: s._id,
+              studentName: getVal(s, 'name') || `${getVal(s, 'firstName') || ''} ${getVal(s, 'lastName') || ''}`.trim(),
+              studentRoll: roll,
               company: opp.organization || '',
               cohort: cohortId,
               season,
@@ -486,13 +543,16 @@ function StageFlowModal({ opp, flow, user, students, sheetsConnected, createTrac
               opportunityType: normalizeOpportunityType(opp.type, opp.via) || '',
               placementDetails: {
                 company: opp.organization || '',
-                role: s.role || '',
+                role: sel.role || '',
+                sector: sel.sector || '',
+                location: sel.location || '',
+                package: sel.package || opp.ctc || opp.stipend || '',
+                date: sel.date || '',
                 via: `Activity — ${opp.title || ''}`,
-                package: opp.ctc || opp.stipend || '',
               },
             })
           } catch (proposeErr) {
-            proposeErrors.push(`${s.name || s.roll}: ${proposeErr.message}`)
+            proposeErrors.push(`${getVal(s, 'name') || roll}: ${proposeErr.message}`)
           }
         }
       }
@@ -501,10 +561,16 @@ function StageFlowModal({ opp, flow, user, students, sheetsConnected, createTrac
         setBusy(false)
         return
       }
-      const stageType = actionKey === 'post_gd_pi' ? 'gd_pi' : actionKey
+      const stageType = actionKey === 'post_gd_pi' ? 'gd_pi'
+        : isFinalSelection ? 'selected'
+        : actionKey === 'release_shortlist' ? 'shortlist'
+        : actionKey === 'post_interview' ? 'interview'
+        : actionKey === 'post_submission' ? 'shortlist'
+        : actionKey
       await advanceStage(opp.id, stageType, {
-        message, trackerLink, whatsappGroupLink: waLink, studentCount: matched.length,
-        pendingApproval: actionKey === 'post_final_selection',
+        message, trackerLink, whatsappGroupLink: waLink,
+        studentCount: studentsToProcess.length,
+        pendingApproval: isFinalSelection,
       }, user)
       onClose()
     } catch (e) { setErr(e.message) }
@@ -542,7 +608,26 @@ function StageFlowModal({ opp, flow, user, students, sheetsConnected, createTrac
   }
 
   return (
-    <Modal open onClose={onClose} title={stageLabel} width={700}>
+    <Modal open onClose={onClose} title={stageLabel} width={720}>
+      {step === 'select' && isFinalSelection && (
+        <FinalSelectionStep
+          opp={opp}
+          students={students}
+          selected={selectedFinal}
+          setSelected={setSelectedFinal}
+          waLink={waLink}
+          setWaLink={setWaLink}
+          busy={busy}
+          err={err}
+          onBack={onClose}
+          onNext={() => {
+            if (!selectedFinal.length) { setErr('Select at least one student.'); return }
+            setErr('')
+            handleGenerateMessage()
+          }}
+          onUsePaste={() => setStep('paste')}
+        />
+      )}
       {step === 'confirm' && actionKey === 'post_ppt' && (
         <div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
@@ -618,7 +703,8 @@ function StageFlowModal({ opp, flow, user, students, sheetsConnected, createTrac
       )}
       {step === 'paste' && (
         <PasteStep rawText={rawText} setRawText={setRawText} busy={busy} err={err}
-          onNext={handleParseShortlist} nextLabel="Match to Student DB →" onClose={onClose}
+          onNext={handleParseShortlist} nextLabel="Match to Student DB →"
+          onClose={isFinalSelection ? () => setStep('select') : onClose}
         />
       )}
       {step === 'review' && (
@@ -626,9 +712,9 @@ function StageFlowModal({ opp, flow, user, students, sheetsConnected, createTrac
       )}
       {step === 'message' && (
         <MessageStep message={message} setMessage={setMessage} busy={busy} err={err}
-          onBack={() => needsPaste ? setStep('review') : setStep('confirm')}
-          onPost={needsPaste ? handleSave : onClose}
-          label={actionKey === 'post_final_selection' ? 'Submit for Approval' : needsPaste ? 'Save & Record Stage' : 'Done'}
+          onBack={() => isFinalSelection ? setStep('select') : needsPaste ? setStep('review') : setStep('confirm')}
+          onPost={isFinalSelection || needsPaste ? handleSave : onClose}
+          label={isFinalSelection ? 'Submit for Approval' : needsPaste ? 'Save & Record Stage' : 'Done'}
         />
       )}
     </Modal>
@@ -745,5 +831,172 @@ function ReviewStep({
         )}
       </div>
     </>
+  )
+}
+
+// ─── FinalSelectionStep ───────────────────────────────────────────────────────
+// Direct student picker for post_final_selection.
+// Each selected student gets role, sector, location, package, date fields.
+function FinalSelectionStep({ opp, students, selected, setSelected, waLink, setWaLink, busy, err, onBack, onNext, onUsePaste }) {
+  const [query, setQuery] = useState('')
+
+  const ap = opp.applicability || 'final'
+  const eligible = useMemo(() => {
+    // Only show unplaced students (matching applicability)
+    return students.filter(s => ap === 'summer' ? !s._placed_summer : !s._placed_final)
+  }, [students, ap])
+
+  const filtered = useMemo(() => {
+    if (!query.trim()) return eligible
+    const q = query.toLowerCase()
+    return eligible.filter(s => {
+      const name  = (getVal(s, 'name') || '').toLowerCase()
+      const roll  = (getVal(s, 'roll') || '').toLowerCase()
+      const email = (getVal(s, 'official_email') || '').toLowerCase()
+      return name.includes(q) || roll.includes(q) || email.includes(q)
+    })
+  }, [eligible, query])
+
+  const isSelected = (s) => selected.some(f => f.studentDoc._id === s._id)
+
+  const toggleStudent = (s) => {
+    if (isSelected(s)) {
+      setSelected(prev => prev.filter(f => f.studentDoc._id !== s._id))
+    } else {
+      setSelected(prev => [...prev, {
+        studentDoc: s,
+        role: '',
+        sector: '',
+        location: 'Domestic',
+        package: opp.ctc || opp.stipend || '',
+        date: new Date().toISOString().slice(0, 10),
+      }])
+    }
+  }
+
+  const updateField = (studentId, field, value) => {
+    setSelected(prev => prev.map(f => f.studentDoc._id === studentId ? { ...f, [field]: value } : f))
+  }
+
+  const inputSm = { height: 30, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--surface)', color: 'var(--text)', padding: '0 8px', fontSize: 12, fontFamily: 'var(--font-sans)', boxSizing: 'border-box' }
+  const selSm   = { ...inputSm, paddingRight: 4 }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+        <p style={{ fontSize: 13, color: 'var(--text-2)', margin: 0, lineHeight: 1.5 }}>
+          Select students who received an offer and fill in their placement details.
+          These will be submitted for approval and reflected in stats.
+        </p>
+        <button onClick={onUsePaste} style={{ flexShrink: 0, marginLeft: 12, fontSize: 11, color: 'var(--text-3)', border: '1px solid var(--border)', background: 'none', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+          Paste list instead
+        </button>
+      </div>
+
+      {/* Search box */}
+      <div style={{ position: 'relative', marginBottom: 10 }}>
+        <Search size={13} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-3)', pointerEvents: 'none' }} />
+        <input
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          placeholder={`Search ${eligible.length} eligible students…`}
+          style={{ width: '100%', height: 34, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface2)', color: 'var(--text)', padding: '0 12px 0 30px', fontSize: 13, fontFamily: 'var(--font-sans)', boxSizing: 'border-box' }}
+        />
+      </div>
+
+      {/* Student list */}
+      <div style={{ maxHeight: 220, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', marginBottom: 14 }}>
+        {filtered.length === 0 && (
+          <div style={{ padding: '16px 12px', fontSize: 13, color: 'var(--text-3)', textAlign: 'center' }}>No matching students</div>
+        )}
+        {filtered.map(s => {
+          const name  = getVal(s, 'name')  || `${getVal(s, 'firstName') || ''} ${getVal(s, 'lastName') || ''}`.trim()
+          const roll  = getVal(s, 'roll')  || ''
+          const email = getVal(s, 'official_email') || ''
+          const sel   = isSelected(s)
+          return (
+            <div
+              key={s._id}
+              onClick={() => toggleStudent(s)}
+              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderBottom: '1px solid var(--border)', cursor: 'pointer', background: sel ? 'var(--accent-bg)' : 'var(--surface)', transition: 'background 0.1s' }}
+            >
+              <div style={{ width: 16, height: 16, borderRadius: 4, border: `2px solid ${sel ? 'var(--accent)' : 'var(--border)'}`, background: sel ? 'var(--accent)' : 'transparent', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {sel && <Check size={10} color="white" strokeWidth={3} />}
+              </div>
+              <span style={{ fontWeight: 600, fontSize: 12, minWidth: 60, color: 'var(--text-3)' }}>{roll}</span>
+              <span style={{ fontSize: 13, flex: 1 }}>{name}</span>
+              <span style={{ fontSize: 11, color: 'var(--text-3)' }}>{email}</span>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Placement details for selected students */}
+      {selected.length > 0 && (
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>
+            Placement Details — {selected.length} student{selected.length !== 1 ? 's' : ''} selected
+          </div>
+          <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '130px 1fr 100px 100px 90px 100px 24px', gap: 6, padding: '6px 10px', background: 'var(--surface2)', fontSize: 10, fontWeight: 700, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              <span>Name</span><span>Role</span><span>Sector</span><span>Location</span><span>Package</span><span>Date</span><span></span>
+            </div>
+            {selected.map(f => {
+              const name = getVal(f.studentDoc, 'name') || getVal(f.studentDoc, 'firstName') || ''
+              return (
+                <div key={f.studentDoc._id} style={{ display: 'grid', gridTemplateColumns: '130px 1fr 100px 100px 90px 100px 24px', gap: 6, padding: '7px 10px', borderTop: '1px solid var(--border)', alignItems: 'center' }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
+                  <input
+                    value={f.role}
+                    onChange={e => updateField(f.studentDoc._id, 'role', e.target.value)}
+                    placeholder="Role title"
+                    style={{ ...inputSm, width: '100%' }}
+                  />
+                  <select value={f.sector} onChange={e => updateField(f.studentDoc._id, 'sector', e.target.value)} style={{ ...selSm, width: '100%' }}>
+                    <option value="">Sector</option>
+                    {SECTOR_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                  <select value={f.location} onChange={e => updateField(f.studentDoc._id, 'location', e.target.value)} style={{ ...selSm, width: '100%' }}>
+                    {LOCATION_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                  <input
+                    value={f.package}
+                    onChange={e => updateField(f.studentDoc._id, 'package', e.target.value)}
+                    placeholder="e.g. 12 LPA"
+                    style={{ ...inputSm, width: '100%' }}
+                  />
+                  <input
+                    type="date"
+                    value={f.date}
+                    onChange={e => updateField(f.studentDoc._id, 'date', e.target.value)}
+                    style={{ ...inputSm, width: '100%' }}
+                  />
+                  <button
+                    onClick={() => setSelected(prev => prev.filter(x => x.studentDoc._id !== f.studentDoc._id))}
+                    style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-3)', padding: 2 }}
+                  >
+                    <XCircle size={13} />
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      <div style={{ marginBottom: 14 }}>
+        <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-3)', display: 'block', marginBottom: 4 }}>WhatsApp Group Link (optional)</label>
+        <input value={waLink} onChange={e => setWaLink(e.target.value)} placeholder="https://chat.whatsapp.com/…"
+          style={{ width: '100%', height: 32, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface2)', color: 'var(--text)', padding: '0 10px', fontSize: 13, fontFamily: 'var(--font-sans)', boxSizing: 'border-box' }} />
+      </div>
+
+      {err && <div style={{ fontSize: 13, color: 'var(--red-text)', marginBottom: 8, whiteSpace: 'pre-wrap' }}>{err}</div>}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+        <Btn onClick={onBack}>Cancel</Btn>
+        <Btn variant="primary" onClick={onNext} disabled={busy || !selected.length}>
+          {busy ? 'Generating…' : `Generate Announcement (${selected.length}) →`}
+        </Btn>
+      </div>
+    </div>
   )
 }

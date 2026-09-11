@@ -6,7 +6,7 @@ import { autoMapColumnsToRaw, getCohortColumns, OUR_COLS } from '../lib/columns'
 import { geminiAutoMap } from '../lib/gemini'
 import { exportRemapped } from '../lib/csv'
 import { parseCohortId, PROGRAMMES } from '../lib/batch'
-import { PageHeader, Btn, Input, Spinner, Modal } from '../components/UI'
+import { PageHeader, Btn, Input, Modal } from '../components/UI'
 import {
   ArrowLeft, Wand2, Download, Save, Trash2,
   LayoutTemplate, CheckCircle, Users, RotateCcw, Lock, ChevronRight,
@@ -551,7 +551,7 @@ export default function RemapperPage() {
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                 <Btn variant="primary" onClick={handleAutoMap} disabled={!companyCols.length || autoMapping}>
                   {autoMapping
-                    ? <><Spinner size={13} /> Mapping…</>
+                    ? <><span style={{ display: 'inline-block', width: 13, height: 13, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', animation: 'spin 0.65s linear infinite', flexShrink: 0 }} /> Mapping…</>
                     : <><Wand2 size={13} /> Auto-map {companyCols.length ? `${companyCols.length} columns` : ''}</>
                   }
                 </Btn>
