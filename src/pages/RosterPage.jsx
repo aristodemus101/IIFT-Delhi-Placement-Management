@@ -101,7 +101,7 @@ export default function RosterPage() {
     const docKeys = new Set()
     for (const s of scopedStudents) {
       for (const k of Object.keys(s)) {
-        if (!k.startsWith('_') && k !== 'cohort') docKeys.add(k)
+        if (!k.startsWith('_') && k !== 'cohort' && k !== 'updatedAt' && k !== 'createdAt') docKeys.add(k)
       }
     }
 
@@ -181,7 +181,13 @@ export default function RosterPage() {
   }, [sortCol, sortOptions, allColumnDefs])
 
   const getCellValue = (student, headerOrKey) => {
-    if (student?.[headerOrKey] !== undefined && student?.[headerOrKey] !== null) return student[headerOrKey]
+    const raw = student?.[headerOrKey]
+    if (raw !== undefined && raw !== null) {
+      // Firestore Timestamp → ISO date string; plain object → skip
+      if (typeof raw === 'object' && typeof raw.toDate === 'function') return raw.toDate().toISOString().slice(0, 10)
+      if (typeof raw === 'object' && !Array.isArray(raw)) return ''
+      return raw
+    }
     const col = OUR_COLS.find(c => c.key === headerOrKey || c.label === headerOrKey)
     return col ? (col.path(student) || '') : ''
   }
