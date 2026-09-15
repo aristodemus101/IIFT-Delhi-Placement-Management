@@ -15,12 +15,13 @@ import { useRosterPrefs } from './roster/useRosterPrefs'
 import PlaceModal from './roster/PlaceModal'
 import ImportModal from './roster/ImportModal'
 import ColumnsModal from './roster/ColumnsModal'
+import ProfilePdfModal from './roster/ProfilePdfModal'
 import {
   PageHeader, Btn, Badge, CategoryBadge, Input, Select,
   Spinner, Modal, Table
 } from '../components/UI'
 import {
-  Upload, Download, CheckCircle, Trash2, Eye, Search, Lock, ExternalLink, Sheet, GraduationCap
+  Upload, Download, CheckCircle, Trash2, Eye, Search, Lock, ExternalLink, Sheet, GraduationCap, FileDown
 } from 'lucide-react'
 
 const NUMERIC = ['cat', 'wx', 'ugpct', 'x10pct', 'x12pct', 'age', 'cat_score']
@@ -54,6 +55,10 @@ export default function RosterPage() {
   const [columnsOpen, setColumnsOpen]     = useState(false)
   const [actionsOpen, setActionsOpen]     = useState(false)
   const [exportOpen, setExportOpen]       = useState(false)
+  const [profilePdfOpen, setProfilePdfOpen] = useState(false)
+
+  // Roster row selection — id set, keyed by student._id
+  const [selectedIds, setSelectedIds] = useState(() => new Set())
 
   // Import state
   const [importModalOpen, setImportModalOpen] = useState(false)
@@ -246,6 +251,36 @@ export default function RosterPage() {
     else { setSortCol(col); setSortDir(1) }
   }
 
+  // ── Row selection (for Candidate Profile PDF) ─────────────────────────────
+  const toggleSelected = (id) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+  const allFilteredSelected = sortedFiltered.length > 0 && sortedFiltered.every(s => selectedIds.has(s._id))
+  const toggleSelectAllFiltered = () => {
+    setSelectedIds(prev => {
+      if (allFilteredSelected) {
+        const next = new Set(prev)
+        sortedFiltered.forEach(s => next.delete(s._id))
+        return next
+      }
+      const next = new Set(prev)
+      sortedFiltered.forEach(s => next.add(s._id))
+      return next
+    })
+  }
+  const clearSelection = () => setSelectedIds(new Set())
+  const selectedStudents = useMemo(
+    () => sortedFiltered.filter(s => selectedIds.has(s._id)),
+    [sortedFiltered, selectedIds]
+  )
+  // Reset selection when the cohort scope changes — stale ids from a
+  // different cohort shouldn't silently carry over.
+  useEffect(() => { setSelectedIds(new Set()) }, [scopedCohorts.join(',')])
+
   const flash = msg => { setSuccessMsg(msg); setTimeout(() => setSuccessMsg(''), 4000) }
 
   const openPlaceModal = student => {
@@ -276,6 +311,13 @@ export default function RosterPage() {
         <Btn size="sm" variant="ghost" onClick={() => setExportOpen(true)} disabled={!exportRows.length} title={!exportRows.length ? 'No rows to export' : 'Download filtered data'}>
           <Download size={13} /> Export
         </Btn>
+        <Btn
+          size="sm" variant="ghost" onClick={() => setProfilePdfOpen(true)}
+          disabled={!selectedIds.size}
+          title={selectedIds.size ? `Generate profile PDF for ${selectedIds.size} selected` : 'Select candidates first (checkbox column)'}
+        >
+          <FileDown size={13} /> Profile PDF{selectedIds.size ? ` (${selectedIds.size})` : ''}
+        </Btn>
         <Btn size="sm" variant="ghost" onClick={() => setActionsOpen(true)}>Actions</Btn>
         {isAdmin && (
           <Btn size="sm" variant="primary" onClick={() => { setImportStep(1); setImportFile(null); setImportParsed(null); setImportMsg(''); if (fileRef.current) fileRef.current.value = ''; setImportModalOpen(true) }} disabled={importing}>
@@ -285,7 +327,7 @@ export default function RosterPage() {
       </>
     )
     return () => setWorkspaceActions(null)
-  }, [setWorkspaceActions, selectedCohort, isAdmin, canDo, exportRows.length, importing])
+  }, [setWorkspaceActions, selectedCohort, isAdmin, canDo, exportRows.length, importing, selectedIds.size])
 
   // ── Action handlers ────────────────────────────────────────────────────────
 
@@ -358,11 +400,33 @@ export default function RosterPage() {
   // ── Table rows ─────────────────────────────────────────────────────────────
 
   const dynamicHeaders = [
+    {
+      label: (
+        <input
+          type="checkbox"
+          checked={allFilteredSelected}
+          onChange={toggleSelectAllFiltered}
+          onClick={e => e.stopPropagation()}
+          title="Select all filtered rows"
+          style={{ cursor: 'pointer' }}
+        />
+      ),
+      onClick: null,
+    },
     ...visibleDefs.map(def => ({ label: def.label, onClick: () => handleSort(def.sortKey), sorted: sortCol === def.sortKey ? sortDir : 0 })),
     { label: 'Actions', onClick: null },
   ]
 
   const rows = sortedFiltered.map(s => {
+    const checkboxCell = (
+      <input
+        type="checkbox"
+        checked={selectedIds.has(s._id)}
+        onChange={() => toggleSelected(s._id)}
+        onClick={e => e.stopPropagation()}
+        style={{ cursor: 'pointer' }}
+      />
+    )
     const actionCell = (
       <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
         {canDo('proposePlace') && (
@@ -377,6 +441,7 @@ export default function RosterPage() {
       </div>
     )
     return [
+      checkboxCell,
       ...visibleDefs.map(def => <span key={def.key}>{getCellValue(s, def.key) || '—'}</span>),
       actionCell,
     ]
@@ -542,6 +607,12 @@ export default function RosterPage() {
                     {sortedFiltered.length}<span style={{ opacity:0.4 }}> / {scopedStudents.length}</span>
                   </span>
 
+                  {selectedIds.size > 0 && (
+                    <button onClick={clearSelection} style={{ ...chip, borderColor:'var(--accent)', background:'var(--accent-bg)', color:'var(--accent-text)', fontWeight:600 }} title="Clear candidate selection">
+                      {selectedIds.size} selected · Clear
+                    </button>
+                  )}
+
                   {(activeFilterCount > 0 || searchTerm) && (
                     <button onClick={clearFilters} style={{ ...chip, borderColor:'var(--accent)', background:'var(--accent-bg)', color:'var(--accent-text)', fontWeight:600 }}>
                       {activeFilterCount > 0 ? `${activeFilterCount} · Clear` : 'Clear'}
@@ -638,6 +709,15 @@ export default function RosterPage() {
         open={columnsOpen} onClose={() => setColumnsOpen(false)}
         allColumnDefs={allColumnDefs} visibleCols={visibleCols}
         setVisibleCols={setVisibleCols} toggleColumn={toggleColumn}
+      />
+
+      <ProfilePdfModal
+        open={profilePdfOpen}
+        onClose={() => setProfilePdfOpen(false)}
+        students={selectedStudents}
+        columnDefs={visibleDefs}
+        getValue={getCellValue}
+        batchLabel={scopedCohorts.length === 1 ? cohortLabel(scopedCohorts[0]) : `${scopedCohorts.length} cohorts`}
       />
 
       {/* Export */}
