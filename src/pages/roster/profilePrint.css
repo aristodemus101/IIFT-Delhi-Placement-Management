@@ -1,6 +1,13 @@
 /* Candidate Profile PDF — print stylesheet.
    #profile-print-root is rendered off-screen at all times; @media print
-   hides everything else in the document and shows only this container. */
+   hides everything else in the document and shows only this container.
+
+   NOTE: the `body * { visibility: hidden }` rule below is document-global —
+   it is not scoped to this feature. If another page ever adds its own
+   window.print() flow, it must either extend this same rule (adding its own
+   root id to the "visible" exception) or this file needs to be revisited so
+   the two don't fight over @media print. There is only one print feature in
+   the app today, so this is deliberately simple rather than iframe-isolated. */
 
 #profile-print-root {
   position: fixed;

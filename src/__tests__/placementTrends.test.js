@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   isoWeekKey, weekStartDate, monthKey, bucketKey, bucketLabel,
   extractPlacementEvents, buildTimeline, cumulativeSeries,
-  buildHeatmapMatrix, buildTally, projectCompletion,
+  buildHeatmapMatrix, heatmapMatrixFromTimeline, buildTally, projectCompletion,
 } from '../lib/placementTrends'
 
 // ─── Date bucketing ────────────────────────────────────────────────────────────
@@ -219,6 +219,27 @@ describe('buildHeatmapMatrix', () => {
     const rowC = matrix.find(r => r.cohort === 'C')
     expect(rowC).toBeDefined()
     expect(rowC.values.every(v => v === 0)).toBe(true)
+  })
+})
+
+describe('heatmapMatrixFromTimeline', () => {
+  const events = [
+    { cohort: 'A', date: '2026-08-10' },
+    { cohort: 'A', date: '2026-08-18' },
+    { cohort: 'B', date: '2026-08-10' },
+  ]
+
+  it('produces the same result as buildHeatmapMatrix from an equivalent pre-built timeline', () => {
+    const timeline = buildTimeline(events, { granularity: 'week' })
+    const fromTimeline = heatmapMatrixFromTimeline(timeline, {})
+    const fromScratch = buildHeatmapMatrix(events, { granularity: 'week' })
+    expect(fromTimeline).toEqual(fromScratch)
+  })
+
+  it('respects a cohort filter passed independently of the timeline', () => {
+    const timeline = buildTimeline(events, { granularity: 'week' }) // unfiltered timeline
+    const { matrix } = heatmapMatrixFromTimeline(timeline, { cohorts: ['A'] })
+    expect(matrix.map(r => r.cohort)).toEqual(['A'])
   })
 })
 

@@ -1,11 +1,10 @@
 import React, { useMemo, useState } from 'react'
 import { useStudentsContext } from '../../lib/StudentsContext'
-import { useBatch } from '../../lib/BatchContext'
 import { cohortLabel } from '../../lib/batch'
 import { Badge, Spinner } from '../../components/UI'
 import {
   extractPlacementEvents, buildTimeline, cumulativeSeries,
-  buildHeatmapMatrix, buildTally, bucketLabel, projectCompletion,
+  heatmapMatrixFromTimeline, buildTally, bucketLabel, projectCompletion,
 } from '../../lib/placementTrends'
 
 const COHORT_COLORS = ['#1d4ed8', '#10b981', '#f59e0b', '#ef4444', '#6366f1', '#ec4899', '#14b8a6', '#f97316']
@@ -17,7 +16,6 @@ function colorFor(cohort, allCohorts) {
 
 export default function PlacementTrends() {
   const { students, loading } = useStudentsContext()
-  const { activeBatches } = useBatch()
 
   const allCohortIds = useMemo(() => {
     const set = new Set(students.map(s => s.cohort).filter(Boolean))
@@ -37,19 +35,21 @@ export default function PlacementTrends() {
 
   const events = useMemo(() => extractPlacementEvents(students, { cycle }), [students, cycle])
 
-  const { buckets, series } = useMemo(
+  const timeline = useMemo(
     () => buildTimeline(events, { granularity, cohorts: activeCohorts }),
     [events, granularity, activeCohorts]
   )
+  const { buckets, series } = timeline
 
-  const displaySeries = useMemo(
-    () => (cumulative ? cumulativeSeries(series) : series),
-    [series, cumulative]
-  )
+  // Always-cumulative view of the series — used directly for the "Cumulative"
+  // chart mode, and reused by the projection panel below (which needs running
+  // totals regardless of the toggle) instead of recomputing per cohort.
+  const cumulativeSeriesAll = useMemo(() => cumulativeSeries(series), [series])
+  const displaySeries = cumulative ? cumulativeSeriesAll : series
 
   const { matrix, max: heatMax } = useMemo(
-    () => buildHeatmapMatrix(events, { granularity, cohorts: activeCohorts }),
-    [events, granularity, activeCohorts]
+    () => heatmapMatrixFromTimeline(timeline, { cohorts: activeCohorts }),
+    [timeline, activeCohorts]
   )
 
   const tally = useMemo(() => buildTally(events, { cohorts: activeCohorts }), [events, activeCohorts])
@@ -63,11 +63,11 @@ export default function PlacementTrends() {
 
   const projections = useMemo(() => {
     return activeCohorts.map(cohort => {
-      const cum = cumulativeSeries({ [cohort]: series[cohort] || [] })[cohort] || []
+      const cum = cumulativeSeriesAll[cohort] || []
       const proj = projectCompletion(cum, cohortSizes[cohort])
       return { cohort, placed: cum[cum.length - 1] || 0, total: cohortSizes[cohort] || 0, proj }
     }).filter(p => p.total > 0)
-  }, [activeCohorts, series, cohortSizes])
+  }, [activeCohorts, cumulativeSeriesAll, cohortSizes])
 
   if (loading) return <Spinner />
 

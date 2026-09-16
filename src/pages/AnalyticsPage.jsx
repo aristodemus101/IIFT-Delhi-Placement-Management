@@ -6,7 +6,9 @@ import PlacementTrends from './analytics/PlacementTrends'
 
 export default function AnalyticsPage() {
   const { isFacultyCoordinator } = useAuth()
-  // Faculty coordinators only see TPO Performance
+  // Faculty coordinators only see TPO Performance — single source for both
+  // the tab list and the render guard below, so they can't drift apart.
+  const canSeeTrends = !isFacultyCoordinator
   const [activeTab, setActiveTab] = useState('tpo')
 
   return (
@@ -19,14 +21,14 @@ export default function AnalyticsPage() {
       <TabBar
         tabs={[
           { key: 'tpo', label: 'TPO Performance' },
-          !isFacultyCoordinator && { key: 'trends', label: 'Placement Trends' },
+          canSeeTrends && { key: 'trends', label: 'Placement Trends' },
         ].filter(Boolean)}
         active={activeTab}
         onChange={setActiveTab}
       />
 
       {activeTab === 'tpo' && <TpoAnalytics />}
-      {activeTab === 'trends' && !isFacultyCoordinator && (
+      {activeTab === 'trends' && canSeeTrends && (
         <div style={{ flex: 1, overflow: 'auto' }}>
           <PlacementTrends />
         </div>

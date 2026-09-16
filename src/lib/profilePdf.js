@@ -26,23 +26,35 @@ export function isMeaningfulValue(v) {
   return !EMPTY_TOKENS.has(s.toLowerCase())
 }
 
+// A column's section assignment depends only on its label/key, never on the
+// student — compute it once per columnDefs array and reuse across every
+// student in the batch, instead of re-running the regex pass per student.
+export function classifyColumns(columnDefs) {
+  return columnDefs.map(col => {
+    const rule = SECTION_RULES.find(r => r.pattern.test(col.label) || r.pattern.test(col.key))
+    return { col, sectionKey: rule ? rule.key : OTHER_SECTION.key }
+  })
+}
+
 // columnDefs: [{ key, label }], getValue: (student, key) => any
 // excludeKeys: column keys to omit entirely (e.g. the name column, already
 // shown prominently in the profile header — repeating it in the body reads
 // as a bug, not a feature).
+// classified: optional precomputed classifyColumns(columnDefs) result — pass
+// this when calling for many students with the same columnDefs (e.g. from
+// buildProfilesHtml) to skip re-running the classification per student.
 // Returns: [{ key, title, fields: [{ label, value }] }] — only sections with
 // at least one meaningful field are included; empty fields are dropped.
-export function groupColumnsForProfile(columnDefs, student, getValue, excludeKeys = new Set()) {
+export function groupColumnsForProfile(columnDefs, student, getValue, excludeKeys = new Set(), classified = null) {
   const buckets = new Map(SECTION_RULES.map(r => [r.key, { key: r.key, title: r.title, fields: [] }]))
   buckets.set(OTHER_SECTION.key, { key: OTHER_SECTION.key, title: OTHER_SECTION.title, fields: [] })
 
-  for (const col of columnDefs) {
+  for (const { col, sectionKey } of (classified || classifyColumns(columnDefs))) {
     if (excludeKeys.has(col.key)) continue
     const raw = getValue(student, col.key)
     if (!isMeaningfulValue(raw)) continue
 
-    const rule = SECTION_RULES.find(r => r.pattern.test(col.label) || r.pattern.test(col.key))
-    const bucket = buckets.get(rule ? rule.key : OTHER_SECTION.key)
+    const bucket = buckets.get(sectionKey)
     bucket.fields.push({ label: col.label, value: String(raw).trim() })
   }
 
@@ -97,13 +109,16 @@ function escapeHtml(str) {
 // columnDefs / getValue mirror RosterPage's visibleDefs + getCellValue.
 export function buildProfilesHtml({ students, columnDefs, getValue, institute = 'IIFT Delhi', batchLabel = '' }) {
   const generatedOn = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
+  // Column → section assignment is invariant across students — classify once
+  // for the whole batch rather than once per student.
+  const classified = classifyColumns(columnDefs)
 
   const pages = students.map(student => {
     const { value: nameValue, columnKey: nameColumnKey } = resolveDisplayName(columnDefs, student, getValue)
     const name = escapeHtml(nameValue)
     const roll = escapeHtml(resolveRoll(columnDefs, student, getValue))
     const excludeKeys = nameColumnKey ? new Set([nameColumnKey]) : new Set()
-    const sections = groupColumnsForProfile(columnDefs, student, getValue, excludeKeys)
+    const sections = groupColumnsForProfile(columnDefs, student, getValue, excludeKeys, classified)
     const badges = resolvePlacementBadges(student)
 
     const badgeHtml = badges.map(b =>

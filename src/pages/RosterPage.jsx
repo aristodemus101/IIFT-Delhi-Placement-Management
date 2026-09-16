@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react'
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import { useColumnSchema } from '../lib/useStudents'
 import { useStudentsContext } from '../lib/StudentsContext'
@@ -185,7 +185,10 @@ export default function RosterPage() {
     setSortDir(1)
   }, [sortCol, sortOptions, allColumnDefs])
 
-  const getCellValue = (student, headerOrKey) => {
+  // Stable reference (no deps — pure function of its arguments) so consumers
+  // like ProfilePdfModal that memoize on it don't get a cache-miss on every
+  // unrelated RosterPage re-render.
+  const getCellValue = useCallback((student, headerOrKey) => {
     const raw = student?.[headerOrKey]
     if (raw !== undefined && raw !== null) {
       // Firestore Timestamp → ISO date string; plain object → skip
@@ -195,7 +198,7 @@ export default function RosterPage() {
     }
     const col = OUR_COLS.find(c => c.key === headerOrKey || c.label === headerOrKey)
     return col ? (col.path(student) || '') : ''
-  }
+  }, [])
 
   const filtered = useMemo(() => scopedStudents.filter((s, i) => {
     if (searchMatch && !searchMatch.has(i)) return false
@@ -259,7 +262,10 @@ export default function RosterPage() {
       return next
     })
   }
-  const allFilteredSelected = sortedFiltered.length > 0 && sortedFiltered.every(s => selectedIds.has(s._id))
+  const allFilteredSelected = useMemo(
+    () => sortedFiltered.length > 0 && sortedFiltered.every(s => selectedIds.has(s._id)),
+    [sortedFiltered, selectedIds]
+  )
   const toggleSelectAllFiltered = () => {
     setSelectedIds(prev => {
       if (allFilteredSelected) {
@@ -278,8 +284,10 @@ export default function RosterPage() {
     [sortedFiltered, selectedIds]
   )
   // Reset selection when the cohort scope changes — stale ids from a
-  // different cohort shouldn't silently carry over.
-  useEffect(() => { setSelectedIds(new Set()) }, [scopedCohorts.join(',')])
+  // different cohort shouldn't silently carry over. scopedCohorts is already
+  // memoized upstream in BatchContext, so its reference is stable across
+  // renders where the scope hasn't actually changed.
+  useEffect(() => { setSelectedIds(new Set()) }, [scopedCohorts])
 
   const flash = msg => { setSuccessMsg(msg); setTimeout(() => setSuccessMsg(''), 4000) }
 

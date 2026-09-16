@@ -127,8 +127,11 @@ export function cumulativeSeries(series) {
 
 // ── Heatmap matrix: cohort (row) × bucket (col) → count ───────────────────────
 
-export function buildHeatmapMatrix(events, { granularity = 'week', cohorts = null } = {}) {
-  const { buckets, series } = buildTimeline(events, { granularity, cohorts })
+// Takes an already-built { buckets, series } (e.g. from buildTimeline) rather
+// than recomputing it — callers that already have a timeline for the same
+// events/granularity/cohorts should reuse it instead of paying for a second
+// identical pass over events.
+export function heatmapMatrixFromTimeline({ buckets, series }, { cohorts = null } = {}) {
   // If specific cohorts were requested, show a row for every one of them (even
   // an all-zero row for a cohort with no events in this window). Otherwise,
   // show a row for every cohort that actually has data.
@@ -139,6 +142,14 @@ export function buildHeatmapMatrix(events, { granularity = 'week', cohorts = nul
   }))
   const max = Math.max(1, ...matrix.flatMap(r => r.values))
   return { buckets, matrix, max }
+}
+
+// Convenience wrapper for callers that don't already have a timeline —
+// computes it internally. Prefer heatmapMatrixFromTimeline when a timeline
+// for the same inputs already exists.
+export function buildHeatmapMatrix(events, { granularity = 'week', cohorts = null } = {}) {
+  const timeline = buildTimeline(events, { granularity, cohorts })
+  return heatmapMatrixFromTimeline(timeline, { cohorts })
 }
 
 // ── Tally: cohort × cycle summary counts, plus top companies/sectors ──────────

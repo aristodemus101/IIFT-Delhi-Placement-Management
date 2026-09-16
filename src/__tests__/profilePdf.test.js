@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  isMeaningfulValue, groupColumnsForProfile, resolveDisplayName, resolveRoll,
+  isMeaningfulValue, groupColumnsForProfile, classifyColumns, resolveDisplayName, resolveRoll,
   resolvePlacementBadges, buildProfilesHtml,
 } from '../lib/profilePdf'
 
@@ -86,6 +86,35 @@ describe('groupColumnsForProfile', () => {
     const sections = groupColumnsForProfile(columnDefs, student, getValue)
     expect(sections.map(s => s.key)).toEqual([
       'identity', 'contact', 'family', 'academics', 'experience', 'achievements', 'placement', 'other',
+    ])
+  })
+
+  it('produces identical results with a precomputed classifyColumns() result', () => {
+    const columnDefs = [
+      { key: 'roll', label: 'Roll No.' },
+      { key: 'email', label: 'Official Email' },
+      { key: 'x12pct', label: 'Class 12 Percentage' },
+    ]
+    const student = { roll: '12A', email: 'a@b.com', x12pct: '91.2' }
+    const withoutPrecompute = groupColumnsForProfile(columnDefs, student, getValue)
+    const classified = classifyColumns(columnDefs)
+    const withPrecompute = groupColumnsForProfile(columnDefs, student, getValue, new Set(), classified)
+    expect(withPrecompute).toEqual(withoutPrecompute)
+  })
+})
+
+describe('classifyColumns', () => {
+  it('assigns each column to exactly one section key, independent of any student', () => {
+    const columnDefs = [
+      { key: 'roll', label: 'Roll No.' },
+      { key: 'achievement', label: 'Achievements' },
+      { key: 'random', label: 'Something Else' },
+    ]
+    const result = classifyColumns(columnDefs)
+    expect(result).toEqual([
+      { col: columnDefs[0], sectionKey: 'identity' },
+      { col: columnDefs[1], sectionKey: 'achievements' },
+      { col: columnDefs[2], sectionKey: 'other' },
     ])
   })
 })
