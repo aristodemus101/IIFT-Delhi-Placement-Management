@@ -95,10 +95,47 @@ service cloud.firestore {
     // ── Config ──────────────────────────────────────────────────────────────
     // Shared app config.
     // /config/authorizedUsers: any authenticated user needs to read it for the allowlist check.
-    // Write is master-admin only.
+    //   Write is master-admin only.
+    // /config/apolloUsage: the Apollo credit/budget counter. Written ONLY by
+    //   Cloud Functions via the Admin SDK (which bypasses these rules). Deny all
+    //   client writes so no one — not even an admin — can tamper with the
+    //   spend budget from the browser. Readable by placement committee for the
+    //   usage tracker UI.
     match /config/{docId} {
       allow read:  if isAuthed();
-      allow write: if docId == 'authorizedUsers' ? isMasterAdmin() : isAdmin();
+      allow write: if docId == 'apolloUsage'    ? false
+                   : docId == 'authorizedUsers' ? isMasterAdmin()
+                   : isAdmin();
+    }
+
+    // ── Outreach Contacts (Apollo enrichment) ────────────────────────────────
+    // Enriched LinkedIn contacts. Admin + committee can read and create.
+    // Phone fields are filled asynchronously by the apolloPhoneWebhook Cloud
+    // Function (Admin SDK, bypasses rules). Clients may update non-budget fields
+    // (e.g. notes) but the enrichment pipeline is server-driven.
+    // Read: any recognised role (same category as Intel recruiter contact data,
+    //   which is already hasAnyRole-readable). This lets the Admin "Team Access"
+    //   page grant the Outreach PAGE to tpo / faculty_incharge without their
+    //   reads throwing a rules error — the page toggle then genuinely controls
+    //   who sees the tab.
+    // Write: admin + committee only (they manage the contact list).
+    // Spending Apollo credits is a separate concern: the enrichContacts Cloud
+    //   Function enforces admin|committee server-side regardless of any UI toggle,
+    //   so no permission-grid change can ever let another role spend money.
+    match /outreachContacts/{id} {
+      allow read:   if hasAnyRole();
+      allow create: if hasRole();
+      allow update: if hasRole();
+      allow delete: if isAdmin();
+    }
+
+    // ── Apollo call ledger ────────────────────────────────────────────────────
+    // Append-only log used by the Cloud Function for the hourly rate limit.
+    // Written by the function (Admin SDK). Readable by committee for debugging;
+    // no client writes.
+    match /apolloCallLog/{id} {
+      allow read:  if hasRole();
+      allow write: if false;
     }
 
     // ── Templates ───────────────────────────────────────────────────────────

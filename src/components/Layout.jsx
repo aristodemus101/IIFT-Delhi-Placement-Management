@@ -9,7 +9,7 @@ import { useStudentsContext } from '../lib/StudentsContext'
 import {
   LayoutDashboard, Users, CheckSquare, ArrowLeftRight, Activity,
   LogOut, ShieldCheck, ClipboardCheck, User, Sun, Moon, BarChart2, Briefcase, Info,
-  ChevronLeft, ChevronRight, Telescope, Menu,
+  ChevronLeft, ChevronRight, Telescope, Menu, Send,
 } from 'lucide-react'
 
 function FilterPill({ active, onClick, children, title }) {
@@ -156,6 +156,7 @@ export default function Layout() {
     { to: '/placed',     icon: CheckSquare,     label: 'Placed',     exact: false, page: 'placed' },
     { to: '/activity',   icon: Activity,        label: 'Activity',   exact: false, page: 'activity' },
     { to: '/intel',      icon: Telescope,       label: 'Intel',      exact: false, page: 'intel' },
+    { to: '/outreach',   icon: Send,            label: 'Outreach',   exact: false, page: 'outreach' },
     { to: '/analytics',  icon: BarChart2,       label: 'Analytics',  exact: false, page: 'analytics' },
     { to: '/tpo',        icon: Briefcase,       label: 'TPO Outreach', exact: false, page: 'tpo' },
     { to: '/remapper',   icon: ArrowLeftRight,  label: 'Remapper',   exact: false, page: 'remapper' },

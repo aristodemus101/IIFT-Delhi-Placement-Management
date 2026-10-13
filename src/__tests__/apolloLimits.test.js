@@ -1,0 +1,160 @@
+import { describe, it, expect } from 'vitest'
+import limits from '../../functions/apolloLimits.js'
+
+const {
+  normalizeLinkedinUrl, looksLikeLinkedinUrl, dedupeAndValidate,
+  checkPerCallCaps, checkDailyPhoneBudget, checkHourlyRate, estimateCredits,
+  MAX_PEOPLE_PER_CALL, MAX_PHONE_REVEALS_PER_CALL, MAX_APOLLO_CALLS_PER_HOUR,
+  DEFAULT_DAILY_PHONE_BUDGET,
+} = limits
+
+// ─── normalizeLinkedinUrl ────────────────────────────────────────────────────
+
+describe('normalizeLinkedinUrl', () => {
+  it('strips protocol, www, trailing slash, query, and hash; lowercases', () => {
+    expect(normalizeLinkedinUrl('https://www.LinkedIn.com/in/Jane-Doe/'))
+      .toBe('linkedin.com/in/jane-doe')
+    expect(normalizeLinkedinUrl('http://linkedin.com/in/john?utm=x#top'))
+      .toBe('linkedin.com/in/john')
+  })
+
+  it('treats URLs that differ only by protocol/www/trailing slash as the same', () => {
+    const a = normalizeLinkedinUrl('https://www.linkedin.com/in/x/')
+    const b = normalizeLinkedinUrl('linkedin.com/in/x')
+    expect(a).toBe(b)
+  })
+
+  it('returns empty string for falsy input', () => {
+    expect(normalizeLinkedinUrl('')).toBe('')
+    expect(normalizeLinkedinUrl(null)).toBe('')
+    expect(normalizeLinkedinUrl(undefined)).toBe('')
+  })
+})
+
+// ─── looksLikeLinkedinUrl ────────────────────────────────────────────────────
+
+describe('looksLikeLinkedinUrl', () => {
+  it('accepts valid /in/ profile URLs including country subdomains', () => {
+    expect(looksLikeLinkedinUrl('https://www.linkedin.com/in/jane-doe')).toBe(true)
+    expect(looksLikeLinkedinUrl('https://in.linkedin.com/in/someone')).toBe(true)
+  })
+
+  it('rejects non-profile and non-linkedin URLs', () => {
+    expect(looksLikeLinkedinUrl('https://linkedin.com/company/acme')).toBe(false)
+    expect(looksLikeLinkedinUrl('https://example.com/in/x')).toBe(false)
+    expect(looksLikeLinkedinUrl('just some text')).toBe(false)
+    expect(looksLikeLinkedinUrl('')).toBe(false)
+  })
+})
+
+// ─── dedupeAndValidate ───────────────────────────────────────────────────────
+
+describe('dedupeAndValidate', () => {
+  it('de-duplicates by normalized URL, preserving first-occurrence order', () => {
+    const { valid, duplicates } = dedupeAndValidate([
+      'https://www.linkedin.com/in/alice/',
+      'linkedin.com/in/alice',       // dup of #1
+      'https://linkedin.com/in/bob',
+    ])
+    expect(valid.map(v => v.normalized)).toEqual(['linkedin.com/in/alice', 'linkedin.com/in/bob'])
+    expect(duplicates).toHaveLength(1)
+  })
+
+  it('separates invalid URLs', () => {
+    const { valid, invalid } = dedupeAndValidate([
+      'https://linkedin.com/in/ok',
+      'https://example.com/notlinkedin',
+      '',
+      '   ',
+    ])
+    expect(valid).toHaveLength(1)
+    expect(invalid).toEqual(['https://example.com/notlinkedin'])
+  })
+
+  it('handles empty/nullish input', () => {
+    expect(dedupeAndValidate([])).toEqual({ valid: [], invalid: [], duplicates: [] })
+    expect(dedupeAndValidate(null)).toEqual({ valid: [], invalid: [], duplicates: [] })
+  })
+})
+
+// ─── checkPerCallCaps ────────────────────────────────────────────────────────
+
+describe('checkPerCallCaps', () => {
+  it('rejects zero', () => {
+    expect(checkPerCallCaps(0, false).ok).toBe(false)
+  })
+
+  it('allows up to the people cap for email-only', () => {
+    expect(checkPerCallCaps(MAX_PEOPLE_PER_CALL, false).ok).toBe(true)
+    expect(checkPerCallCaps(MAX_PEOPLE_PER_CALL + 1, false).ok).toBe(false)
+  })
+
+  it('applies the tighter phone cap when phone is requested', () => {
+    expect(checkPerCallCaps(MAX_PHONE_REVEALS_PER_CALL, true).ok).toBe(true)
+    expect(checkPerCallCaps(MAX_PHONE_REVEALS_PER_CALL + 1, true).ok).toBe(false)
+    // same count is fine for email-only
+    expect(checkPerCallCaps(MAX_PHONE_REVEALS_PER_CALL + 1, false).ok).toBe(true)
+  })
+})
+
+// ─── checkDailyPhoneBudget ───────────────────────────────────────────────────
+
+describe('checkDailyPhoneBudget', () => {
+  it('allows when under budget', () => {
+    const r = checkDailyPhoneBudget(10, 5, 250)
+    expect(r.ok).toBe(true)
+    expect(r.allowedPhone).toBe(5)
+  })
+
+  it('allows exactly up to the budget', () => {
+    const r = checkDailyPhoneBudget(245, 5, 250)
+    expect(r.ok).toBe(true)
+    expect(r.allowedPhone).toBe(5)
+  })
+
+  it('partially allows when the request would exceed budget', () => {
+    const r = checkDailyPhoneBudget(248, 5, 250)
+    expect(r.ok).toBe(false)
+    expect(r.allowedPhone).toBe(2) // only 2 slots left
+    expect(r.error).toMatch(/only 2/)
+  })
+
+  it('fully rejects when budget is exhausted', () => {
+    const r = checkDailyPhoneBudget(250, 5, 250)
+    expect(r.ok).toBe(false)
+    expect(r.allowedPhone).toBe(0)
+    expect(r.error).toMatch(/exhausted/)
+  })
+
+  it('defaults to 250/day', () => {
+    expect(DEFAULT_DAILY_PHONE_BUDGET).toBe(250)
+    const r = checkDailyPhoneBudget(0, 250)
+    expect(r.ok).toBe(true)
+  })
+})
+
+// ─── checkHourlyRate ─────────────────────────────────────────────────────────
+
+describe('checkHourlyRate', () => {
+  it('allows under the hourly cap', () => {
+    expect(checkHourlyRate(100, 50).ok).toBe(true)
+  })
+
+  it('rejects when the batch would exceed the hourly cap', () => {
+    const r = checkHourlyRate(MAX_APOLLO_CALLS_PER_HOUR - 10, 50)
+    expect(r.ok).toBe(false)
+    expect(r.error).toMatch(/10 calls left/)
+  })
+})
+
+// ─── estimateCredits ─────────────────────────────────────────────────────────
+
+describe('estimateCredits', () => {
+  it('computes 1/email and 8/phone worst case', () => {
+    expect(estimateCredits(10, 4)).toEqual({ email: 10, phoneWorstCase: 32, totalWorstCase: 42 })
+  })
+
+  it('handles email-only (no phones)', () => {
+    expect(estimateCredits(5, 0)).toEqual({ email: 5, phoneWorstCase: 0, totalWorstCase: 5 })
+  })
+})

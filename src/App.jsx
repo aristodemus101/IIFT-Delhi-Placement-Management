@@ -26,6 +26,7 @@ const ActivityPage   = lazy(() => import('./pages/ActivityPage'))
 const AnalyticsPage  = lazy(() => import('./pages/AnalyticsPage'))
 const TpoPage        = lazy(() => import('./pages/TpoPage'))
 const IntelPage      = lazy(() => import('./pages/IntelPage'))
+const OutreachPage   = lazy(() => import('./pages/OutreachPage'))
 const AboutPage      = lazy(() => import('./pages/AboutPage'))
 
 // Full-screen centered spinner used during auth resolution and lazy page loads
@@ -127,6 +128,7 @@ function AppRoutes() {
         <Route path="analytics"     element={<PageGate page="analytics"><Suspense fallback={<FullSpinner />}><AnalyticsPage /></Suspense></PageGate>} />
         <Route path="tpo"           element={<PageGate page="tpo"><Suspense fallback={<FullSpinner />}><TpoPage /></Suspense></PageGate>} />
         <Route path="intel"         element={<PageGate page="intel"><Suspense fallback={<FullSpinner />}><IntelPage /></Suspense></PageGate>} />
+        <Route path="outreach"      element={<PageGate page="outreach"><Suspense fallback={<FullSpinner />}><OutreachPage /></Suspense></PageGate>} />
         <Route path="approvals"     element={<PageGate page="approvals"><Suspense fallback={<FullSpinner />}><ApprovalsPage /></Suspense></PageGate>} />
         <Route path="admin"         element={<PageGate page="admin"><Suspense fallback={<FullSpinner />}><AdminPage /></Suspense></PageGate>} />
         <Route path="about"         element={<PageGate page="about"><Suspense fallback={<FullSpinner />}><AboutPage /></Suspense></PageGate>} />

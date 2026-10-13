@@ -364,7 +364,7 @@ export default function AdminPage() {
           <ShieldCheck size={16} color="var(--accent)" style={{ flexShrink: 0, marginTop: 1 }} />
           <div style={{ fontSize: 13, color: 'var(--accent-text)', lineHeight: 1.6 }}>
             <strong>Admin</strong> — full access, propose + approve changes, see all financial data.&nbsp;
-            <strong>Committee Member</strong> — Dashboard, Roster, Placed, Activity, Analytics, Remapper, and can propose placement changes. No financial figures.&nbsp;
+            <strong>Committee Member</strong> — Dashboard, Roster, Placed, Activity, Analytics, Outreach, Remapper, and can propose placement changes. No financial figures.&nbsp;
             <strong>TPO</strong> — TPO Outreach only (own entries).&nbsp;
             <strong>Faculty Incharge</strong> — TPO Outreach read-only + Analytics (no financial figures).&nbsp;
             No admin can approve their own change.&nbsp;

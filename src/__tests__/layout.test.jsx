@@ -92,7 +92,7 @@ function renderLayout(width) {
   )
 }
 
-const NAV_COUNT = 11 // admin sees all pages (canAccessPage always true)
+const NAV_COUNT = 12 // admin sees all pages (canAccessPage always true) — Dashboard, Roster, Placed, Activity, Intel, Outreach, Analytics, TPO, Remapper, Approvals, Team Access, About
 
 // ══════════════════════════════════════════════════════════════════════════════
 // 1. Desktop (>= 900px) — inline sidebar

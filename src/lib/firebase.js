@@ -40,4 +40,5 @@ export const db = getFirestore(app);
 export const storage = getStorage(app);
 const functions = getFunctions(app, 'asia-south1');
 export const callPushFilteredToSheet = httpsCallable(functions, 'pushFilteredToSheet');
+export const callEnrichContacts = httpsCallable(functions, 'enrichContacts');
 export const ENVIRONMENT = isStagingHost ? 'staging' : 'production';
