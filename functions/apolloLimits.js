@@ -93,6 +93,22 @@ function estimateCredits(peopleCount, phoneCount) {
   return { email: peopleCount, phoneWorstCase: phoneCount * 8, totalWorstCase: peopleCount + phoneCount * 8 }
 }
 
+// Resolve the employer name from an Apollo person. Apollo places the company in
+// different fields depending on plan/match, so try each known location in order
+// of preference (current organisation → account → current employment history →
+// any bare organization_name). Company is the key outreach field — populate it
+// whenever Apollo returns it anywhere.
+function resolveCompany(person) {
+  if (!person) return ''
+  if (person.organization?.name) return person.organization.name
+  if (person.account?.name) return person.account.name
+  const hist = Array.isArray(person.employment_history) ? person.employment_history : []
+  const current = hist.find(h => h && h.current) || hist[0]
+  if (current?.organization_name) return current.organization_name
+  if (person.organization_name) return person.organization_name
+  return ''
+}
+
 module.exports = {
   MAX_PEOPLE_PER_CALL,
   MAX_PHONE_REVEALS_PER_CALL,
@@ -105,4 +121,5 @@ module.exports = {
   checkDailyPhoneBudget,
   checkHourlyRate,
   estimateCredits,
+  resolveCompany,
 }

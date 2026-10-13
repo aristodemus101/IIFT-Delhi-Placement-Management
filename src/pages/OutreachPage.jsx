@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react'
 import { PageHeader, Btn, Badge, Spinner, Modal } from '../components/UI'
 import { usePermissions } from '../lib/usePermissions'
 import { useOutreachContacts, useApolloUsage, enrichContacts, todayKeyIST } from '../lib/useOutreach'
-import { Sparkles, Mail, Phone, MapPin, ExternalLink, Copy, Check, AlertTriangle } from 'lucide-react'
+import { Sparkles, Mail, Phone, MapPin, ExternalLink, Copy, Check, AlertTriangle, Building2 } from 'lucide-react'
 
 const DAILY_PHONE_BUDGET = 250 // mirror of the server-side cap, for display only
 
@@ -207,11 +207,19 @@ function ContactCard({ c, copiedId, onCopy }) {
         </div>
         <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name || 'Unnamed'}</div>
-          <div style={{ fontSize: 12, color: 'var(--text-3)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {c.title}{c.title && c.company ? ' @ ' : ''}{c.company}
-          </div>
+          {c.title && (
+            <div style={{ fontSize: 12, color: 'var(--text-3)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {c.title}
+            </div>
+          )}
         </div>
         <Badge color={confColor}>{c.matchConfidence || 'n/a'}</Badge>
+      </div>
+
+      {/* Company — the key outreach field: its own line, always fully shown (wraps, never clipped) */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
+        <Building2 size={14} style={{ flexShrink: 0, marginTop: 1, color: 'var(--text-3)' }} />
+        <span>{c.company || <span style={{ fontWeight: 400, color: 'var(--text-3)' }}>Company not found</span>}</span>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12.5 }}>

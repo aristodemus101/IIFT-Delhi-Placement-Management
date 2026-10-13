@@ -198,6 +198,9 @@ function todayKeyIST() {
   return parts // en-CA gives YYYY-MM-DD
 }
 
+// resolveCompany lives in apolloLimits.js (pure + unit-tested); aliased here.
+const resolveCompany = limits.resolveCompany
+
 async function assertEnrichRole(auth) {
   if (!auth?.uid) throw new HttpsError('unauthenticated', 'Must be signed in')
   const snap = await getFirestore().doc(`roles/${auth.uid}`).get()
@@ -344,12 +347,14 @@ exports.enrichContacts = onCall(
       const phoneStatus = thisWantsPhone ? 'pending' : 'not_requested'
       if (thisWantsPhone) phoneRequested++
 
+      const company = resolveCompany(person)
+
       const docData = {
         linkedinUrl: v.original,
         linkedinUrlNormalized: v.normalized,
         name: person.name || [person.first_name, person.last_name].filter(Boolean).join(' ') || '',
         title: person.title || '',
-        company: person.organization?.name || person.account?.name || '',
+        company,
         email,
         phone: '',
         phoneStatus,

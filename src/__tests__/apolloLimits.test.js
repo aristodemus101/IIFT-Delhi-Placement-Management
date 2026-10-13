@@ -4,6 +4,7 @@ import limits from '../../functions/apolloLimits.js'
 const {
   normalizeLinkedinUrl, looksLikeLinkedinUrl, dedupeAndValidate,
   checkPerCallCaps, checkDailyPhoneBudget, checkHourlyRate, estimateCredits,
+  resolveCompany,
   MAX_PEOPLE_PER_CALL, MAX_PHONE_REVEALS_PER_CALL, MAX_APOLLO_CALLS_PER_HOUR,
   DEFAULT_DAILY_PHONE_BUDGET,
 } = limits
@@ -156,5 +157,42 @@ describe('estimateCredits', () => {
 
   it('handles email-only (no phones)', () => {
     expect(estimateCredits(5, 0)).toEqual({ email: 5, phoneWorstCase: 0, totalWorstCase: 5 })
+  })
+})
+
+// ─── resolveCompany ──────────────────────────────────────────────────────────
+
+describe('resolveCompany', () => {
+  it('prefers organization.name', () => {
+    expect(resolveCompany({ organization: { name: 'Hero Future Energies' }, account: { name: 'X' } }))
+      .toBe('Hero Future Energies')
+  })
+
+  it('falls back to account.name', () => {
+    expect(resolveCompany({ account: { name: 'Acme Corp' } })).toBe('Acme Corp')
+  })
+
+  it('falls back to the current employment history entry', () => {
+    const person = {
+      employment_history: [
+        { organization_name: 'Old Co', current: false },
+        { organization_name: 'Current Co', current: true },
+      ],
+    }
+    expect(resolveCompany(person)).toBe('Current Co')
+  })
+
+  it('uses the first employment history entry when none is flagged current', () => {
+    const person = { employment_history: [{ organization_name: 'First Co' }] }
+    expect(resolveCompany(person)).toBe('First Co')
+  })
+
+  it('falls back to a bare organization_name field', () => {
+    expect(resolveCompany({ organization_name: 'Bare Co' })).toBe('Bare Co')
+  })
+
+  it('returns empty string when nothing is present', () => {
+    expect(resolveCompany({})).toBe('')
+    expect(resolveCompany(null)).toBe('')
   })
 })
