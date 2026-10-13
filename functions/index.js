@@ -159,6 +159,37 @@ const APOLLO_MATCH_URL = 'https://api.apollo.io/api/v1/people/match'
 const OUTREACH_COLLECTION = 'outreachContacts'
 const USAGE_DOC = 'config/apolloUsage'
 
+// Atomically increment usage counters, including nested day-bucket counters
+// like phoneByDay.<day>. update() interprets a key containing "." as a nested
+// field path (set() does not), so the day buckets increment reliably instead
+// of creating a literal dotted field name. Falls back to creating the doc on
+// the first-ever write (when update() fails because the doc doesn't exist).
+// `increments` is a flat map of dottedFieldPath → number.
+async function bumpUsage(db, increments) {
+  const ref = db.doc(USAGE_DOC)
+  const data = { lastUpdated: FieldValue.serverTimestamp() }
+  for (const [path, n] of Object.entries(increments)) {
+    data[path] = FieldValue.increment(n)
+  }
+  try {
+    await ref.update(data)
+  } catch (e) {
+    // Doc doesn't exist yet → create it. Expand dotted paths into a nested
+    // object so the initial structure is correct.
+    const seed = { lastUpdated: FieldValue.serverTimestamp() }
+    for (const [path, n] of Object.entries(increments)) {
+      const segs = path.split('.')
+      let node = seed
+      for (let i = 0; i < segs.length - 1; i++) {
+        node[segs[i]] = node[segs[i]] || {}
+        node = node[segs[i]]
+      }
+      node[segs[segs.length - 1]] = n
+    }
+    await ref.set(seed, { merge: true })
+  }
+}
+
 // YYYY-MM-DD in Asia/Kolkata — the key for the daily phone budget.
 function todayKeyIST() {
   const parts = new Intl.DateTimeFormat('en-CA', {
@@ -348,13 +379,13 @@ exports.enrichContacts = onCall(
       })
     }
 
-    // 5. Update usage counters (email = 1 credit each enriched; phone counted on delivery via webhook).
+    // 5. Update usage counters (email = 1 credit each enriched; phone credits
+    //    counted on delivery via the webhook, not here).
     const dayKey = todayKeyIST()
-    await db.doc(USAGE_DOC).set({
-      emailCreditsLifetime: FieldValue.increment(enriched),
-      phoneRequestedByDay: { [dayKey]: FieldValue.increment(phoneRequested) },
-      lastUpdated: FieldValue.serverTimestamp(),
-    }, { merge: true })
+    await bumpUsage(db, {
+      emailCreditsLifetime: enriched,
+      [`phoneRequestedByDay.${dayKey}`]: phoneRequested,
+    })
 
     await db.collection('auditLog').add({
       type: 'apollo_enrich', status: 'completed', by: enrichedBy, at: FieldValue.serverTimestamp(),
@@ -420,11 +451,10 @@ exports.apolloPhoneWebhook = onRequest(
         await targetRef.set({ phone, phoneStatus: 'done', updatedAt: FieldValue.serverTimestamp() }, { merge: true })
         // Phone delivered → +8 credits; count against the day's budget ledger.
         const dayKey = todayKeyIST()
-        await db.doc(USAGE_DOC).set({
-          phoneCreditsLifetime: FieldValue.increment(8),
-          phoneByDay: { [dayKey]: FieldValue.increment(1) },
-          lastUpdated: FieldValue.serverTimestamp(),
-        }, { merge: true })
+        await bumpUsage(db, {
+          phoneCreditsLifetime: 8,
+          [`phoneByDay.${dayKey}`]: 1,
+        })
       } else {
         // Apollo had no mobile on file for this person.
         await targetRef.set({ phoneStatus: 'none', updatedAt: FieldValue.serverTimestamp() }, { merge: true })
