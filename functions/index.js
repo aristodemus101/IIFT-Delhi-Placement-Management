@@ -428,6 +428,89 @@ exports.enrichContacts = onCall(
   }
 )
 
+// People Search: find people by criteria (title + company), no credits spent.
+// Returns masked results (name/title/company/linkedin/location only — email &
+// phone come back masked from Apollo and are NOT returned to the client). The
+// user then picks whom to reveal via enrichContacts (which spends credits).
+// Gated by the same enrichContacts permission (per the chosen access model).
+const APOLLO_SEARCH_URL = 'https://api.apollo.io/api/v1/mixed_people/search'
+const SEARCH_MAX_PER_PAGE = 25
+
+exports.searchPeople = onCall(
+  { region: 'asia-south1', invoker: 'public', cors: ALLOWED_ORIGINS, secrets: [APOLLO_API_KEY] },
+  async (request) => {
+    await assertEnrichRole(request.auth) // same permission as fetch, per design
+
+    const { titles, company, page } = request.data || {}
+    const titleList = Array.isArray(titles)
+      ? titles.map(t => String(t || '').trim()).filter(Boolean)
+      : (typeof titles === 'string' && titles.trim() ? [titles.trim()] : [])
+    const companyStr = typeof company === 'string' ? company.trim() : ''
+    const pageNum = Number.isInteger(page) && page > 0 ? page : 1
+
+    if (titleList.length === 0 && !companyStr) {
+      throw new HttpsError('invalid-argument', 'Provide a job title and/or a company to search.')
+    }
+
+    const body = {
+      page: pageNum,
+      per_page: SEARCH_MAX_PER_PAGE,
+    }
+    if (titleList.length) body.person_titles = titleList
+    // q_organization_name is Apollo's free-text current-employer filter.
+    if (companyStr) body.q_organization_name = companyStr
+
+    const apiKey = APOLLO_API_KEY.value()
+    let res
+    try {
+      res = await fetch(APOLLO_SEARCH_URL, {
+        method: 'POST',
+        headers: { 'x-api-key': apiKey, 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' },
+        body: JSON.stringify(body),
+      })
+    } catch (e) {
+      throw new HttpsError('internal', 'Could not reach Apollo search.')
+    }
+    if (res.status === 401 || res.status === 403) {
+      throw new HttpsError('internal', 'Apollo API key was rejected. Contact an admin.')
+    }
+    if (res.status === 429) {
+      throw new HttpsError('resource-exhausted', 'Apollo rate limit (429). Try again shortly.')
+    }
+    if (!res.ok) {
+      throw new HttpsError('internal', `Apollo search error (${res.status}).`)
+    }
+
+    const data = await res.json()
+    const people = Array.isArray(data?.people) ? data.people : []
+    const pagination = data?.pagination || {}
+
+    // Return ONLY display-safe fields. Never pass Apollo's masked email/phone
+    // or raw payload to the client — those are not real data and must not leak.
+    const results = people.map(p => ({
+      name: p.name || [p.first_name, p.last_name].filter(Boolean).join(' ') || '',
+      title: p.title || '',
+      company: limits.resolveCompany(p),
+      linkedinUrl: p.linkedin_url || '',
+      location: [p.city, p.state, p.country].filter(Boolean).join(', '),
+    })).filter(r => r.linkedinUrl) // only results we can later enrich by URL
+
+    await getFirestore().collection('auditLog').add({
+      type: 'apollo_search', status: 'completed',
+      by: { uid: request.auth.uid, email: request.auth.token?.email || '' },
+      at: FieldValue.serverTimestamp(),
+      detail: `titles=${JSON.stringify(titleList)} company=${JSON.stringify(companyStr)} page=${pageNum} results=${results.length}`,
+    })
+
+    return {
+      results,
+      page: pageNum,
+      totalPages: pagination.total_pages || 1,
+      totalEntries: pagination.total_entries || results.length,
+    }
+  }
+)
+
 // Public webhook: Apollo POSTs revealed phone numbers here minutes later.
 // NOT a Firebase-authenticated caller — guarded by a secret token in the query.
 // Writes via Admin SDK (bypasses Firestore rules, which is correct here).

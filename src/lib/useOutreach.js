@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { collection, query, orderBy, onSnapshot, doc } from 'firebase/firestore'
-import { db, auth, callEnrichContacts } from './firebase'
+import { db, auth, callEnrichContacts, callSearchPeople } from './firebase'
 
 // Live feed of enriched outreach contacts. Phone fields update in place when
 // the Apollo webhook resolves them (phoneStatus: pending → done/none).
@@ -54,5 +54,11 @@ export function todayKeyIST() {
 // Thin wrapper around the callable. Returns the function's result data.
 export async function enrichContacts(urls, wantPhone) {
   const res = await callEnrichContacts({ urls, wantPhone })
+  return res.data
+}
+
+// People search (no credits). Returns { results, page, totalPages, totalEntries }.
+export async function searchPeople({ titles, company, page }) {
+  const res = await callSearchPeople({ titles, company, page })
   return res.data
 }

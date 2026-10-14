@@ -1,8 +1,8 @@
 import React, { useMemo, useState } from 'react'
 import { PageHeader, Btn, Badge, Spinner, Modal } from '../components/UI'
 import { usePermissions } from '../lib/usePermissions'
-import { useOutreachContacts, useApolloUsage, enrichContacts, todayKeyIST } from '../lib/useOutreach'
-import { Sparkles, Mail, Phone, MapPin, ExternalLink, Copy, Check, AlertTriangle, Building2 } from 'lucide-react'
+import { useOutreachContacts, useApolloUsage, enrichContacts, searchPeople, todayKeyIST } from '../lib/useOutreach'
+import { Sparkles, Mail, Phone, MapPin, ExternalLink, Copy, Check, AlertTriangle, Building2, Search as SearchIcon, Link2 } from 'lucide-react'
 
 const DAILY_PHONE_BUDGET = 250 // mirror of the server-side cap, for display only
 
@@ -18,6 +18,7 @@ export default function OutreachPage() {
   const { contacts, loading } = useOutreachContacts()
   const usage = useApolloUsage()
 
+  const [mode, setMode] = useState('search') // 'search' | 'paste'
   const [urlText, setUrlText] = useState('')
   const [wantPhone, setWantPhone] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
@@ -27,7 +28,21 @@ export default function OutreachPage() {
   const [copiedId, setCopiedId] = useState(null)
   const [search, setSearch] = useState('')
 
-  const parsedUrls = useMemo(() => parseUrls(urlText), [urlText])
+  // People-search state
+  const [searchTitle, setSearchTitle] = useState('')
+  const [searchCompany, setSearchCompany] = useState('')
+  const [searching, setSearching] = useState(false)
+  const [searchResults, setSearchResults] = useState(null) // null = not searched yet
+  const [searchPage, setSearchPage] = useState(1)
+  const [searchTotalPages, setSearchTotalPages] = useState(1)
+  const [searchTotal, setSearchTotal] = useState(0)
+  const [selectedUrls, setSelectedUrls] = useState(() => new Set())
+
+  // URLs to enrich, depending on mode: pasted text, or the selected search rows.
+  const parsedUrls = useMemo(() => {
+    if (mode === 'paste') return parseUrls(urlText)
+    return [...selectedUrls]
+  }, [mode, urlText, selectedUrls])
   const uniqueCount = useMemo(() => new Set(parsedUrls.map(u => u.toLowerCase().replace(/\/+$/, ''))).size, [parsedUrls])
 
   const phonesUsedToday = usage?.phoneByDay?.[todayKeyIST()] || 0
@@ -53,12 +68,37 @@ export default function OutreachPage() {
     try {
       const data = await enrichContacts(parsedUrls, wantPhone)
       setResult(data)
-      setUrlText('')
+      if (mode === 'paste') setUrlText('')
+      else setSelectedUrls(new Set()) // clear selection after fetching
     } catch (e) {
       setError(e?.message || 'Enrichment failed.')
     } finally {
       setBusy(false)
     }
+  }
+
+  const runSearch = async (page = 1) => {
+    setSearching(true); setError(''); setResult(null)
+    try {
+      const data = await searchPeople({ titles: searchTitle, company: searchCompany, page })
+      setSearchResults(data.results || [])
+      setSearchPage(data.page || 1)
+      setSearchTotalPages(data.totalPages || 1)
+      setSearchTotal(data.totalEntries || (data.results?.length ?? 0))
+    } catch (e) {
+      setError(e?.message || 'Search failed.')
+      setSearchResults([])
+    } finally {
+      setSearching(false)
+    }
+  }
+
+  const toggleSelectUrl = (url) => {
+    setSelectedUrls(prev => {
+      const next = new Set(prev)
+      if (next.has(url)) next.delete(url); else next.add(url)
+      return next
+    })
   }
 
   const copyEmail = (id, email) => {
@@ -94,22 +134,71 @@ export default function OutreachPage() {
         {/* Input panel */}
         {canEnrich && (
           <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: 'var(--surface)', padding: 16 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Paste LinkedIn profile URLs</div>
-            <textarea
-              value={urlText}
-              onChange={e => setUrlText(e.target.value)}
-              rows={5}
-              placeholder={'https://www.linkedin.com/in/jane-doe\nhttps://www.linkedin.com/in/john-smith\n… (one per line, or comma/space separated)'}
-              style={{
-                width: '100%', padding: '10px 12px', borderRadius: 'var(--radius-sm)',
-                border: '1px solid var(--border)', background: 'var(--surface2)',
-                color: 'var(--text)', fontSize: 13, resize: 'vertical',
-                fontFamily: 'var(--font-sans)', boxSizing: 'border-box',
-              }}
-            />
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 10, flexWrap: 'wrap' }}>
+            {/* Mode toggle */}
+            <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
+              <button onClick={() => setMode('search')} style={{ ...modePill, ...(mode === 'search' ? modePillActive : {}) }}>
+                <SearchIcon size={13} /> Search people
+              </button>
+              <button onClick={() => setMode('paste')} style={{ ...modePill, ...(mode === 'paste' ? modePillActive : {}) }}>
+                <Link2 size={13} /> Paste URLs
+              </button>
+            </div>
+
+            {mode === 'search' ? (
+              <>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                  <div style={{ flex: '1 1 200px' }}>
+                    <label style={fieldLabel}>Job title</label>
+                    <input
+                      value={searchTitle}
+                      onChange={e => setSearchTitle(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') runSearch(1) }}
+                      placeholder="e.g. CHRO, Head of HR"
+                      style={fieldInput}
+                    />
+                  </div>
+                  <div style={{ flex: '1 1 200px' }}>
+                    <label style={fieldLabel}>Company</label>
+                    <input
+                      value={searchCompany}
+                      onChange={e => setSearchCompany(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') runSearch(1) }}
+                      placeholder="e.g. IndiGo"
+                      style={fieldInput}
+                    />
+                  </div>
+                  <Btn variant="primary" disabled={searching || (!searchTitle.trim() && !searchCompany.trim())} onClick={() => runSearch(1)}>
+                    <SearchIcon size={13} /> {searching ? 'Searching…' : 'Search'}
+                  </Btn>
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 8 }}>
+                  Search is free — it returns matching people. You then select who to fetch contact details for (that's what uses credits).
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Paste LinkedIn profile URLs</div>
+                <textarea
+                  value={urlText}
+                  onChange={e => setUrlText(e.target.value)}
+                  rows={5}
+                  placeholder={'https://www.linkedin.com/in/jane-doe\nhttps://www.linkedin.com/in/john-smith\n… (one per line, or comma/space separated)'}
+                  style={{
+                    width: '100%', padding: '10px 12px', borderRadius: 'var(--radius-sm)',
+                    border: '1px solid var(--border)', background: 'var(--surface2)',
+                    color: 'var(--text)', fontSize: 13, resize: 'vertical',
+                    fontFamily: 'var(--font-sans)', boxSizing: 'border-box',
+                  }}
+                />
+              </>
+            )}
+
+            {/* Fetch controls — shared by both modes */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 12, flexWrap: 'wrap' }}>
               <span style={{ fontSize: 12, color: 'var(--text-3)' }}>
-                {uniqueCount} unique URL{uniqueCount === 1 ? '' : 's'} detected
+                {mode === 'search'
+                  ? `${uniqueCount} selected`
+                  : `${uniqueCount} unique URL${uniqueCount === 1 ? '' : 's'} detected`}
               </span>
               <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer', color: 'var(--text-2)' }}>
                 <input type="checkbox" checked={wantPhone} onChange={e => setWantPhone(e.target.checked)} disabled={phonesRemaining === 0} />
@@ -118,10 +207,73 @@ export default function OutreachPage() {
               </label>
               <div style={{ marginLeft: 'auto' }}>
                 <Btn variant="primary" disabled={uniqueCount === 0 || busy} onClick={() => setConfirmOpen(true)}>
-                  <Sparkles size={13} /> {busy ? 'Enriching…' : 'Enrich'}
+                  <Sparkles size={13} /> {busy ? 'Fetching…' : mode === 'search' ? 'Fetch details for selected' : 'Enrich'}
                 </Btn>
               </div>
             </div>
+
+            {/* Search results */}
+            {mode === 'search' && searchResults !== null && (
+              <div style={{ marginTop: 14, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
+                {searchResults.length === 0 ? (
+                  <div style={{ fontSize: 13, color: 'var(--text-3)', textAlign: 'center', padding: 16 }}>
+                    No people matched. Try a broader title or a different company spelling.
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 12, color: 'var(--text-3)' }}>
+                        {searchTotal.toLocaleString()} match{searchTotal === 1 ? '' : 'es'} · showing page {searchPage} of {searchTotalPages}
+                      </span>
+                      <button
+                        onClick={() => {
+                          const allSelected = searchResults.every(r => selectedUrls.has(r.linkedinUrl))
+                          setSelectedUrls(prev => {
+                            const next = new Set(prev)
+                            searchResults.forEach(r => allSelected ? next.delete(r.linkedinUrl) : next.add(r.linkedinUrl))
+                            return next
+                          })
+                        }}
+                        style={{ ...modePill, fontSize: 11, padding: '3px 9px' }}
+                      >
+                        {searchResults.every(r => selectedUrls.has(r.linkedinUrl)) ? 'Deselect page' : 'Select all on page'}
+                      </button>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      {searchResults.map((r, i) => {
+                        const sel = selectedUrls.has(r.linkedinUrl)
+                        return (
+                          <label key={r.linkedinUrl || i} style={{
+                            display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 'var(--radius-sm)',
+                            border: `1px solid ${sel ? 'var(--accent)' : 'var(--border)'}`,
+                            background: sel ? 'var(--accent-bg)' : 'var(--surface2)', cursor: 'pointer',
+                          }}>
+                            <input type="checkbox" checked={sel} onChange={() => toggleSelectUrl(r.linkedinUrl)} style={{ cursor: 'pointer' }} />
+                            <div style={{ minWidth: 0, flex: 1 }}>
+                              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.name || 'Unnamed'}</div>
+                              <div style={{ fontSize: 12, color: 'var(--text-3)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {r.title}{r.title && r.company ? ' · ' : ''}<strong style={{ color: 'var(--text-2)' }}>{r.company}</strong>{r.location ? ` · ${r.location}` : ''}
+                              </div>
+                            </div>
+                            <a href={r.linkedinUrl} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ color: 'var(--accent)', display: 'flex', flexShrink: 0 }} title="Open LinkedIn">
+                              <ExternalLink size={13} />
+                            </a>
+                          </label>
+                        )
+                      })}
+                    </div>
+                    {/* Pagination */}
+                    {searchTotalPages > 1 && (
+                      <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 10, alignItems: 'center' }}>
+                        <Btn size="sm" variant="ghost" disabled={searchPage <= 1 || searching} onClick={() => runSearch(searchPage - 1)}>Prev</Btn>
+                        <span style={{ fontSize: 12, color: 'var(--text-3)' }}>{searchPage} / {searchTotalPages}</span>
+                        <Btn size="sm" variant="ghost" disabled={searchPage >= searchTotalPages || searching} onClick={() => runSearch(searchPage + 1)}>Next</Btn>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -255,4 +407,18 @@ function ContactCard({ c, copiedId, onCopy }) {
       </a>
     </div>
   )
+}
+
+const modePill = {
+  display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 8,
+  fontSize: 12.5, fontWeight: 600, cursor: 'pointer', border: '1px solid var(--border)',
+  background: 'var(--surface)', color: 'var(--text-2)', fontFamily: 'var(--font-sans)',
+}
+const modePillActive = { background: 'var(--accent-bg)', color: 'var(--accent-dark)', border: '1px solid color-mix(in srgb, var(--accent) 50%, transparent)' }
+
+const fieldLabel = { display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 }
+const fieldInput = {
+  width: '100%', padding: '8px 10px', borderRadius: 'var(--radius-sm)',
+  border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)',
+  fontSize: 13, fontFamily: 'var(--font-sans)', boxSizing: 'border-box',
 }
