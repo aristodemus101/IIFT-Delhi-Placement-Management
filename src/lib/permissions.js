@@ -94,7 +94,7 @@ export const ACTION_LABELS = {
   writeIntel:      'Intel: Add / Edit Records',
   uploadIntel:     'Intel: Upload Reports (bulk)',
   deleteIntel:     'Intel: Delete Records',
-  enrichContacts:  'Outreach: Enrich Contacts (Apollo)',
+  enrichContacts:  'Outreach: Fetch Contact Details (email/phone, uses credits)',
 }
 
 // Which pages/actions are configurable (admin access is always locked; tpo/fc fixed roles excluded)

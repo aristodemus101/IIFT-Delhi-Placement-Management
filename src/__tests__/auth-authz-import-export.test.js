@@ -14,7 +14,7 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { PAGE_ACCESS, ACTION_ACCESS, FIELD_DEFAULTS, ROLES, ROLE_LABELS, CONFIGURABLE_ROLES } from '../lib/permissions.js'
+import { PAGE_ACCESS, ACTION_ACCESS, FIELD_DEFAULTS, ROLES, ROLE_LABELS, CONFIGURABLE_ROLES, CONFIGURABLE_PAGES, CONFIGURABLE_ACTIONS } from '../lib/permissions.js'
 import { cohortLabel, schemaDocIdForBatch, makeCohortId } from '../lib/batch.js'
 
 // ─── 1. Auth — allowlist + role derivation ────────────────────────────────────
@@ -192,6 +192,63 @@ describe('usePermissions — action access', () => {
   it('Firestore config override expands access within bounds', () => {
     const override = { proposePlace: ['admin', 'committee', 'tpo'] }
     expect(canDo('tpo', 'proposePlace', override)).toBe(true)
+  })
+})
+
+// ── Outreach (Apollo enrichment) — access matrix invariants ──────────────────
+// These codify the security model: enrichContacts (spends money) and the
+// outreach page are controllable from the Admin grid, default to admin|committee,
+// and a config override is honored. The SAME override doc gates the Cloud
+// Function server-side (assertEnrichRole), so UI and backend can't diverge.
+describe('Outreach — access control invariants', () => {
+  function canDo(role, action, overrides = {}) {
+    if (!role) return false
+    if (role === 'admin') return true
+    const override = overrides[action]
+    const allowed = Array.isArray(override) ? override : (ACTION_ACCESS[action] || [])
+    return allowed.includes(role)
+  }
+  function canAccessPage(role, page, overrides = {}) {
+    if (!role) return false
+    if (role === 'admin') return true
+    const override = overrides[page]
+    const allowed = Array.isArray(override) ? override : (PAGE_ACCESS[page] || [])
+    return allowed.includes(role)
+  }
+
+  it('enrichContacts and the outreach page are both configurable', () => {
+    expect(CONFIGURABLE_ACTIONS).toContain('enrichContacts')
+    expect(CONFIGURABLE_PAGES).toContain('outreach')
+  })
+
+  it('by default only admin and committee can fetch contact details', () => {
+    expect(canDo('admin', 'enrichContacts')).toBe(true)
+    expect(canDo('committee', 'enrichContacts')).toBe(true)
+    expect(canDo('tpo', 'enrichContacts')).toBe(false)
+    expect(canDo('faculty_coordinator', 'enrichContacts')).toBe(false)
+  })
+
+  it('tpo gains fetch access ONLY when granted via config override', () => {
+    expect(canDo('tpo', 'enrichContacts')).toBe(false)
+    const granted = { enrichContacts: ['admin', 'committee', 'tpo'] }
+    expect(canDo('tpo', 'enrichContacts', granted)).toBe(true)
+    // revoking (removing from the array) takes it away again
+    const revoked = { enrichContacts: ['admin', 'committee'] }
+    expect(canDo('tpo', 'enrichContacts', revoked)).toBe(false)
+  })
+
+  it('outreach page defaults to admin|committee and is grantable to tpo/fc', () => {
+    expect(canAccessPage('tpo', 'outreach')).toBe(false)
+    expect(canAccessPage('faculty_coordinator', 'outreach')).toBe(false)
+    const granted = { outreach: ['admin', 'committee', 'tpo'] }
+    expect(canAccessPage('tpo', 'outreach', granted)).toBe(true)
+  })
+
+  it('page access and fetch access are independent — granting the page does not grant fetching', () => {
+    // Page granted to tpo, but enrichContacts NOT granted → can see tab, cannot fetch.
+    const pageOnly = { outreach: ['admin', 'committee', 'tpo'] }
+    expect(canAccessPage('tpo', 'outreach', pageOnly)).toBe(true)
+    expect(canDo('tpo', 'enrichContacts')).toBe(false) // action still default-denied
   })
 })
 
