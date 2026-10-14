@@ -118,6 +118,22 @@ function resolveCompany(person) {
   return ''
 }
 
+// Build an Apollo query string. Array values become repeated key[]=v pairs
+// (Apollo's required form); empty/nullish values are skipped. Apollo's search
+// endpoints take all params in the query string, not a JSON body.
+function apolloQuery(params) {
+  const qs = new URLSearchParams()
+  for (const [key, val] of Object.entries(params || {})) {
+    if (val === undefined || val === null || val === '') continue
+    if (Array.isArray(val)) {
+      for (const v of val) { if (v !== undefined && v !== null && v !== '') qs.append(`${key}[]`, v) }
+    } else {
+      qs.append(key, val)
+    }
+  }
+  return qs.toString()
+}
+
 // If resolveCompany pulled the company out of the "Title @ Company" headline,
 // strip that trailing "@ Company" from the title so the card doesn't show the
 // company twice (once on the title line, once on the company line).
@@ -143,4 +159,5 @@ module.exports = {
   estimateCredits,
   resolveCompany,
   cleanTitle,
+  apolloQuery,
 }

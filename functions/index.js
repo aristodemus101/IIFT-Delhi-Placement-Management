@@ -433,53 +433,101 @@ exports.enrichContacts = onCall(
 // phone come back masked from Apollo and are NOT returned to the client). The
 // user then picks whom to reveal via enrichContacts (which spends credits).
 // Gated by the same enrichContacts permission (per the chosen access model).
-const APOLLO_SEARCH_URL = 'https://api.apollo.io/api/v1/mixed_people/search'
+//
+// Apollo API notes (verified against docs.apollo.io):
+//  - People search endpoint: POST /mixed_people/api_search
+//  - Company search endpoint: POST /mixed_companies/search
+//  - ALL params go in the QUERY STRING, not a JSON body.
+//  - There is NO free-text company-NAME filter on people search. Company must
+//    be an org ID (organization_ids[]) or domain (q_organization_domains_list[]).
+//    So when a company name is given, we first resolve it to an org id via the
+//    company-search endpoint, then filter people by that id.
+const APOLLO_PEOPLE_SEARCH_URL   = 'https://api.apollo.io/api/v1/mixed_people/api_search'
+const APOLLO_COMPANY_SEARCH_URL  = 'https://api.apollo.io/api/v1/mixed_companies/search'
 const SEARCH_MAX_PER_PAGE = 25
+
+// apolloQuery (repeated array keys: key[]=a&key[]=b) lives in apolloLimits.js
+// (pure + unit-tested); aliased here.
+const apolloQuery = limits.apolloQuery
+
+async function apolloPost(baseUrl, params, apiKey) {
+  const url = `${baseUrl}?${apolloQuery(params)}`
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'x-api-key': apiKey, 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' },
+  })
+  return res
+}
+
+async function readApolloError(res) {
+  try {
+    const b = await res.json()
+    return b?.error || b?.message || (Array.isArray(b?.errors) ? b.errors.join('; ') : '') || JSON.stringify(b).slice(0, 300)
+  } catch (_) {
+    try { return (await res.text()).slice(0, 300) } catch (_) { return '' }
+  }
+}
 
 exports.searchPeople = onCall(
   { region: 'asia-south1', invoker: 'public', cors: ALLOWED_ORIGINS, secrets: [APOLLO_API_KEY] },
   async (request) => {
     await assertEnrichRole(request.auth) // same permission as fetch, per design
+    const db = getFirestore()
+    const auditBy = { uid: request.auth.uid, email: request.auth.token?.email || '' }
 
     const { titles, company, page } = request.data || {}
     const titleList = Array.isArray(titles)
       ? titles.map(t => String(t || '').trim()).filter(Boolean)
       : (typeof titles === 'string' && titles.trim() ? [titles.trim()] : [])
     const companyStr = typeof company === 'string' ? company.trim() : ''
-    const pageNum = Number.isInteger(page) && page > 0 ? page : 1
+    const pageNum = Number.isInteger(page) && page > 0 ? Math.min(page, 500) : 1
 
     if (titleList.length === 0 && !companyStr) {
       throw new HttpsError('invalid-argument', 'Provide a job title and/or a company to search.')
     }
 
-    const body = {
-      page: pageNum,
-      per_page: SEARCH_MAX_PER_PAGE,
-    }
-    if (titleList.length) body.person_titles = titleList
-    // q_organization_name is Apollo's free-text current-employer filter.
-    if (companyStr) body.q_organization_name = companyStr
-
     const apiKey = APOLLO_API_KEY.value()
+
+    const fail = async (status, detail, sent) => {
+      await db.collection('auditLog').add({
+        type: 'apollo_search', status: 'error', by: auditBy, at: FieldValue.serverTimestamp(),
+        detail: `status=${status} body=${detail} sent=${JSON.stringify(sent)}`,
+      }).catch(() => {})
+      if (status === 401 || status === 403) throw new HttpsError('internal', 'Apollo API key was rejected. Contact an admin.')
+      if (status === 429) throw new HttpsError('resource-exhausted', 'Apollo rate limit (429). Try again shortly.')
+      throw new HttpsError('internal', `Apollo search error (${status})${detail ? `: ${detail}` : ''}`)
+    }
+
+    // ── Step 1: resolve the company name → org id(s), if a company was given ──
+    let organizationIds = []
+    if (companyStr) {
+      const coParams = { q_organization_name: companyStr, page: 1, per_page: 5 }
+      let coRes
+      try { coRes = await apolloPost(APOLLO_COMPANY_SEARCH_URL, coParams, apiKey) }
+      catch (_) { throw new HttpsError('internal', 'Could not reach Apollo company search.') }
+      if (!coRes.ok) await fail(coRes.status, await readApolloError(coRes), coParams)
+      const coData = await coRes.json()
+      const orgs = Array.isArray(coData?.organizations) ? coData.organizations : []
+      organizationIds = orgs.map(o => o.id).filter(Boolean).slice(0, 5)
+      if (organizationIds.length === 0) {
+        // No matching company — return an empty, clearly-explained result.
+        await db.collection('auditLog').add({
+          type: 'apollo_search', status: 'no_company', by: auditBy, at: FieldValue.serverTimestamp(),
+          detail: `company=${JSON.stringify(companyStr)} matched no organization`,
+        }).catch(() => {})
+        return { results: [], page: 1, totalPages: 1, totalEntries: 0, note: `No company matching "${companyStr}" was found in Apollo.` }
+      }
+    }
+
+    // ── Step 2: people search by title + resolved org id(s) ──────────────────
+    const peopleParams = { page: pageNum, per_page: SEARCH_MAX_PER_PAGE }
+    if (titleList.length) peopleParams.person_titles = titleList
+    if (organizationIds.length) peopleParams.organization_ids = organizationIds
+
     let res
-    try {
-      res = await fetch(APOLLO_SEARCH_URL, {
-        method: 'POST',
-        headers: { 'x-api-key': apiKey, 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' },
-        body: JSON.stringify(body),
-      })
-    } catch (e) {
-      throw new HttpsError('internal', 'Could not reach Apollo search.')
-    }
-    if (res.status === 401 || res.status === 403) {
-      throw new HttpsError('internal', 'Apollo API key was rejected. Contact an admin.')
-    }
-    if (res.status === 429) {
-      throw new HttpsError('resource-exhausted', 'Apollo rate limit (429). Try again shortly.')
-    }
-    if (!res.ok) {
-      throw new HttpsError('internal', `Apollo search error (${res.status}).`)
-    }
+    try { res = await apolloPost(APOLLO_PEOPLE_SEARCH_URL, peopleParams, apiKey) }
+    catch (_) { throw new HttpsError('internal', 'Could not reach Apollo people search.') }
+    if (!res.ok) await fail(res.status, await readApolloError(res), peopleParams)
 
     const data = await res.json()
     const people = Array.isArray(data?.people) ? data.people : []
@@ -495,11 +543,9 @@ exports.searchPeople = onCall(
       location: [p.city, p.state, p.country].filter(Boolean).join(', '),
     })).filter(r => r.linkedinUrl) // only results we can later enrich by URL
 
-    await getFirestore().collection('auditLog').add({
-      type: 'apollo_search', status: 'completed',
-      by: { uid: request.auth.uid, email: request.auth.token?.email || '' },
-      at: FieldValue.serverTimestamp(),
-      detail: `titles=${JSON.stringify(titleList)} company=${JSON.stringify(companyStr)} page=${pageNum} results=${results.length}`,
+    await db.collection('auditLog').add({
+      type: 'apollo_search', status: 'completed', by: auditBy, at: FieldValue.serverTimestamp(),
+      detail: `titles=${JSON.stringify(titleList)} company=${JSON.stringify(companyStr)} orgIds=${organizationIds.length} page=${pageNum} results=${results.length}`,
     })
 
     return {

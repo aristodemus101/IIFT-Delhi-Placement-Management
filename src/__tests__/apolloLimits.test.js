@@ -4,7 +4,7 @@ import limits from '../../functions/apolloLimits.js'
 const {
   normalizeLinkedinUrl, looksLikeLinkedinUrl, dedupeAndValidate,
   checkPerCallCaps, checkDailyPhoneBudget, checkHourlyRate, estimateCredits,
-  resolveCompany, cleanTitle,
+  resolveCompany, cleanTitle, apolloQuery,
   MAX_PEOPLE_PER_CALL, MAX_PHONE_REVEALS_PER_CALL, MAX_APOLLO_CALLS_PER_HOUR,
   DEFAULT_DAILY_PHONE_BUDGET,
 } = limits
@@ -222,5 +222,28 @@ describe('cleanTitle', () => {
   it('handles missing title or company', () => {
     expect(cleanTitle({}, 'X')).toBe('')
     expect(cleanTitle({ title: 'Manager' }, '')).toBe('Manager')
+  })
+})
+
+describe('apolloQuery', () => {
+  it('expands array values into repeated key[]=v pairs (Apollo form)', () => {
+    const qs = apolloQuery({ person_titles: ['CHRO', 'Head of HR'], organization_ids: ['abc123'], page: 1 })
+    // URLSearchParams encodes spaces as '+' (a valid query-string space); normalize for the assertion.
+    expect(decodeURIComponent(qs).replace(/\+/g, ' ')).toBe('person_titles[]=CHRO&person_titles[]=Head of HR&organization_ids[]=abc123&page=1')
+  })
+
+  it('skips empty, null, and undefined values', () => {
+    const qs = apolloQuery({ a: '', b: null, c: undefined, d: 'keep', e: [] })
+    expect(qs).toBe('d=keep')
+  })
+
+  it('skips empty entries inside arrays', () => {
+    const qs = apolloQuery({ person_titles: ['CHRO', '', null] })
+    expect(decodeURIComponent(qs)).toBe('person_titles[]=CHRO')
+  })
+
+  it('handles empty/nullish params object', () => {
+    expect(apolloQuery({})).toBe('')
+    expect(apolloQuery(null)).toBe('')
   })
 })
