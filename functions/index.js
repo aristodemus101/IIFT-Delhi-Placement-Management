@@ -201,11 +201,31 @@ function todayKeyIST() {
 // resolveCompany lives in apolloLimits.js (pure + unit-tested); aliased here.
 const resolveCompany = limits.resolveCompany
 
+// Server-side authorization for enrichContacts (the money-spending action).
+// Mirrors the client's usePermissions logic so a Team Access grant actually
+// takes effect: admin always allowed; otherwise the role must appear in the
+// /config/actionAccess override for 'enrichContacts' if one exists, else in the
+// hardcoded default. This is what lets you grant TPOs access via the toggle
+// (and lets you revoke it) without ever editing/redeploying this function.
+const ENRICH_DEFAULT_ROLES = ['admin', 'committee']
+
 async function assertEnrichRole(auth) {
   if (!auth?.uid) throw new HttpsError('unauthenticated', 'Must be signed in')
-  const snap = await getFirestore().doc(`roles/${auth.uid}`).get()
-  if (!snap.exists || !['admin', 'committee'].includes(snap.data()?.role)) {
-    throw new HttpsError('permission-denied', 'Admin or committee access required')
+  const db = getFirestore()
+  const roleSnap = await db.doc(`roles/${auth.uid}`).get()
+  const role = roleSnap.exists ? roleSnap.data()?.role : null
+  if (!role) throw new HttpsError('permission-denied', 'No role assigned')
+  if (role === 'admin') return // admin is always allowed
+
+  let allowed = ENRICH_DEFAULT_ROLES
+  try {
+    const cfg = await db.doc('config/actionAccess').get()
+    const override = cfg.exists ? cfg.data()?.enrichContacts : null
+    if (Array.isArray(override)) allowed = override
+  } catch (_) { /* fall back to defaults on config read failure */ }
+
+  if (!allowed.includes(role)) {
+    throw new HttpsError('permission-denied', 'You do not have permission to enrich contacts.')
   }
 }
 
