@@ -4,7 +4,7 @@ import limits from '../../functions/apolloLimits.js'
 const {
   normalizeLinkedinUrl, looksLikeLinkedinUrl, dedupeAndValidate,
   checkPerCallCaps, checkDailyPhoneBudget, checkHourlyRate, estimateCredits,
-  resolveCompany,
+  resolveCompany, cleanTitle,
   MAX_PEOPLE_PER_CALL, MAX_PHONE_REVEALS_PER_CALL, MAX_APOLLO_CALLS_PER_HOUR,
   DEFAULT_DAILY_PHONE_BUDGET,
 } = limits
@@ -191,8 +191,36 @@ describe('resolveCompany', () => {
     expect(resolveCompany({ organization_name: 'Bare Co' })).toBe('Bare Co')
   })
 
+  it('extracts the company from a "Title @ Company" headline as a last resort', () => {
+    // This is exactly the real case seen in production: company only in the title.
+    const person = { title: 'Assistant General Manager - HR @ Hero Future Energies' }
+    expect(resolveCompany(person)).toBe('Hero Future Energies')
+  })
+
+  it('prefers a structured org field over the title-embedded one', () => {
+    const person = { organization: { name: 'Structured Co' }, title: 'Manager @ Headline Co' }
+    expect(resolveCompany(person)).toBe('Structured Co')
+  })
+
   it('returns empty string when nothing is present', () => {
     expect(resolveCompany({})).toBe('')
     expect(resolveCompany(null)).toBe('')
+  })
+})
+
+describe('cleanTitle', () => {
+  it('strips a trailing "@ Company" when the company was pulled from the title', () => {
+    const person = { title: 'Assistant General Manager - HR @ Hero Future Energies' }
+    expect(cleanTitle(person, 'Hero Future Energies')).toBe('Assistant General Manager - HR')
+  })
+
+  it('leaves the title untouched when the company came from a structured field', () => {
+    const person = { title: 'Assistant General Manager - HR' }
+    expect(cleanTitle(person, 'Hero Future Energies')).toBe('Assistant General Manager - HR')
+  })
+
+  it('handles missing title or company', () => {
+    expect(cleanTitle({}, 'X')).toBe('')
+    expect(cleanTitle({ title: 'Manager' }, '')).toBe('Manager')
   })
 })

@@ -368,12 +368,13 @@ exports.enrichContacts = onCall(
       if (thisWantsPhone) phoneRequested++
 
       const company = resolveCompany(person)
+      const title = limits.cleanTitle(person, company)
 
       const docData = {
         linkedinUrl: v.original,
         linkedinUrlNormalized: v.normalized,
         name: person.name || [person.first_name, person.last_name].filter(Boolean).join(' ') || '',
-        title: person.title || '',
+        title,
         company,
         email,
         phone: '',

@@ -96,8 +96,9 @@ function estimateCredits(peopleCount, phoneCount) {
 // Resolve the employer name from an Apollo person. Apollo places the company in
 // different fields depending on plan/match, so try each known location in order
 // of preference (current organisation → account → current employment history →
-// any bare organization_name). Company is the key outreach field — populate it
-// whenever Apollo returns it anywhere.
+// any bare organization_name → the company half of a "Title @ Company" title).
+// Company is the key outreach field — populate it whenever Apollo returns it
+// anywhere, including embedded in the title string.
 function resolveCompany(person) {
   if (!person) return ''
   if (person.organization?.name) return person.organization.name
@@ -106,7 +107,26 @@ function resolveCompany(person) {
   const current = hist.find(h => h && h.current) || hist[0]
   if (current?.organization_name) return current.organization_name
   if (person.organization_name) return person.organization_name
+  // Last resort: Apollo sometimes only surfaces the employer inside the headline
+  // title, e.g. "Assistant General Manager - HR @ Hero Future Energies".
+  const title = person.title || person.headline || ''
+  const at = title.lastIndexOf(' @ ')
+  if (at !== -1) {
+    const tail = title.slice(at + 3).trim()
+    if (tail) return tail
+  }
   return ''
+}
+
+// If resolveCompany pulled the company out of the "Title @ Company" headline,
+// strip that trailing "@ Company" from the title so the card doesn't show the
+// company twice (once on the title line, once on the company line).
+function cleanTitle(person, resolvedCompany) {
+  const title = person?.title || ''
+  if (!title || !resolvedCompany) return title
+  const suffix = ` @ ${resolvedCompany}`
+  if (title.endsWith(suffix)) return title.slice(0, title.length - suffix.length).trim()
+  return title
 }
 
 module.exports = {
@@ -122,4 +142,5 @@ module.exports = {
   checkHourlyRate,
   estimateCredits,
   resolveCompany,
+  cleanTitle,
 }
