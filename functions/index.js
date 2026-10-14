@@ -236,8 +236,10 @@ async function callsInLastHour(db) {
   return snap.data().count
 }
 
-async function callApolloMatch(apiKey, linkedinUrl, wantPhone, webhookUrl) {
-  const body = { linkedin_url: linkedinUrl }
+// target: { kind: 'url', value } or { kind: 'id', value } — people/match
+// accepts either a LinkedIn URL or an Apollo person id.
+async function callApolloMatch(apiKey, target, wantPhone, webhookUrl) {
+  const body = target.kind === 'id' ? { id: target.value } : { linkedin_url: target.value }
   if (wantPhone) {
     body.reveal_phone_number = true
     body.webhook_url = webhookUrl
@@ -270,31 +272,45 @@ exports.enrichContacts = onCall(
     await assertEnrichRole(request.auth)
     const db = getFirestore()
 
-    const { urls, wantPhone } = request.data || {}
-    if (!Array.isArray(urls)) throw new HttpsError('invalid-argument', 'urls must be an array')
+    const { urls, apolloIds, wantPhone } = request.data || {}
+    const urlArr = Array.isArray(urls) ? urls : []
+    const idArr = Array.isArray(apolloIds) ? apolloIds.map(x => String(x || '').trim()).filter(Boolean) : []
+    if (urlArr.length === 0 && idArr.length === 0) {
+      throw new HttpsError('invalid-argument', 'Provide urls or apolloIds to enrich.')
+    }
 
-    // 1. De-dupe + validate.
-    const { valid, invalid, duplicates } = limits.dedupeAndValidate(urls)
-    const perCall = limits.checkPerCallCaps(valid.length, !!wantPhone)
+    // 1. Build the unified target list.
+    //    - URLs: validated + de-duped by normalized URL.
+    //    - Apollo ids (from people search): de-duped as-is.
+    const { valid, invalid, duplicates } = limits.dedupeAndValidate(urlArr)
+    const seenIds = new Set()
+    const idTargets = []
+    for (const id of idArr) { if (!seenIds.has(id)) { seenIds.add(id); idTargets.push({ kind: 'id', value: id }) } }
+    const urlTargets = valid.map(v => ({ kind: 'url', value: v.original, normalized: v.normalized }))
+    const allTargets = [...idTargets, ...urlTargets]
+
+    const perCall = limits.checkPerCallCaps(allTargets.length, !!wantPhone)
     if (!perCall.ok) throw new HttpsError('failed-precondition', perCall.error)
 
-    // 2. Skip anyone already enriched (never pay twice). Look up by normalized URL.
+    // 2. Skip anyone already enriched (never pay twice).
+    //    URL targets dedup by linkedinUrlNormalized; id targets by apolloId.
     const toEnrich = []
     const skipped = []
-    for (const v of valid) {
-      const existing = await db.collection(OUTREACH_COLLECTION)
-        .where('linkedinUrlNormalized', '==', v.normalized).limit(1).get()
+    for (const t of allTargets) {
+      const q = t.kind === 'id'
+        ? db.collection(OUTREACH_COLLECTION).where('apolloId', '==', t.value).limit(1)
+        : db.collection(OUTREACH_COLLECTION).where('linkedinUrlNormalized', '==', t.normalized).limit(1)
+      const existing = await q.get()
       if (!existing.empty) {
         const data = existing.docs[0].data()
-        // Re-request phone only if wanted, missing, and not already in flight.
         const needsPhone = wantPhone && !data.phone && data.phoneStatus !== 'pending'
         if (needsPhone) {
-          toEnrich.push({ ...v, existingId: existing.docs[0].id, emailOnlyAlready: true })
+          toEnrich.push({ ...t, existingId: existing.docs[0].id })
         } else {
-          skipped.push(v.original)
+          skipped.push(t.value)
         }
       } else {
-        toEnrich.push(v)
+        toEnrich.push(t)
       }
     }
 
@@ -335,7 +351,7 @@ exports.enrichContacts = onCall(
     const cards = []
 
     for (let i = 0; i < toEnrich.length; i++) {
-      const v = toEnrich[i]
+      const t = toEnrich[i]
       const thisWantsPhone = wantPhone && phoneRequested < allowedPhone
       const requestId = `${Date.now()}_${Math.random().toString(36).slice(2)}_${i}`
       const webhookUrl = `${FUNCTIONS_BASE_URL}/apolloPhoneWebhook?token=${encodeURIComponent(webhookToken)}&rid=${encodeURIComponent(requestId)}`
@@ -345,7 +361,7 @@ exports.enrichContacts = onCall(
 
       let data
       try {
-        data = await callApolloMatch(apiKey, v.original, thisWantsPhone, webhookUrl)
+        data = await callApolloMatch(apiKey, t, thisWantsPhone, webhookUrl)
       } catch (err) {
         if (err instanceof HttpsError && err.message === 'APOLLO_AUTH') {
           await db.collection('auditLog').add({
@@ -369,10 +385,17 @@ exports.enrichContacts = onCall(
 
       const company = resolveCompany(person)
       const title = limits.cleanTitle(person, company)
+      // Prefer the real LinkedIn URL from the enrichment result; fall back to
+      // the input URL for url-targets. Store the normalized form for dedup.
+      const resolvedUrl = person.linkedin_url || (t.kind === 'url' ? t.value : '')
+      const resolvedNormalized = resolvedUrl
+        ? limits.normalizeLinkedinUrl(resolvedUrl)
+        : (t.kind === 'url' ? t.normalized : '')
 
       const docData = {
-        linkedinUrl: v.original,
-        linkedinUrlNormalized: v.normalized,
+        linkedinUrl: resolvedUrl,
+        linkedinUrlNormalized: resolvedNormalized,
+        apolloId: person.id || (t.kind === 'id' ? t.value : ''),
         name: person.name || [person.first_name, person.last_name].filter(Boolean).join(' ') || '',
         title,
         company,
@@ -387,9 +410,9 @@ exports.enrichContacts = onCall(
         updatedAt: FieldValue.serverTimestamp(),
       }
 
-      if (v.existingId) {
+      if (t.existingId) {
         // Existing email-only record getting a phone request — update in place.
-        await db.collection(OUTREACH_COLLECTION).doc(v.existingId).set(
+        await db.collection(OUTREACH_COLLECTION).doc(t.existingId).set(
           { phoneStatus, requestId: String(requestId), updatedAt: FieldValue.serverTimestamp() },
           { merge: true }
         )
@@ -533,15 +556,23 @@ exports.searchPeople = onCall(
     const people = Array.isArray(data?.people) ? data.people : []
     const pagination = data?.pagination || {}
 
-    // Return ONLY display-safe fields. Never pass Apollo's masked email/phone
-    // or raw payload to the client — those are not real data and must not leak.
-    const results = people.map(p => ({
-      name: p.name || [p.first_name, p.last_name].filter(Boolean).join(' ') || '',
-      title: p.title || '',
-      company: limits.resolveCompany(p),
-      linkedinUrl: p.linkedin_url || '',
-      location: [p.city, p.state, p.country].filter(Boolean).join(', '),
-    })).filter(r => r.linkedinUrl) // only results we can later enrich by URL
+    // api_search returns MASKED results: first_name + last_name_obfuscated,
+    // title, organization.name — NO full last name, LinkedIn URL, email, or
+    // phone (those unlock only on enrichment). Each result carries an Apollo
+    // person `id`, which enrichContacts uses to reveal the real details.
+    // We return only these display-safe fields; nothing sensitive leaks.
+    const results = people.map(p => {
+      const maskedLast = p.last_name_obfuscated || ''
+      const displayName = [p.first_name, maskedLast].filter(Boolean).join(' ') || p.name || 'Unknown'
+      return {
+        apolloId: p.id || '',
+        name: displayName,
+        title: p.title || '',
+        company: p.organization?.name || limits.resolveCompany(p),
+        hasEmail: !!p.has_email,
+        hasPhone: p.has_direct_phone === 'Yes' || p.has_direct_phone === true,
+      }
+    }).filter(r => r.apolloId) // only results we can later enrich by id
 
     await db.collection('auditLog').add({
       type: 'apollo_search', status: 'completed', by: auditBy, at: FieldValue.serverTimestamp(),

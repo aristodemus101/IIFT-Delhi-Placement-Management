@@ -36,14 +36,13 @@ export default function OutreachPage() {
   const [searchPage, setSearchPage] = useState(1)
   const [searchTotalPages, setSearchTotalPages] = useState(1)
   const [searchTotal, setSearchTotal] = useState(0)
-  const [selectedUrls, setSelectedUrls] = useState(() => new Set())
+  const [searchNote, setSearchNote] = useState('')
+  const [selectedIds, setSelectedIds] = useState(() => new Set()) // Apollo person ids
 
-  // URLs to enrich, depending on mode: pasted text, or the selected search rows.
-  const parsedUrls = useMemo(() => {
-    if (mode === 'paste') return parseUrls(urlText)
-    return [...selectedUrls]
-  }, [mode, urlText, selectedUrls])
-  const uniqueCount = useMemo(() => new Set(parsedUrls.map(u => u.toLowerCase().replace(/\/+$/, ''))).size, [parsedUrls])
+  // What gets enriched: pasted URLs (paste mode) or selected Apollo ids (search mode).
+  const parsedUrls = useMemo(() => (mode === 'paste' ? parseUrls(urlText) : []), [mode, urlText])
+  const pasteUniqueCount = useMemo(() => new Set(parsedUrls.map(u => u.toLowerCase().replace(/\/+$/, ''))).size, [parsedUrls])
+  const uniqueCount = mode === 'paste' ? pasteUniqueCount : selectedIds.size
 
   const phonesUsedToday = usage?.phoneByDay?.[todayKeyIST()] || 0
   const phonesRequestedToday = usage?.phoneRequestedByDay?.[todayKeyIST()] || 0
@@ -66,10 +65,13 @@ export default function OutreachPage() {
     setConfirmOpen(false)
     setBusy(true); setError(''); setResult(null)
     try {
-      const data = await enrichContacts(parsedUrls, wantPhone)
+      const payload = mode === 'paste'
+        ? { urls: parsedUrls, wantPhone }
+        : { apolloIds: [...selectedIds], wantPhone }
+      const data = await enrichContacts(payload)
       setResult(data)
       if (mode === 'paste') setUrlText('')
-      else setSelectedUrls(new Set()) // clear selection after fetching
+      else setSelectedIds(new Set()) // clear selection after fetching
     } catch (e) {
       setError(e?.message || 'Enrichment failed.')
     } finally {
@@ -85,6 +87,7 @@ export default function OutreachPage() {
       setSearchPage(data.page || 1)
       setSearchTotalPages(data.totalPages || 1)
       setSearchTotal(data.totalEntries || (data.results?.length ?? 0))
+      setSearchNote(data.note || '')
     } catch (e) {
       setError(e?.message || 'Search failed.')
       setSearchResults([])
@@ -93,10 +96,11 @@ export default function OutreachPage() {
     }
   }
 
-  const toggleSelectUrl = (url) => {
-    setSelectedUrls(prev => {
+  const toggleSelectId = (id) => {
+    if (!id) return
+    setSelectedIds(prev => {
       const next = new Set(prev)
-      if (next.has(url)) next.delete(url); else next.add(url)
+      if (next.has(id)) next.delete(id); else next.add(id)
       return next
     })
   }
@@ -217,7 +221,7 @@ export default function OutreachPage() {
               <div style={{ marginTop: 14, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
                 {searchResults.length === 0 ? (
                   <div style={{ fontSize: 13, color: 'var(--text-3)', textAlign: 'center', padding: 16 }}>
-                    No people matched. Try a broader title or a different company spelling.
+                    {searchNote || 'No people matched. Try a broader title or a different company spelling.'}
                   </div>
                 ) : (
                   <>
@@ -227,37 +231,42 @@ export default function OutreachPage() {
                       </span>
                       <button
                         onClick={() => {
-                          const allSelected = searchResults.every(r => selectedUrls.has(r.linkedinUrl))
-                          setSelectedUrls(prev => {
+                          const ids = searchResults.map(r => r.apolloId).filter(Boolean)
+                          const allSelected = ids.length > 0 && ids.every(id => selectedIds.has(id))
+                          setSelectedIds(prev => {
                             const next = new Set(prev)
-                            searchResults.forEach(r => allSelected ? next.delete(r.linkedinUrl) : next.add(r.linkedinUrl))
+                            ids.forEach(id => allSelected ? next.delete(id) : next.add(id))
                             return next
                           })
                         }}
                         style={{ ...modePill, fontSize: 11, padding: '3px 9px' }}
                       >
-                        {searchResults.every(r => selectedUrls.has(r.linkedinUrl)) ? 'Deselect page' : 'Select all on page'}
+                        {searchResults.length > 0 && searchResults.every(r => selectedIds.has(r.apolloId)) ? 'Deselect page' : 'Select all on page'}
                       </button>
+                      <span style={{ fontSize: 11, color: 'var(--text-3)', marginLeft: 'auto' }}>
+                        Full name &amp; contact details are revealed when you fetch (uses credits).
+                      </span>
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                       {searchResults.map((r, i) => {
-                        const sel = selectedUrls.has(r.linkedinUrl)
+                        const sel = selectedIds.has(r.apolloId)
                         return (
-                          <label key={r.linkedinUrl || i} style={{
+                          <label key={r.apolloId || i} style={{
                             display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 'var(--radius-sm)',
                             border: `1px solid ${sel ? 'var(--accent)' : 'var(--border)'}`,
                             background: sel ? 'var(--accent-bg)' : 'var(--surface2)', cursor: 'pointer',
                           }}>
-                            <input type="checkbox" checked={sel} onChange={() => toggleSelectUrl(r.linkedinUrl)} style={{ cursor: 'pointer' }} />
+                            <input type="checkbox" checked={sel} onChange={() => toggleSelectId(r.apolloId)} style={{ cursor: 'pointer' }} />
                             <div style={{ minWidth: 0, flex: 1 }}>
-                              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.name || 'Unnamed'}</div>
+                              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.name || 'Unknown'}</div>
                               <div style={{ fontSize: 12, color: 'var(--text-3)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                {r.title}{r.title && r.company ? ' · ' : ''}<strong style={{ color: 'var(--text-2)' }}>{r.company}</strong>{r.location ? ` · ${r.location}` : ''}
+                                {r.title}{r.title && r.company ? ' · ' : ''}<strong style={{ color: 'var(--text-2)' }}>{r.company}</strong>
                               </div>
                             </div>
-                            <a href={r.linkedinUrl} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ color: 'var(--accent)', display: 'flex', flexShrink: 0 }} title="Open LinkedIn">
-                              <ExternalLink size={13} />
-                            </a>
+                            <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                              {r.hasEmail && <Badge color="gray">email</Badge>}
+                              {r.hasPhone && <Badge color="gray">phone</Badge>}
+                            </div>
                           </label>
                         )
                       })}

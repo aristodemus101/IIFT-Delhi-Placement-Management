@@ -51,9 +51,10 @@ export function todayKeyIST() {
   }).format(new Date())
 }
 
-// Thin wrapper around the callable. Returns the function's result data.
-export async function enrichContacts(urls, wantPhone) {
-  const res = await callEnrichContacts({ urls, wantPhone })
+// Thin wrapper around the callable. Pass either urls (paste mode) or apolloIds
+// (from people search). Returns the function's result data.
+export async function enrichContacts({ urls, apolloIds, wantPhone }) {
+  const res = await callEnrichContacts({ urls, apolloIds, wantPhone })
   return res.data
 }
 
