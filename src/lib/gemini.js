@@ -3,7 +3,6 @@ import {
   CAMPUS_ENGAGEMENT_SUBTYPE_OPTIONS,
   normalizeActivityType,
   normalizeCampusEngagementSubtype,
-  getActivityAnnouncementHeader,
 } from '../config/activityTaxonomy'
 
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${import.meta.env.VITE_GEMINI_KEY}`
@@ -21,15 +20,6 @@ async function callGemini(prompt) {
   const data = await res.json()
   const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text || ''
   return raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
-}
-
-function forceFirstLine(message, header) {
-  if (!header) return message
-  const lines = String(message || '').split('\n')
-  const firstTextIndex = lines.findIndex(line => line.trim().length > 0)
-  if (firstTextIndex === -1) return `*${header}*`
-  lines[firstTextIndex] = `*${header}*`
-  return lines.join('\n')
 }
 
 export async function parseOpportunity(rawText) {
@@ -81,13 +71,12 @@ ${rawText}
 
 export async function generateWhatsAppMessage(opp, stageType, extra = {}) {
   const stageLabel = STAGE_TYPES[stageType]
-  const isAnnouncement = stageType === 'opportunity' || stageType === 'generate_announcement'
   const normalizedOpp = {
     ...opp,
     type: normalizeActivityType(opp?.type, opp?.via),
     subtype: normalizeCampusEngagementSubtype(opp?.subtype),
   }
-  const forcedHeader = isAnnouncement ? getActivityAnnouncementHeader(normalizedOpp) : ''
+  const suggestedCompany = String(normalizedOpp?.organization || normalizedOpp?.title || '').trim()
   const promptPayload = {
     ...normalizedOpp,
     ...extra,
@@ -96,114 +85,100 @@ export async function generateWhatsAppMessage(opp, stageType, extra = {}) {
     via: normalizedOpp.via || '',
   }
   const prompt = `
-You are drafting official WhatsApp bulletin messages for the Placement Committee of IIFT Delhi. Every message must read exactly like it was written by the Placement Committee—not by AI.
+You are the Placement Committee of IIFT Delhi drafting an official WhatsApp bulletin. Every message must read exactly as the Placement Committee wrote it — never as AI. Follow the rules below with ZERO deviation.
 
-HEADER FORMAT (first line, always):
+=== 1. STANDARD BULLETIN STRUCTURE ===
 *Purpose | Company Name*
 
-Examples:
-SIP Opportunity | Goldman Sachs
-PPT | DE Shaw
-Reminder | Flipkart WiRED X
-Shortlist | IndiaMART
-Case Comp | PwC Whitepaper Competition
-Guest Lecture | McKinsey & Company
-Live Project | Asian Paints
-
-${forcedHeader ? `First line must be exactly: *${forcedHeader}*` : ''}
-
-Then a blank line, then: "Dear Batch,"
-
-INFORMATION HIERARCHY (include only what is relevant and non-null):
-1. Purpose
-2. Role(s)
-3. Division(s)
-4. Location (if relevant)
-5. CTC / Stipend (if provided)
-6. Eligibility (if provided)
-7. Application Link
-8. Tracker / Doubt Sheet
-9. Deadline
-10. Important Instructions
-11. JD attached (if applicable)
-
-LINKS — always on separate lines:
-*Application Link:*
-https://...
-
-*Tracker & Doubt Sheet:*
-https://...
-
-DEADLINES — always highlighted:
-*Deadline:* *29th July | 3:00 PM (Strict)*
-Use "(Strict)" where appropriate.
-
-INSTRUCTIONS — short bullet points only:
-- Apply using your personal email ID.
-- Join by 5:50 PM.
-- Keep your camera ON.
-- Rename yourself as FirstName_LastName.
-- Carry a Government ID.
-- Reporting Time: 8:30 AM.
-- Attendance is mandatory.
-
-SHORTLIST FORMAT (when stage is shortlist):
 Dear Batch,
 
-The profiles have been shared with the company. Based on the same, the following candidates have been shortlisted.
+[A brief introduction explaining the announcement and the action required.]
 
-(Names / Tracker link)
+*Key Details:*
+- Role / opportunity / eligibility
+- Application link / EOI link
+- Tracker / WhatsApp group / JD
+- Other relevant process instructions
 
-WhatsApp Group:
-(link)
+*Deadline: [Time] | [Date]*
 
-*All CRCAD Rules Apply*
+[Important instructions or consequences, if applicable.]
 
-PPT / WEBINAR FORMAT (when stage is PPT or webinar):
-Include: Date, Time, Platform, Meeting Link/ID, mandatory instructions.
-If already live, write: "The session is currently live." — do not announce it as upcoming.
+All CRCAD Rules Apply
 
-WRITING STYLE:
-- Professional and concise.
-- WhatsApp-friendly.
-- No emojis.
-- No marketing language.
-- No long paragraphs.
-- Use *bold* only for important information (deadlines, roles, section labels, header).
-- Prefer short bullet points wherever appropriate.
-- Maintain a Placement Committee tone.
+=== 2. HEADING RULE (ABSOLUTE) ===
+- The first line is ALWAYS the heading, wrapped in single asterisks: *Purpose | Company Name*
+- Order is ALWAYS Purpose FIRST, Company Name SECOND. Never the reverse.
+- The Purpose must accurately describe the message (e.g. SIP Shortlist, Pre-Placement Talk, Application Form, PPI Shortlist, Mandatory Submission, Reminder, Guest Lecture, Live Project).
+- For a general mandatory submission with no relevant company, the Company Name may be omitted (e.g. *Mandatory Submission | SIP Detail Form* — use the form/subject name in place of a company, or just the purpose).
+- Heading examples (note: single pipe |):
+  *SIP Shortlist | Flipkart*
+  *Pre-Placement Talk | PwC AC India*
+  *Application Form | IndiaMART*
+  *PPI Shortlist | BNY*
+  *Mandatory Submission | SIP Detail Form*
+${suggestedCompany ? `- The company / subject for THIS message is: "${suggestedCompany}". Choose the Purpose yourself to fit the stage and content.` : ''}
 
-PREFERRED PHRASES:
-- Kindly
-- Please note
-- Interested students are requested to...
-- Apply before the deadline.
-- JDs are attached below.
-- More details are available in the attached document.
+=== 3. FORMATTING CONVENTIONS ===
+- Heading: *Purpose | Company Name*
+- Salutation: Dear Batch,
+- Emphasis: single asterisks for WhatsApp bold (*like this*). Never use ** double asterisks or markdown headings.
+- Deadline line: *Deadline: 9:00 PM | 15th October 2026* (bold, full). Add "(Strict)" only if the input says it is strict.
+- Links: full, directly accessible URLs on their own line, under a bold label (e.g. *Application Link:* then the URL on the next line).
+- Candidate lists: one name per line.
+- Candidate details: table format ONLY when explicitly requested.
+- Instructions: concise bullet points or numbered steps.
+- Closing: the last line is exactly "All CRCAD Rules Apply" (no asterisks needed, nothing after it).
 
-BANNED PHRASES (never use):
-- We are delighted...
-- We are pleased...
-- Hope everyone is doing well...
-- Any AI-style filler or enthusiastic wording.
-- Do not write "Description:", "Type:", "Subtype:", or any raw field name as a label.
-- Do not copy company emails verbatim — extract only actionable information.
+=== 4. TONE AND LANGUAGE ===
+- Professional and concise. No unnecessary introductions or lengthy explanations.
+- Natural and human. Avoid generic, AI-sounding phrases and corporate jargon.
+- Firm when necessary: mandatory submissions, deadlines, and consequences must be explicit.
+- Warm when appropriate (recruiter-facing content stays courteous).
+- Action-oriented: students must immediately understand what to do and by when.
 
-CLOSING (mandatory, last line of every message, nothing after this):
-*All CRCAD Rules Apply*
+=== 5. FLOW BY BULLETIN TYPE ===
+A. Company opportunities:
+   Heading -> opportunity overview -> role and eligibility -> compensation (if provided) -> application links -> tracker -> deadline -> relevant instructions -> closing.
+B. Shortlists and PPIs:
+   Heading -> shortlisted candidates (one name per line, or tracker link) -> WhatsApp group link -> joining deadline -> instruction to join.
+C. Pre-placement talks and sessions:
+   Heading -> purpose of the session -> date and time -> mode (online/offline) -> meeting link or venue -> dress code -> attendance and conduct guidelines. If the session is already live, write "The session is currently live." and do not announce it as upcoming.
+D. Mandatory submissions and reminders:
+   Heading -> mandatory requirement -> form link -> deadline -> consequences of non-compliance -> closing. Reminders should be firmer, not more verbose.
+E. Confidentiality and compliance:
+   Heading -> permitted use -> explicit restrictions -> monitoring/consequences (where applicable) -> closing.
 
-Now write the bulletin for stage: "${stageLabel}"
+=== 6. HARD RULES (NEVER BREAK) ===
+1. Heading order is ALWAYS Purpose | Company Name.
+2. Preserve names, links, dates, deadlines, compensation figures, and eligibility criteria EXACTLY as supplied. Do not reformat or round numbers.
+3. Never invent missing details or add unconfirmed requirements. Only use fields present and non-null in the input.
+4. Keep links clearly labelled and directly accessible.
+5. No repeated information and no unnecessary sections.
+6. If the input specifies an edit instruction (e.g. "only names", "remove this", "keep the rest as is"), change ONLY what is specified.
+7. Distinguish application deadlines, tracker deadlines, group-joining deadlines, and interview dates — never merge them.
+8. Use tables only when useful or explicitly requested.
+9. No emojis. Minimal decorative formatting.
+10. End every standard placement bulletin with exactly: All CRCAD Rules Apply (unless the input explicitly instructs otherwise).
 
-Opportunity details (use only what is relevant and non-null):
+=== 7. BANNED ===
+- "We are delighted...", "We are pleased...", "Hope everyone is doing well...", and any enthusiastic or AI-style filler.
+- Raw field-name labels like "Description:", "Type:", "Subtype:".
+- Copying recruiter emails verbatim — extract only the actionable information.
+- Double asterisks ** or markdown headings (#). WhatsApp bold is single asterisks only.
+
+=== NOW WRITE ===
+Write the bulletin for stage: "${stageLabel}".
+
+Opportunity details (use only fields that are present and non-null):
 ${JSON.stringify(promptPayload, null, 2)}
 
 ${extra.whatsappGroupLink ? `WhatsApp Group:\n${extra.whatsappGroupLink}` : ''}
-${extra.selectedStudents ? `Selected students:\n${extra.selectedStudents}` : ''}
+${extra.selectedStudents ? `Selected students (one name per line):\n${extra.selectedStudents}` : ''}
 
 Return ONLY the message text — no explanation, no markdown code block, no preamble.
 `
-  const message = await callGemini(prompt)
-  return forcedHeader ? forceFirstLine(message, forcedHeader) : message
+  return callGemini(prompt)
 }
 
 /**
