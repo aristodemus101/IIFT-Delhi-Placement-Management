@@ -29,20 +29,59 @@ Dev server runs on `localhost` → always hits **staging** Firebase. Never test 
 
 ## Deploy Flow
 
-### GitHub Actions (primary — use this)
-- **Push to `main`** → GitHub Actions auto-builds and deploys to **production** (`iiftd-pc.web.app`) + creates a versioned GitHub Release (`v1.0.N`)
-- **Push to `staging` branch** → auto-deploys to staging Firebase project
-- **Pull request** → deploys a temporary Firebase preview channel (expires 7 days)
+### The full release cycle (how everything actually ships)
 
-**VITE_GEMINI_KEY** is stored as a GitHub secret — do not add it to the build command manually.
+There are **two independent deploy tracks**. This split is the single most important thing to understand:
 
-### Workflow
-1. Make changes, build locally (`npm run build`) to verify no errors
-2. Commit with co-author line, push to `main`
-3. Pipeline runs automatically — check with `gh run list --limit 5`
-4. Production is live once the run shows `✓ completed success`
+| What | How it deploys | Trigger |
+|------|----------------|---------|
+| **Frontend (Hosting)** — the website, all `src/` code | **GitHub Actions pipeline** (automatic) | push to `main` |
+| **Cloud Functions + Firestore rules** | **Manual** `firebase deploy` | run by a human |
 
-Do **not** run `firebase deploy --only hosting` manually — the pipeline handles it. Never push to production without user confirmation.
+**A push to `main` deploys ONLY the frontend.** Functions (`functions/index.js`) and `firestore.rules` are NOT in the pipeline — if you change either, you must deploy them by hand (see below). Forgetting this is why a new Cloud-Function-backed feature can appear in the UI but error at runtime.
+
+#### Track 1 — Frontend (automatic, via `.github/workflows/deploy-production.yml`)
+On every push to `main`, the pipeline:
+1. `npm ci`, then computes the next version tag `v1.0.N` (N = count of existing `v*` tags + 1).
+2. `npm run build` — with `VITE_GEMINI_KEY` (GitHub secret), `VITE_APP_VERSION`, `VITE_APP_BUILD_DATE` injected. **VITE_GEMINI_KEY is a GitHub secret — never add it to the build command manually.**
+3. Deploys `dist/` to production Hosting (`iiftd-pc.web.app`, project `placement-management-6133f`, channel `live`) using the **`FIREBASE_SERVICE_ACCOUNT_PLACEMENT_MANAGEMENT_6133F`** GitHub secret (the service account `firebase init hosting:github` generated for the production project).
+4. Generates a changelog from commits since the last tag and creates a GitHub Release `v1.0.N`.
+
+Check status: `gh run list --limit 5`. Production is live only when the run shows **`✓ completed success`** — a green build with a failed deploy step still shows as a failed run, and the site does NOT update.
+
+Staging: push to the `staging` branch → staging project. PRs → temporary preview channel (7-day expiry).
+
+#### Track 2 — Functions + rules (manual)
+After changing `functions/` or `firestore.rules`:
+```bash
+firebase use production
+firebase deploy --only functions,firestore:rules --project production
+# or a single function:  firebase deploy --only functions:enrichContacts --project production
+firebase use staging   # switch back so `npm run dev` hits staging again
+```
+Apollo secrets are set once with `firebase functions:secrets:set APOLLO_API_KEY` / `APOLLO_WEBHOOK_TOKEN` (stored in Secret Manager only).
+
+### Normal workflow
+1. Make changes, `npm run build` locally to verify, run `npx vitest run`.
+2. Commit with the co-author line, push to `main` (only with user confirmation).
+3. Watch `gh run list --limit 5` until the production run is **`✓ completed success`**.
+4. If you touched functions/rules, run the manual Track-2 deploy.
+
+### Manual Hosting deploy (fallback when the pipeline is down)
+If the GitHub Actions deploy fails (e.g. the service account lost permissions), ship the frontend directly from an authenticated machine — this uses the user's own credentials, not the CI service account:
+```bash
+npm run build
+firebase use production
+firebase deploy --only hosting --project production
+firebase use staging
+```
+This does NOT create a `v1.0.N` tag/release (the pipeline does that), so prefer fixing the pipeline. Never deploy to production without user confirmation.
+
+### Fixing a broken pipeline deploy (service-account auth)
+Symptom: the pipeline's **Build** step passes but the **Deploy** step fails with `PERMISSION_DENIED` / `AUTH_PERMISSION_DENIED` on `firebasehosting.googleapis.com`. The service account behind the deploy secret lost access or its key expired. Fix:
+- **Regenerate (what was done on 2026-10-31):** `firebase use production` FIRST (so it targets the right project — running it against staging makes a staging secret, the original mistake), then `firebase init hosting:github` — answer the repo as `aristodemus101/IIFT-Delhi-Placement-Management`, build script `npm ci && npm run build`, and **No** to the "auto-deploy on merge" prompt. It creates a fresh service account and uploads its JSON as a secret named after the project: **`FIREBASE_SERVICE_ACCOUNT_PLACEMENT_MANAGEMENT_6133F`**. `deploy-production.yml` now references that exact name, so they're in sync. `firebase init` also rewrites `firebase.json`/`.firebaserc` (cosmetic reformat — revert with `git checkout`) and drops a redundant `firebase-hosting-pull-request.yml` (delete it — `preview.yml` already handles PR previews).
+- **Or grant roles in GCP IAM** (project `placement-management-6133f`): give the deploy service account **Firebase Hosting Admin** + **Service Usage Consumer**.
+- **Or grant roles in GCP IAM** (project `placement-management-6133f`) to the existing deploy service account: **Firebase Hosting Admin** + **Service Usage Consumer**.
 
 ---
 
