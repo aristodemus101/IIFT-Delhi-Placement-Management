@@ -120,7 +120,13 @@ Each GitHub Release is tied to a specific commit SHA. To roll back production:
 
 Firebase config lives in `src/lib/firebase.js`. Environment is exported as `ENVIRONMENT`.
 
-Cloud Functions are deployed in region `asia-south1`.
+Cloud Functions are deployed in region `asia-south1` (in `functions/index.js`):
+- `pushFilteredToSheet` (onCall) — pushes filtered roster to the Playground Google Sheet.
+- `enrichContacts` (onCall) — Apollo LinkedIn → contact enrichment; spends credits; admin|committee + config-gated.
+- `searchPeople` (onCall) — Apollo People Search (by title + company); no credits; returns masked results.
+- `apolloPhoneWebhook` (onRequest, public) — receives Apollo's async phone callback; guarded by a secret token.
+
+**Functions + Firestore rules do NOT deploy via the GitHub Actions pipeline** (which only deploys Hosting). Deploy them manually: `firebase deploy --only functions,firestore:rules --project production`. The Apollo secrets (`APOLLO_API_KEY`, `APOLLO_WEBHOOK_TOKEN`) are set via `firebase functions:secrets:set` and live only in Secret Manager — never in the client, Firestore, or git. Pure cap/dedup logic is in `functions/apolloLimits.js` (unit-tested from `src/__tests__/apolloLimits.test.js`).
 
 ---
 
@@ -169,6 +175,9 @@ Defined in `src/lib/roleConfig.js` → `MASTER_ADMIN_EMAILS`. Master admins bypa
 | `/tpoProfiles/{tpoUid}` | TPO profile docs |
 | `/tpoProfiles/{tpoUid}/outreach/{id}` | TPO outreach entries |
 | `/intel/{docId}` | Recruiter intelligence records (multi-college, multi-year) |
+| `/outreachContacts/{id}` | Apollo-enriched LinkedIn contacts (Outreach tab) |
+| `/apolloCallLog/{id}` | Append-only ledger for the Apollo hourly rate limit (function-write-only) |
+| `/config/apolloUsage` | Apollo credit/budget counters — **function-write-only, denied to all clients** |
 
 ---
 
@@ -222,14 +231,18 @@ src/
     AdminPage.jsx            # Team access (roles), permissions grid, cohort management
     RemapperPage.jsx         # CSV column remapper (uses Gemini)
     IntelPage.jsx            # Recruiter intelligence (all roles)
+    OutreachPage.jsx         # Apollo LinkedIn → contact enrichment (admin/committee, grantable)
     AboutPage.jsx            # About / info page
     roster/
       ImportModal.jsx
       ColumnsModal.jsx
       PlaceModal.jsx
+      ProfilePdfModal.jsx    # Selected-candidates → printable profile PDF
+      QuickProfileModal.jsx  # Global candidate lookup → downloadable image / copy
       useRosterPrefs.js
     analytics/
       TpoAnalytics.jsx
+      PlacementTrends.jsx    # Timeline / heatmap / tally / projections
     intel/
       IntelTable.jsx         # Dense sortable table view
       CompanyDrawer.jsx      # Right-side detail panel (Overview/IIFT History/All Records/POC)
@@ -502,6 +515,26 @@ Fuzzy matching in `intel.js → fuzzyMatch()`: normalises both strings (uppercas
 5. Dedup: queries existing docs by `_dedupKey` (in chunks of 30), upserts matches, inserts new
 6. Progress bar updates via `onProgress` callback
 7. Audit log entry written to `/auditLog` with `type: 'intel_upload'`
+
+---
+
+## Outreach — Apollo contact enrichment
+
+The **Outreach** tab (`/outreach`, `OutreachPage.jsx`) turns LinkedIn profiles into contact cards (name, title, company, work email, mobile, location) via the Apollo API.
+
+**Flow:**
+- **Search people** mode: `searchPeople` Cloud Function → Apollo `mixed_people/search` (via `mixed_companies/search` to resolve a company name → org id first). Returns **masked** results (first name + obfuscated last name, title, company, an Apollo person `id` — NO email/phone/LinkedIn). Spends no credits.
+- Pick results → **Fetch details** → `enrichContacts` enriches by Apollo `id` (or by pasted LinkedIn URL in "Paste URLs" mode) via `people/match`. Email is synchronous; phone is async — Apollo POSTs it to `apolloPhoneWebhook` minutes later, which fills the card live.
+
+**Cost controls (all enforced server-side):** ≤50 people/call, ≤25 phone reveals/call, rolling ≤600 Apollo calls/hr, account-wide **250 phone reveals/day** budget. Credit counters live in `/config/apolloUsage` (function-write-only). Already-enriched contacts are skipped (never pay twice).
+
+**Access:** page `outreach` + action `enrichContacts` are both in `CONFIGURABLE_PAGES`/`CONFIGURABLE_ACTIONS`, default admin|committee, grantable per-role (incl. TPO) via Team Access. `enrichContacts` is enforced in the Cloud Function reading the same `/config/actionAccess` doc the UI reads — a UI mis-grant can never let another role spend money. `outreachContacts` is `hasAnyRole()`-readable (like Intel), admin|committee writable.
+
+Key files: `src/pages/OutreachPage.jsx`, `src/lib/useOutreach.js`, `functions/index.js` (functions), `functions/apolloLimits.js` (pure logic). Contact cards paginate at 30/page.
+
+## Roster — Quick Profile lookup
+
+**Quick Profile** button on the Roster toolbar (`QuickProfileModal.jsx`) is a global candidate lookup **across all cohorts** (uses the full `students` list, not the scoped one). Search any student → a clean profile (name, official email, mobile, course MBA IB/BA, graduating year, 10th/12th/UG scores, work-ex months, most recent company, SIP/Final companies). Download as a professional IIFT-branded PNG (hand-drawn on canvas, zero dependency — `profileCardCanvas.js`) or copy as labelled text. Field extraction is in `studentProfile.js` (pure, unit-tested).
 
 ---
 
