@@ -16,12 +16,13 @@ import PlaceModal from './roster/PlaceModal'
 import ImportModal from './roster/ImportModal'
 import ColumnsModal from './roster/ColumnsModal'
 import ProfilePdfModal from './roster/ProfilePdfModal'
+import QuickProfileModal from './roster/QuickProfileModal'
 import {
   PageHeader, Btn, Badge, CategoryBadge, Input, Select,
   Spinner, Modal, Table
 } from '../components/UI'
 import {
-  Upload, Download, CheckCircle, Trash2, Eye, Search, Lock, ExternalLink, Sheet, GraduationCap, FileDown
+  Upload, Download, CheckCircle, Trash2, Eye, Search, Lock, ExternalLink, Sheet, GraduationCap, FileDown, UserSearch
 } from 'lucide-react'
 
 const NUMERIC = ['cat', 'wx', 'ugpct', 'x10pct', 'x12pct', 'age', 'cat_score']
@@ -56,6 +57,7 @@ export default function RosterPage() {
   const [actionsOpen, setActionsOpen]     = useState(false)
   const [exportOpen, setExportOpen]       = useState(false)
   const [profilePdfOpen, setProfilePdfOpen] = useState(false)
+  const [quickProfileOpen, setQuickProfileOpen] = useState(false)
 
   // Roster row selection — id set, keyed by student._id
   const [selectedIds, setSelectedIds] = useState(() => new Set())
@@ -315,6 +317,9 @@ export default function RosterPage() {
   useEffect(() => {
     setWorkspaceActions(
       <>
+        <Btn size="sm" variant="ghost" onClick={() => setQuickProfileOpen(true)} title="Quickly look up any candidate across all cohorts">
+          <UserSearch size={13} /> Quick Profile
+        </Btn>
         <Btn size="sm" variant="ghost" onClick={() => setColumnsOpen(true)} title="Show or hide columns">Columns</Btn>
         <Btn size="sm" variant="ghost" onClick={() => setExportOpen(true)} disabled={!exportRows.length} title={!exportRows.length ? 'No rows to export' : 'Download filtered data'}>
           <Download size={13} /> Export
@@ -726,6 +731,13 @@ export default function RosterPage() {
         columnDefs={visibleDefs}
         getValue={getCellValue}
         batchLabel={scopedCohorts.length === 1 ? cohortLabel(scopedCohorts[0]) : `${scopedCohorts.length} cohorts`}
+      />
+
+      {/* Quick Profile — global lookup across ALL cohorts (uses full students list, not scoped) */}
+      <QuickProfileModal
+        open={quickProfileOpen}
+        onClose={() => setQuickProfileOpen(false)}
+        students={students}
       />
 
       {/* Export */}

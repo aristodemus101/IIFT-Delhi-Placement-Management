@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useState, useEffect } from 'react'
 import { PageHeader, Btn, Badge, Spinner, Modal } from '../components/UI'
 import { usePermissions } from '../lib/usePermissions'
 import { useOutreachContacts, useApolloUsage, enrichContacts, searchPeople, todayKeyIST } from '../lib/useOutreach'
@@ -60,6 +60,20 @@ export default function OutreachPage() {
       (c.email || '').toLowerCase().includes(q)
     )
   }, [contacts, search])
+
+  // Pagination — render only one page of cards at a time so 500+ contacts
+  // don't all mount at once (slow + janky, especially on mobile).
+  const CONTACTS_PER_PAGE = 30
+  const [contactPage, setContactPage] = useState(1)
+  const contactTotalPages = Math.max(1, Math.ceil(filteredContacts.length / CONTACTS_PER_PAGE))
+  // Reset to page 1 whenever the filtered set changes (e.g. a new search).
+  useEffect(() => { setContactPage(1) }, [search])
+  // Clamp if the list shrank (e.g. a contact was removed) below the current page.
+  useEffect(() => { if (contactPage > contactTotalPages) setContactPage(contactTotalPages) }, [contactPage, contactTotalPages])
+  const pagedContacts = useMemo(() => {
+    const start = (contactPage - 1) * CONTACTS_PER_PAGE
+    return filteredContacts.slice(start, start + CONTACTS_PER_PAGE)
+  }, [filteredContacts, contactPage])
 
   const runEnrichment = async () => {
     setConfirmOpen(false)
@@ -323,11 +337,23 @@ export default function OutreachPage() {
             {contacts.length === 0 ? 'No enriched contacts yet.' : 'No contacts match your search.'}
           </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 14 }}>
-            {filteredContacts.map(c => (
-              <ContactCard key={c.id} c={c} copiedKey={copiedId} onCopy={copyText} />
-            ))}
-          </div>
+          <>
+            <div style={{ fontSize: 12, color: 'var(--text-3)' }}>
+              Showing {(contactPage - 1) * CONTACTS_PER_PAGE + 1}–{Math.min(contactPage * CONTACTS_PER_PAGE, filteredContacts.length)} of {filteredContacts.length}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 260px), 1fr))', gap: 14 }}>
+              {pagedContacts.map(c => (
+                <ContactCard key={c.id} c={c} copiedKey={copiedId} onCopy={copyText} />
+              ))}
+            </div>
+            {contactTotalPages > 1 && (
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'center', alignItems: 'center', marginTop: 4 }}>
+                <Btn size="sm" variant="ghost" disabled={contactPage <= 1} onClick={() => setContactPage(p => Math.max(1, p - 1))}>Prev</Btn>
+                <span style={{ fontSize: 12, color: 'var(--text-3)', fontVariantNumeric: 'tabular-nums' }}>Page {contactPage} of {contactTotalPages}</span>
+                <Btn size="sm" variant="ghost" disabled={contactPage >= contactTotalPages} onClick={() => setContactPage(p => Math.min(contactTotalPages, p + 1))}>Next</Btn>
+              </div>
+            )}
+          </>
         )}
       </div>
 
