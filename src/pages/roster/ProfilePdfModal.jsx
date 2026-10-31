@@ -1,6 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react'
 import { Btn, Modal, Badge } from '../../components/UI'
-import { buildProfilesHtml } from '../../lib/profilePdf'
+import { buildProfilesHtml, resolveDisplayName } from '../../lib/profilePdf'
 import { FileDown, Printer } from 'lucide-react'
 import './profilePrint.css'
 
@@ -20,12 +20,27 @@ export default function ProfilePdfModal({
     return buildProfilesHtml({ students, columnDefs, getValue, institute, batchLabel })
   }, [open, students, columnDefs, getValue, institute, batchLabel])
 
+  // Browser "Save as PDF" takes the suggested filename from document.title.
+  // We can't set the saved filename directly, but we can set the title so the
+  // dialog defaults to "Name - IIFT Delhi" (single candidate) or a batch name.
+  const suggestedTitle = useMemo(() => {
+    if (!students.length) return `Candidate Profile - ${institute}`
+    if (students.length === 1) {
+      const { value } = resolveDisplayName(columnDefs, students[0], getValue)
+      return `${value || 'Candidate'} - ${institute}`
+    }
+    return `${students.length} Candidate Profiles - ${institute}`
+  }, [students, columnDefs, getValue, institute])
+
   const handlePrint = () => {
     setPrinting(true)
+    const prevTitle = document.title
+    document.title = suggestedTitle
     // Let the print root paint before invoking the print dialog
     requestAnimationFrame(() => {
       window.print()
-      setPrinting(false)
+      // Restore the app title after the dialog is dismissed.
+      setTimeout(() => { document.title = prevTitle; setPrinting(false) }, 500)
     })
   }
 
@@ -50,7 +65,7 @@ export default function ProfilePdfModal({
           ) : (
             <>
               <div style={{ fontSize: 12, color: 'var(--text-3)', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '10px 12px', lineHeight: 1.6 }}>
-                In the print dialog, set <strong>Destination</strong> to <strong>Save as PDF</strong>. Each candidate prints on their own page — {students.length > 1 ? `${students.length} pages total.` : '1 page total.'}
+                In the print dialog, set <strong>Destination</strong> to <strong>Save as PDF</strong>. The file saves as <strong>“{suggestedTitle}”</strong>. Each candidate prints on their own page — {students.length > 1 ? `${students.length} pages total.` : '1 page total.'}
               </div>
 
               <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>

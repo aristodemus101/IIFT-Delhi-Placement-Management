@@ -162,7 +162,10 @@
 }
 
 @media print {
-  @page { size: A4; margin: 0; }
+  /* A4 with a real margin band — the content area then equals the printable
+     width, so nothing clips at the right edge regardless of the dialog's
+     "Margins" setting. */
+  @page { size: A4; margin: 14mm; }
 
   body * { visibility: hidden; }
 
@@ -172,10 +175,16 @@
   #profile-print-root {
     position: static;
     left: 0;
+    top: 0;
     width: 100%;
   }
 
+  /* In print, let the page fill the printable area (set by @page margin),
+     not a hard 210mm that can overflow when the browser margin is None. */
   .profile-page {
+    width: 100%;
+    min-height: auto;
+    padding: 0;
     box-shadow: none;
     margin: 0;
   }
