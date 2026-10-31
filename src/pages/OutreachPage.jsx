@@ -105,11 +105,14 @@ export default function OutreachPage() {
     })
   }
 
-  const copyEmail = (id, email) => {
-    navigator.clipboard?.writeText(email).then(() => {
-      setCopiedId(id)
+  // key is a unique string per copy target (e.g. `email:<id>` or `all:<id>`)
+  // so the email-copy and copy-all buttons show independent confirmations.
+  const copyText = (key, text) => {
+    if (!text) return
+    navigator.clipboard?.writeText(text).then(() => {
+      setCopiedId(key)
       setTimeout(() => setCopiedId(null), 1500)
-    })
+    }).catch(() => {})
   }
 
   if (loading) return <Spinner />
@@ -322,7 +325,7 @@ export default function OutreachPage() {
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 14 }}>
             {filteredContacts.map(c => (
-              <ContactCard key={c.id} c={c} copiedId={copiedId} onCopy={copyEmail} />
+              <ContactCard key={c.id} c={c} copiedKey={copiedId} onCopy={copyText} />
             ))}
           </div>
         )}
@@ -356,9 +359,25 @@ export default function OutreachPage() {
   )
 }
 
-function ContactCard({ c, copiedId, onCopy }) {
+// Clean, labelled, copy-ready block of a contact's details — only fields that
+// are actually present are included.
+function buildContactText(c) {
+  const lines = []
+  if (c.name)    lines.push(`Name: ${c.name}`)
+  if (c.title)   lines.push(`Title: ${c.title}`)
+  if (c.company) lines.push(`Company: ${c.company}`)
+  if (c.email)   lines.push(`Email: ${c.email}`)
+  if (c.phone)   lines.push(`Phone: ${c.phone}`)
+  if (c.location) lines.push(`Location: ${c.location}`)
+  if (c.linkedinUrl) lines.push(`LinkedIn: ${c.linkedinUrl}`)
+  return lines.join('\n')
+}
+
+function ContactCard({ c, copiedKey, onCopy }) {
   const initials = (c.name || '?').split(/\s+/).map(w => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase()
   const confColor = CONFIDENCE_COLOR[c.matchConfidence] || 'gray'
+  const allKey = `all:${c.id}`
+  const emailKey = `email:${c.id}`
 
   return (
     <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: 'var(--surface)', padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -374,7 +393,21 @@ function ContactCard({ c, copiedId, onCopy }) {
             </div>
           )}
         </div>
-        <Badge color={confColor}>{c.matchConfidence || 'n/a'}</Badge>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+          <button
+            onClick={() => onCopy(allKey, buildContactText(c))}
+            title="Copy all details"
+            style={{
+              display: 'flex', alignItems: 'center', gap: 4, background: 'none', cursor: 'pointer',
+              border: '1px solid var(--border)', borderRadius: 6, padding: '3px 7px',
+              fontSize: 11, fontWeight: 600, color: copiedKey === allKey ? 'var(--green-text)' : 'var(--text-2)',
+              fontFamily: 'var(--font-sans)',
+            }}
+          >
+            {copiedKey === allKey ? <><Check size={12} /> Copied</> : <><Copy size={12} /> Copy</>}
+          </button>
+          <Badge color={confColor}>{c.matchConfidence || 'n/a'}</Badge>
+        </div>
       </div>
 
       {/* Company — the key outreach field: its own line, always fully shown (wraps, never clipped) */}
@@ -388,8 +421,8 @@ function ContactCard({ c, copiedId, onCopy }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-2)' }}>
             <Mail size={13} style={{ flexShrink: 0 }} />
             <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.email}</span>
-            <button onClick={() => onCopy(c.id, c.email)} title="Copy email" style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', display: 'flex', padding: 2 }}>
-              {copiedId === c.id ? <Check size={13} color="var(--green-text)" /> : <Copy size={13} />}
+            <button onClick={() => onCopy(emailKey, c.email)} title="Copy email" style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', display: 'flex', padding: 2 }}>
+              {copiedKey === emailKey ? <Check size={13} color="var(--green-text)" /> : <Copy size={13} />}
             </button>
           </div>
         ) : (
@@ -402,6 +435,11 @@ function ContactCard({ c, copiedId, onCopy }) {
             : c.phoneStatus === 'pending' ? <span style={{ color: 'var(--amber-text)' }}>Phone arriving…</span>
             : c.phoneStatus === 'none' ? <span style={{ color: 'var(--text-3)' }}>No mobile on file</span>
             : <span style={{ color: 'var(--text-3)' }}>Phone not requested</span>}
+          {c.phone && (
+            <button onClick={() => onCopy(`phone:${c.id}`, c.phone)} title="Copy phone" style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', display: 'flex', padding: 2 }}>
+              {copiedKey === `phone:${c.id}` ? <Check size={13} color="var(--green-text)" /> : <Copy size={13} />}
+            </button>
+          )}
         </div>
 
         {c.location && (
