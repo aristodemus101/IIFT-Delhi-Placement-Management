@@ -2,7 +2,7 @@ import React, { useMemo, useState, useEffect } from 'react'
 import { PageHeader, Btn, Badge, Spinner, Modal } from '../components/UI'
 import { usePermissions } from '../lib/usePermissions'
 import { useOutreachContacts, useApolloUsage, enrichContacts, searchPeople, todayKeyIST } from '../lib/useOutreach'
-import { Sparkles, Mail, Phone, MapPin, ExternalLink, Copy, Check, AlertTriangle, Building2, Search as SearchIcon, Link2 } from 'lucide-react'
+import { Sparkles, Mail, Phone, MapPin, ExternalLink, Copy, Check, AlertTriangle, Building2, Search as SearchIcon, Link2, UserCheck } from 'lucide-react'
 
 const DAILY_PHONE_BUDGET = 250 // mirror of the server-side cap, for display only
 
@@ -396,6 +396,7 @@ function buildContactText(c) {
   if (c.phone)   lines.push(`Phone: ${c.phone}`)
   if (c.location) lines.push(`Location: ${c.location}`)
   if (c.linkedinUrl) lines.push(`LinkedIn: ${c.linkedinUrl}`)
+  if (c.enrichedBy?.email) lines.push(`Extracted by: ${c.enrichedBy.email}`)
   return lines.join('\n')
 }
 
@@ -475,9 +476,19 @@ function ContactCard({ c, copiedKey, onCopy }) {
         )}
       </div>
 
-      <a href={c.linkedinUrl} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: 4, textDecoration: 'none', marginTop: 'auto' }}>
-        <ExternalLink size={12} /> LinkedIn profile
-      </a>
+      <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {c.linkedinUrl && (
+          <a href={c.linkedinUrl} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: 4, textDecoration: 'none' }}>
+            <ExternalLink size={12} /> LinkedIn profile
+          </a>
+        )}
+        {c.enrichedBy?.email && (
+          <div style={{ fontSize: 10.5, color: 'var(--text-3)', borderTop: '1px solid var(--border)', paddingTop: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
+            <UserCheck size={11} style={{ flexShrink: 0 }} />
+            Extracted by {c.enrichedBy.email.split('@')[0]}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
