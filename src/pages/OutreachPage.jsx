@@ -2,7 +2,9 @@ import React, { useMemo, useState, useEffect } from 'react'
 import { PageHeader, Btn, Badge, Spinner, Modal } from '../components/UI'
 import { usePermissions } from '../lib/usePermissions'
 import { useOutreachContacts, useApolloUsage, enrichContacts, searchPeople, todayKeyIST } from '../lib/useOutreach'
-import { Sparkles, Mail, Phone, MapPin, ExternalLink, Copy, Check, AlertTriangle, Building2, Search as SearchIcon, Link2, UserCheck } from 'lucide-react'
+import { Sparkles, Mail, Phone, MapPin, ExternalLink, Copy, Check, AlertTriangle, Building2, Search as SearchIcon, Link2, UserCheck, Download, ChevronDown, ChevronRight, Users } from 'lucide-react'
+import { exportToExcel } from '../lib/csv'
+import { groupByCompany, tallyByExtractor, contactsToExportRows } from '../lib/outreachStats'
 
 const DAILY_PHONE_BUDGET = 250 // mirror of the server-side cap, for display only
 
@@ -27,6 +29,8 @@ export default function OutreachPage() {
   const [error, setError] = useState('')
   const [copiedId, setCopiedId] = useState(null)
   const [search, setSearch] = useState('')
+  const [view, setView] = useState('contacts') // 'contacts' | 'company'
+  const [expandedCompany, setExpandedCompany] = useState(null)
 
   // People-search state
   const [searchTitle, setSearchTitle] = useState('')
@@ -60,6 +64,16 @@ export default function OutreachPage() {
       (c.email || '').toLowerCase().includes(q)
     )
   }, [contacts, search])
+
+  // Company grouping + per-extractor tally (respect the active search filter).
+  const companyGroups = useMemo(() => groupByCompany(filteredContacts), [filteredContacts])
+  const extractorTally = useMemo(() => tallyByExtractor(filteredContacts), [filteredContacts])
+
+  const exportContacts = () => {
+    const rows = contactsToExportRows(filteredContacts)
+    const stamp = new Date().toISOString().slice(0, 10)
+    exportToExcel(rows, `outreach_contacts_${stamp}.xlsx`)
+  }
 
   // Pagination — render only one page of cards at a time so 500+ contacts
   // don't all mount at once (slow + janky, especially on mobile).
@@ -143,6 +157,11 @@ export default function OutreachPage() {
         <Badge color={phonesRemaining > 20 ? 'green' : phonesRemaining > 0 ? 'amber' : 'red'}>
           {phonesRemaining}/{DAILY_PHONE_BUDGET} phone reveals left today
         </Badge>
+        <div style={{ marginLeft: 'auto' }}>
+          <Btn size="sm" variant="ghost" onClick={exportContacts} disabled={!contacts.length} title={contacts.length ? 'Export all contacts to Excel' : 'No contacts to export'}>
+            <Download size={13} /> Export Excel
+          </Btn>
+        </div>
       </div>
 
       {!canEnrich && (
@@ -321,22 +340,50 @@ export default function OutreachPage() {
           </div>
         )}
 
-        {/* Search */}
-        <div>
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search contacts by name, company, or email…"
-            style={{ width: '100%', maxWidth: 360, padding: '8px 12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 13, boxSizing: 'border-box' }}
-          />
-        </div>
+        {/* View toggle + search */}
+        {contacts.length > 0 && (
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button onClick={() => setView('contacts')} style={{ ...modePill, ...(view === 'contacts' ? modePillActive : {}) }}>
+                <Users size={13} /> All contacts
+              </button>
+              <button onClick={() => setView('company')} style={{ ...modePill, ...(view === 'company' ? modePillActive : {}) }}>
+                <Building2 size={13} /> By company
+              </button>
+            </div>
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search by name, company, or email…"
+              style={{ flex: '1 1 220px', maxWidth: 360, padding: '8px 12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 13, boxSizing: 'border-box' }}
+            />
+          </div>
+        )}
 
-        {/* Contact cards */}
+        {/* Extractor tally — who extracted how many */}
+        {extractorTally.length > 0 && (
+          <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'var(--surface2)', padding: '10px 12px' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 8 }}>
+              Extracted by
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {extractorTally.map(t => (
+                <span key={t.email} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 20, padding: '3px 10px' }}>
+                  <UserCheck size={12} style={{ color: 'var(--text-3)' }} />
+                  {t.label}
+                  <strong style={{ color: 'var(--accent)', fontVariantNumeric: 'tabular-nums' }}>{t.count}</strong>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Contacts / company views */}
         {filteredContacts.length === 0 ? (
           <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-3)', fontSize: 14 }}>
             {contacts.length === 0 ? 'No enriched contacts yet.' : 'No contacts match your search.'}
           </div>
-        ) : (
+        ) : view === 'contacts' ? (
           <>
             <div style={{ fontSize: 12, color: 'var(--text-3)' }}>
               Showing {(contactPage - 1) * CONTACTS_PER_PAGE + 1}–{Math.min(contactPage * CONTACTS_PER_PAGE, filteredContacts.length)} of {filteredContacts.length}
@@ -353,6 +400,38 @@ export default function OutreachPage() {
                 <Btn size="sm" variant="ghost" disabled={contactPage >= contactTotalPages} onClick={() => setContactPage(p => Math.min(contactTotalPages, p + 1))}>Next</Btn>
               </div>
             )}
+          </>
+        ) : (
+          /* By-company view: company rows with counts; click to expand contacts */
+          <>
+            <div style={{ fontSize: 12, color: 'var(--text-3)' }}>
+              {companyGroups.length} compan{companyGroups.length === 1 ? 'y' : 'ies'} · {filteredContacts.length} contacts
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {companyGroups.map(g => {
+                const open = expandedCompany === g.company
+                return (
+                  <div key={g.company} style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'var(--surface)', overflow: 'hidden' }}>
+                    <button
+                      onClick={() => setExpandedCompany(open ? null : g.company)}
+                      style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', textAlign: 'left' }}
+                    >
+                      {open ? <ChevronDown size={15} style={{ flexShrink: 0, color: 'var(--text-3)' }} /> : <ChevronRight size={15} style={{ flexShrink: 0, color: 'var(--text-3)' }} />}
+                      <Building2 size={14} style={{ flexShrink: 0, color: 'var(--text-3)' }} />
+                      <span style={{ flex: 1, fontSize: 13.5, fontWeight: 600, color: 'var(--text)' }}>{g.company}</span>
+                      <Badge color="blue">{g.count}</Badge>
+                    </button>
+                    {open && (
+                      <div style={{ borderTop: '1px solid var(--border)', padding: 12, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 260px), 1fr))', gap: 14, background: 'var(--surface2)' }}>
+                        {g.contacts.map(c => (
+                          <ContactCard key={c.id} c={c} copiedKey={copiedId} onCopy={copyText} />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
           </>
         )}
       </div>
