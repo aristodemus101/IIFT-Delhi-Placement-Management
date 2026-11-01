@@ -7,8 +7,13 @@ export default defineConfig(() => {
     plugins: [
       react(),
       VitePWA({
-        registerType: 'autoUpdate',
-        injectRegister: 'auto',
+        // 'prompt' (not 'autoUpdate') so a new deploy surfaces an in-app
+        // "Reload" prompt instead of silently swapping in the background only
+        // after every tab closes — users on an always-open tab were getting
+        // stuck on stale code. The app registers the SW itself (see
+        // src/PwaUpdatePrompt.jsx) to receive the onNeedRefresh callback.
+        registerType: 'prompt',
+        injectRegister: null,
         workbox: {
           // Precache all JS/CSS assets. Hash-named chunks are immutable so
           // this is safe — new deploy = new hashes = fresh precache entries.
