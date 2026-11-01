@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { useRegisterSW } from 'virtual:pwa-register/react'
 
 // Shows a small banner when a new deployed version is available, so users on an
@@ -6,12 +6,30 @@ import { useRegisterSW } from 'virtual:pwa-register/react'
 // waiting service worker and refreshes. Registration failures are swallowed —
 // the app must never break because the SW couldn't register.
 export default function PwaUpdatePrompt() {
+  const [reloading, setReloading] = useState(false)
   const {
     needRefresh: [needRefresh, setNeedRefresh],
     updateServiceWorker,
   } = useRegisterSW({
     onRegisterError(err) { console.warn('SW registration failed', err) },
   })
+
+  // updateServiceWorker(true) is supposed to skipWaiting the new SW and reload
+  // on 'controllerchange' — but that event is known to occasionally not fire,
+  // leaving the user clicking "Reload" with nothing happening. Guarantee the
+  // reload ourselves with a short fallback timer, so the button ALWAYS refreshes
+  // to the new version even if the SW handshake is flaky.
+  const handleReload = () => {
+    setReloading(true)
+    try {
+      const p = updateServiceWorker(true)
+      if (p && typeof p.then === 'function') {
+        p.then(() => window.location.reload()).catch(() => window.location.reload())
+      }
+    } catch (_) { /* fall through to the timer below */ }
+    // Hard fallback: if the SW handshake didn't trigger a reload shortly, do it.
+    setTimeout(() => window.location.reload(), 1500)
+  }
 
   if (!needRefresh) return null
 
@@ -30,14 +48,15 @@ export default function PwaUpdatePrompt() {
     >
       <span style={{ flex: 1 }}>A new version is available.</span>
       <button
-        onClick={() => updateServiceWorker(true)}
+        onClick={handleReload}
+        disabled={reloading}
         style={{
-          border: 'none', cursor: 'pointer', borderRadius: 8,
+          border: 'none', cursor: reloading ? 'default' : 'pointer', borderRadius: 8,
           padding: '7px 14px', fontWeight: 700, fontSize: 13,
-          background: '#fff', color: '#1d3557', fontFamily: 'inherit',
+          background: '#fff', color: '#1d3557', fontFamily: 'inherit', opacity: reloading ? 0.7 : 1,
         }}
       >
-        Reload
+        {reloading ? 'Reloading…' : 'Reload'}
       </button>
       <button
         onClick={() => setNeedRefresh(false)}
