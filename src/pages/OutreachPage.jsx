@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react'
+import React, { useMemo, useState, useEffect, useRef } from 'react'
 import { PageHeader, Btn, Badge, Spinner, Modal } from '../components/UI'
 import { usePermissions } from '../lib/usePermissions'
 import { useOutreachContacts, useApolloUsage, enrichContacts, searchPeople, todayKeyIST } from '../lib/useOutreach'
@@ -90,6 +90,15 @@ export default function OutreachPage() {
     return filteredContacts.slice(start, start + CONTACTS_PER_PAGE)
   }, [filteredContacts, contactPage])
 
+  // Scroll the list back to the top on page change so the new page starts at the
+  // top instead of appearing mid-scroll (which reads as a jump/flicker).
+  const listRef = useRef(null)
+  const goToPage = (pg) => {
+    const next = Math.max(1, Math.min(contactTotalPages, pg))
+    setContactPage(next)
+    if (listRef.current) listRef.current.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
   const runEnrichment = async () => {
     setConfirmOpen(false)
     setBusy(true); setError(''); setResult(null)
@@ -148,6 +157,11 @@ export default function OutreachPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <style>{`
+        @keyframes outreachPageFade { from { opacity: 0 } to { opacity: 1 } }
+        .outreach-page-fade { animation: outreachPageFade 0.18s ease-out }
+        @media (prefers-reduced-motion: reduce) { .outreach-page-fade { animation: none } }
+      `}</style>
       <PageHeader title="Outreach" subtitle="Enrich LinkedIn profiles into contact details via Apollo" />
 
       {/* Usage tracker */}
@@ -171,7 +185,7 @@ export default function OutreachPage() {
         </div>
       )}
 
-      <div style={{ flex: 1, overflow: 'auto', padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div ref={listRef} style={{ flex: 1, overflow: 'auto', padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
         {/* Input panel */}
         {canEnrich && (
           <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: 'var(--surface)', padding: 16 }}>
@@ -396,33 +410,34 @@ export default function OutreachPage() {
             <div style={{ fontSize: 12, color: 'var(--text-3)' }}>
               Showing {(contactPage - 1) * CONTACTS_PER_PAGE + 1}–{Math.min(contactPage * CONTACTS_PER_PAGE, filteredContacts.length)} of {filteredContacts.length}
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 260px), 1fr))', gap: 14 }}>
+            <div key={contactPage} className="outreach-page-fade" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 260px), 1fr))', gap: 14 }}>
               {pagedContacts.map(c => (
                 <ContactCard key={c.id} c={c} copiedKey={copiedId} onCopy={copyText} />
               ))}
             </div>
             {contactTotalPages > 1 && (
               <div style={{ display: 'flex', gap: 6, justifyContent: 'center', alignItems: 'center', marginTop: 4, flexWrap: 'wrap' }}>
-                <Btn size="sm" variant="ghost" disabled={contactPage <= 1} onClick={() => setContactPage(p => Math.max(1, p - 1))}>Prev</Btn>
+                <Btn size="sm" variant="ghost" disabled={contactPage <= 1} onClick={() => goToPage(contactPage - 1)}>Prev</Btn>
                 {pageWindow(contactPage, contactTotalPages, 10).map((pg, i) => (
                   pg === '…' ? (
-                    <span key={`e${i}`} style={{ fontSize: 12, color: 'var(--text-3)', padding: '0 2px' }}>…</span>
+                    <span key={`e${i}`} style={{ fontSize: 12, color: 'var(--text-3)', padding: '0 2px', minWidth: 20, textAlign: 'center' }}>…</span>
                   ) : (
                     <button
                       key={pg}
-                      onClick={() => setContactPage(pg)}
+                      onClick={() => goToPage(pg)}
                       style={{
-                        minWidth: 30, height: 30, padding: '0 8px', borderRadius: 7, cursor: 'pointer',
+                        minWidth: 32, height: 32, padding: '0 8px', borderRadius: 8, cursor: 'pointer',
                         fontSize: 12.5, fontVariantNumeric: 'tabular-nums', fontFamily: 'var(--font-sans)',
                         border: `1px solid ${pg === contactPage ? 'var(--accent)' : 'var(--border)'}`,
                         background: pg === contactPage ? 'var(--accent)' : 'var(--surface)',
                         color: pg === contactPage ? '#fff' : 'var(--text-2)',
                         fontWeight: pg === contactPage ? 700 : 500,
+                        transition: 'background 0.12s ease, border-color 0.12s ease',
                       }}
                     >{pg}</button>
                   )
                 ))}
-                <Btn size="sm" variant="ghost" disabled={contactPage >= contactTotalPages} onClick={() => setContactPage(p => Math.min(contactTotalPages, p + 1))}>Next</Btn>
+                <Btn size="sm" variant="ghost" disabled={contactPage >= contactTotalPages} onClick={() => goToPage(contactPage + 1)}>Next</Btn>
               </div>
             )}
           </>
