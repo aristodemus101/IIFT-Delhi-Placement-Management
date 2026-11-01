@@ -42,20 +42,37 @@ describe('PwaUpdatePrompt', () => {
     expect(state.updateSpy).toHaveBeenCalledWith(true)
   })
 
-  it('Reload guarantees a page reload via the fallback timer even if the SW handshake never resolves', () => {
+  it('reloads when the new SW takes control (controllerchange) — not on a blind timer', () => {
     const reloadSpy = vi.fn()
-    // jsdom's location.reload isn't implemented; replace it.
-    Object.defineProperty(window, 'location', {
-      value: { ...window.location, reload: reloadSpy },
-      writable: true,
+    Object.defineProperty(window, 'location', { value: { ...window.location, reload: reloadSpy }, writable: true })
+    // Capture the controllerchange listener the component registers.
+    let controllerChangeCb = null
+    Object.defineProperty(navigator, 'serviceWorker', {
+      value: { addEventListener: (ev, cb) => { if (ev === 'controllerchange') controllerChangeCb = cb } },
+      configurable: true,
     })
-    // updateServiceWorker returns a never-resolving promise (simulates the flaky case)
-    state.updateSpy = vi.fn(() => new Promise(() => {}))
     render(<PwaUpdatePrompt />)
     fireEvent.click(screen.getByRole('button', { name: /Reload/ }))
-    expect(reloadSpy).not.toHaveBeenCalled() // not yet — timer pending
+    expect(reloadSpy).not.toHaveBeenCalled()      // waits for the SW, not an immediate/short timer
     vi.advanceTimersByTime(1500)
-    expect(reloadSpy).toHaveBeenCalled() // fallback fired
+    expect(reloadSpy).not.toHaveBeenCalled()      // the old blind 1.5s reload is gone
+    controllerChangeCb()                          // new SW claims the page
+    expect(reloadSpy).toHaveBeenCalledTimes(1)    // reload happens exactly then
+  })
+
+  it('falls back to a reload after 10s only if controllerchange never fires', () => {
+    const reloadSpy = vi.fn()
+    Object.defineProperty(window, 'location', { value: { ...window.location, reload: reloadSpy }, writable: true })
+    Object.defineProperty(navigator, 'serviceWorker', {
+      value: { addEventListener: () => {} }, // never fires controllerchange
+      configurable: true,
+    })
+    render(<PwaUpdatePrompt />)
+    fireEvent.click(screen.getByRole('button', { name: /Reload/ }))
+    vi.advanceTimersByTime(9999)
+    expect(reloadSpy).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(1)
+    expect(reloadSpy).toHaveBeenCalledTimes(1)    // last-resort safety net
   })
 
   it('Reload button shows a reloading state after click', () => {

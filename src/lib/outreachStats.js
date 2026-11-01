@@ -1,6 +1,33 @@
 // Pure aggregation helpers for the Outreach tallies and Excel export.
 // No React/Firestore — takes the plain contacts array, returns plain data.
 
+// Windowed page list for a numbered pager: up to `maxButtons` entries centred
+// on `current`, always including page 1 and the last page, with '…' marking
+// gaps. e.g. pageWindow(7, 20, 10) → [1,'…',4,5,6,7,8,9,10,'…',20].
+export function pageWindow(current, total, maxButtons = 10) {
+  if (total <= maxButtons) return Array.from({ length: total }, (_, i) => i + 1)
+
+  const pages = new Set([1, total, current])
+  // Fill around the current page until we reach maxButtons (reserving 2 for
+  // first/last and up to 2 for ellipses).
+  const slots = Math.max(1, maxButtons - 2)
+  let left = current - Math.floor((slots - 1) / 2)
+  let right = current + Math.ceil((slots - 1) / 2)
+  if (left < 1) { right += 1 - left; left = 1 }
+  if (right > total) { left -= right - total; right = total }
+  left = Math.max(1, left)
+  for (let p = left; p <= right; p++) pages.add(p)
+
+  const sorted = [...pages].filter(p => p >= 1 && p <= total).sort((a, b) => a - b)
+  // Insert ellipses where there are gaps.
+  const out = []
+  for (let i = 0; i < sorted.length; i++) {
+    if (i > 0 && sorted[i] - sorted[i - 1] > 1) out.push('…')
+    out.push(sorted[i])
+  }
+  return out
+}
+
 // Group contacts by company → [{ company, count, contacts }], sorted by count desc.
 export function groupByCompany(contacts) {
   const map = new Map()

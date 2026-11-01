@@ -14,21 +14,26 @@ export default function PwaUpdatePrompt() {
     onRegisterError(err) { console.warn('SW registration failed', err) },
   })
 
-  // updateServiceWorker(true) is supposed to skipWaiting the new SW and reload
-  // on 'controllerchange' — but that event is known to occasionally not fire,
-  // leaving the user clicking "Reload" with nothing happening. Guarantee the
-  // reload ourselves with a short fallback timer, so the button ALWAYS refreshes
-  // to the new version even if the SW handshake is flaky.
+  // Reload ONLY after the new service worker is actually controlling the page.
+  // The previous version reloaded on a blind 1.5s timer, which often fired
+  // before the new SW took control — so the browser re-served the OLD precached
+  // assets and the changes "didn't reflect". The correct trigger is the
+  // 'controllerchange' event (fires once the new SW claims the page); we reload
+  // there. A long 10s timer stays only as a last-resort safety net for the rare
+  // case the event never fires at all.
   const handleReload = () => {
     setReloading(true)
-    try {
-      const p = updateServiceWorker(true)
-      if (p && typeof p.then === 'function') {
-        p.then(() => window.location.reload()).catch(() => window.location.reload())
-      }
-    } catch (_) { /* fall through to the timer below */ }
-    // Hard fallback: if the SW handshake didn't trigger a reload shortly, do it.
-    setTimeout(() => window.location.reload(), 1500)
+    let reloaded = false
+    const doReload = () => { if (!reloaded) { reloaded = true; window.location.reload() } }
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('controllerchange', doReload, { once: true })
+    }
+    // Ask the waiting SW to skipWaiting + activate; controllerchange follows.
+    try { updateServiceWorker(true) } catch (_) { /* safety net below handles it */ }
+
+    // Last resort only — long enough that the SW handshake wins the normal case.
+    setTimeout(doReload, 10000)
   }
 
   if (!needRefresh) return null

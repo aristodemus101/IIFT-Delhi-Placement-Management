@@ -1,5 +1,35 @@
 import { describe, it, expect } from 'vitest'
-import { groupByCompany, tallyByExtractor, contactsToExportRows } from '../lib/outreachStats'
+import { groupByCompany, tallyByExtractor, contactsToExportRows, pageWindow } from '../lib/outreachStats'
+
+describe('pageWindow', () => {
+  it('returns all pages when total fits within maxButtons', () => {
+    expect(pageWindow(1, 5, 10)).toEqual([1, 2, 3, 4, 5])
+    expect(pageWindow(3, 10, 10)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+  })
+
+  it('windows around the current page with ellipses and always shows first/last', () => {
+    const w = pageWindow(10, 20, 10)
+    expect(w[0]).toBe(1)
+    expect(w[w.length - 1]).toBe(20)
+    expect(w).toContain(10)
+    expect(w).toContain('…')
+  })
+
+  it('never exceeds maxButtons + 2 ellipses and includes the current page', () => {
+    for (const cur of [1, 2, 7, 15, 19, 20]) {
+      const w = pageWindow(cur, 20, 10)
+      expect(w).toContain(cur)
+      expect(w.filter(x => x !== '…').length).toBeLessThanOrEqual(10)
+      expect(w[0]).toBe(1)
+      expect(w[w.length - 1]).toBe(20)
+    }
+  })
+
+  it('no ellipsis at the start when current is near page 1', () => {
+    const w = pageWindow(2, 20, 10)
+    expect(w.slice(0, 3)).toEqual([1, 2, 3]) // contiguous from 1
+  })
+})
 
 const contacts = [
   { id: '1', name: 'A', company: 'Goldman Sachs', email: 'a@x.com', phone: '1', enrichedBy: { email: 'nishtha_d28@iift.edu' } },

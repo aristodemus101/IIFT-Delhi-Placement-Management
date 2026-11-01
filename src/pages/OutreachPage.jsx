@@ -4,7 +4,7 @@ import { usePermissions } from '../lib/usePermissions'
 import { useOutreachContacts, useApolloUsage, enrichContacts, searchPeople, todayKeyIST } from '../lib/useOutreach'
 import { Sparkles, Mail, Phone, MapPin, ExternalLink, Copy, Check, AlertTriangle, Building2, Search as SearchIcon, Link2, UserCheck, Download, ChevronDown, ChevronRight, Users } from 'lucide-react'
 import { exportToExcel } from '../lib/csv'
-import { groupByCompany, tallyByExtractor, contactsToExportRows } from '../lib/outreachStats'
+import { groupByCompany, tallyByExtractor, contactsToExportRows, pageWindow } from '../lib/outreachStats'
 
 const DAILY_PHONE_BUDGET = 250 // mirror of the server-side cap, for display only
 
@@ -402,9 +402,26 @@ export default function OutreachPage() {
               ))}
             </div>
             {contactTotalPages > 1 && (
-              <div style={{ display: 'flex', gap: 10, justifyContent: 'center', alignItems: 'center', marginTop: 4 }}>
+              <div style={{ display: 'flex', gap: 6, justifyContent: 'center', alignItems: 'center', marginTop: 4, flexWrap: 'wrap' }}>
                 <Btn size="sm" variant="ghost" disabled={contactPage <= 1} onClick={() => setContactPage(p => Math.max(1, p - 1))}>Prev</Btn>
-                <span style={{ fontSize: 12, color: 'var(--text-3)', fontVariantNumeric: 'tabular-nums' }}>Page {contactPage} of {contactTotalPages}</span>
+                {pageWindow(contactPage, contactTotalPages, 10).map((pg, i) => (
+                  pg === '…' ? (
+                    <span key={`e${i}`} style={{ fontSize: 12, color: 'var(--text-3)', padding: '0 2px' }}>…</span>
+                  ) : (
+                    <button
+                      key={pg}
+                      onClick={() => setContactPage(pg)}
+                      style={{
+                        minWidth: 30, height: 30, padding: '0 8px', borderRadius: 7, cursor: 'pointer',
+                        fontSize: 12.5, fontVariantNumeric: 'tabular-nums', fontFamily: 'var(--font-sans)',
+                        border: `1px solid ${pg === contactPage ? 'var(--accent)' : 'var(--border)'}`,
+                        background: pg === contactPage ? 'var(--accent)' : 'var(--surface)',
+                        color: pg === contactPage ? '#fff' : 'var(--text-2)',
+                        fontWeight: pg === contactPage ? 700 : 500,
+                      }}
+                    >{pg}</button>
+                  )
+                ))}
                 <Btn size="sm" variant="ghost" disabled={contactPage >= contactTotalPages} onClick={() => setContactPage(p => Math.min(contactTotalPages, p + 1))}>Next</Btn>
               </div>
             )}
