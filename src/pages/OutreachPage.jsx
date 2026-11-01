@@ -31,6 +31,7 @@ export default function OutreachPage() {
   const [search, setSearch] = useState('')
   const [view, setView] = useState('contacts') // 'contacts' | 'company'
   const [expandedCompany, setExpandedCompany] = useState(null)
+  const [showExtractorTally, setShowExtractorTally] = useState(false)
 
   // People-search state
   const [searchTitle, setSearchTitle] = useState('')
@@ -360,21 +361,28 @@ export default function OutreachPage() {
           </div>
         )}
 
-        {/* Extractor tally — who extracted how many */}
+        {/* Extraction tally — collapsed by default; a small toggle reveals it */}
         {extractorTally.length > 0 && (
-          <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'var(--surface2)', padding: '10px 12px' }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 8 }}>
-              Extracted by
-            </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-              {extractorTally.map(t => (
-                <span key={t.email} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 20, padding: '3px 10px' }}>
-                  <UserCheck size={12} style={{ color: 'var(--text-3)' }} />
-                  {t.label}
-                  <strong style={{ color: 'var(--accent)', fontVariantNumeric: 'tabular-nums' }}>{t.count}</strong>
-                </span>
-              ))}
-            </div>
+          <div>
+            <button
+              onClick={() => setShowExtractorTally(v => !v)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--text-3)', padding: 0 }}
+            >
+              {showExtractorTally ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+              <UserCheck size={12} />
+              Extraction tally{showExtractorTally ? '' : ` (${extractorTally.length})`}
+            </button>
+            {showExtractorTally && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
+                {extractorTally.map(t => (
+                  <span key={t.email} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 20, padding: '3px 10px' }}>
+                    <UserCheck size={12} style={{ color: 'var(--text-3)' }} />
+                    {t.label}
+                    <strong style={{ color: 'var(--accent)', fontVariantNumeric: 'tabular-nums' }}>{t.count}</strong>
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
