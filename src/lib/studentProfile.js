@@ -23,18 +23,31 @@ export function buildStudentProfile(student) {
   const summerCompany = (student?._placed_summer && student?._placement_summer?.company) || ''
   const finalCompany  = (student?._placed_final  && student?._placement_final?.company)  || ''
 
+  // UG degree + college as one display string (e.g. "B.Com · Shri Ram College").
+  const ugDegree  = clean(getVal(student, 'ug'))
+  const ugCollege = clean(getVal(student, 'ug_college'))
+  const ugDegreeCollege = [ugDegree, ugCollege].filter(Boolean).join(' · ')
+
   return {
     name:          clean(getVal(student, 'name')),
     roll:          clean(getVal(student, 'roll')),
     officialEmail: clean(getVal(student, 'official_email')),
+    personalEmail: clean(getVal(student, 'email')),
     mobile:        clean(getVal(student, 'mobile')),
     course:        PROGRAMME_LABEL[programme] || (programme ? `MBA (${programme})` : ''),
     gradYear:      gradYear ? String(gradYear) : '',
+    dob:           clean(getVal(student, 'dob')),
+    father:        clean(getVal(student, 'father')),
+    mother:        clean(getVal(student, 'mother')),
+    address:       clean(getVal(student, 'address')),
     sipCompany:    clean(summerCompany),
     finalCompany:  clean(finalCompany),
     x10:           clean(getVal(student, 'x10pct')),
     x12:           clean(getVal(student, 'x12pct')),
     ug:            clean(getVal(student, 'ugpct')),
+    ugDegree,
+    ugCollege,
+    ugDegreeCollege,
     workEx:        clean(getVal(student, 'wx')),
     recentCompany: clean(getVal(student, 'c1_name')),
   }
@@ -50,10 +63,16 @@ export function profileToText(p, { institute = 'IIFT Delhi' } = {}) {
 
   const field = (label, val) => { if (val) lines.push(`${label}: ${val}`) }
   field('Official Email', p.officialEmail)
+  field('Personal Email', p.personalEmail)
   field('Contact', p.mobile)
+  field('Date of Birth', p.dob)
+  field('Father', p.father)
+  field('Mother', p.mother)
+  field('Permanent Address', p.address)
   field('Class X', p.x10 ? `${p.x10}%` : '')
   field('Class XII', p.x12 ? `${p.x12}%` : '')
-  field('UG', p.ug ? `${p.ug}%` : '')
+  field('UG Degree', p.ugDegreeCollege)
+  field('UG Score', p.ug ? `${p.ug}%` : '')
   field('Work Experience', p.workEx ? `${p.workEx} months` : '')
   field('Most Recent Company', p.recentCompany)
   field('SIP Company', p.sipCompany)

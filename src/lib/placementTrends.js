@@ -177,12 +177,37 @@ export function buildTally(events, { cohorts = null } = {}) {
   return { byCohort, topCompanies, topSectors, totalEvents: filtered.length }
 }
 
+// ── Distinct placed students per cohort ───────────────────────────────────────
+// A cohort runs two placement cycles (SIP then Finals); a student may be placed
+// in both, so summing per-cycle counts double-counts them. For "% of batch
+// placed" and completion projections we need UNIQUE students placed in EITHER
+// cycle — this can never exceed the cohort size. Returns { [cohort]: count }.
+export function distinctPlacedByCohort(students, { cohorts = null } = {}) {
+  const cohortSet = cohorts && cohorts.length ? new Set(cohorts) : null
+  const byCohort = {}
+  for (const s of students) {
+    if (!s.cohort) continue
+    if (cohortSet && !cohortSet.has(s.cohort)) continue
+    if (s._placed_summer || s._placed_final) {
+      byCohort[s.cohort] = (byCohort[s.cohort] || 0) + 1
+    }
+  }
+  return byCohort
+}
+
 // ── Stats & simple linear projection ──────────────────────────────────────────
 
 // Given a cumulative series (sorted ascending buckets) and the cohort's total
 // student count, project the bucket index at which 100% would be reached using
 // simple linear regression over the last N points (recent velocity).
-export function projectCompletion(cumulativeValues, totalStudents, { lookback = 6 } = {}) {
+//
+// `currentLevel` (optional): the true current placed level to measure completion
+// against. The cumulative series counts placement *events* across both cycles,
+// which over-counts students placed in both SIP and Finals; pass the distinct
+// placed-student count here so `remaining`, `projectedPct`, and
+// `bucketsToComplete` reflect unique students and never exceed 100%. Velocity
+// (pace) is still read from the series. Defaults to the series' last value.
+export function projectCompletion(cumulativeValues, totalStudents, { lookback = 6, currentLevel = null } = {}) {
   if (!totalStudents || cumulativeValues.length < 2) return null
   const n = cumulativeValues.length
   const recent = cumulativeValues.slice(Math.max(0, n - lookback))
@@ -199,18 +224,23 @@ export function projectCompletion(cumulativeValues, totalStudents, { lookback = 
     den += (xs[i] - meanX) ** 2
   }
   const slope = den === 0 ? 0 : num / den // placements per bucket (recent velocity)
-  const lastValue = recent[m - 1]
+  // Level to measure completion against: distinct placed when provided, else the
+  // series' last cumulative value. Clamp to the cohort size.
+  const level = Math.min(
+    totalStudents,
+    currentLevel != null ? currentLevel : recent[m - 1]
+  )
 
   if (slope <= 0) {
-    return { velocity: slope, bucketsToComplete: null, projectedPct: (lastValue / totalStudents) * 100 }
+    return { velocity: slope, bucketsToComplete: null, projectedPct: (level / totalStudents) * 100 }
   }
 
-  const remaining = totalStudents - lastValue
+  const remaining = totalStudents - level
   const bucketsToComplete = remaining > 0 ? Math.ceil(remaining / slope) : 0
 
   return {
     velocity: slope,
     bucketsToComplete,
-    projectedPct: Math.min(100, (lastValue / totalStudents) * 100),
+    projectedPct: Math.min(100, (level / totalStudents) * 100),
   }
 }

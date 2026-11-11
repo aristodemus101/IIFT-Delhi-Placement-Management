@@ -3,6 +3,7 @@ import {
   isoWeekKey, weekStartDate, monthKey, bucketKey, bucketLabel,
   extractPlacementEvents, buildTimeline, cumulativeSeries,
   buildHeatmapMatrix, heatmapMatrixFromTimeline, buildTally, projectCompletion,
+  distinctPlacedByCohort,
 } from '../lib/placementTrends'
 
 // ─── Date bucketing ────────────────────────────────────────────────────────────
@@ -272,6 +273,50 @@ describe('buildTally', () => {
   })
 })
 
+// ─── distinctPlacedByCohort ─────────────────────────────────────────────────────
+
+describe('distinctPlacedByCohort', () => {
+  const students = [
+    // placed in BOTH cycles — must count once
+    { cohort: 'A', _placed_summer: true, _placed_final: true },
+    // placed in summer only
+    { cohort: 'A', _placed_summer: true, _placed_final: false },
+    // placed in final only
+    { cohort: 'A', _placed_summer: false, _placed_final: true },
+    // not placed
+    { cohort: 'A', _placed_summer: false, _placed_final: false },
+    // other cohort, placed
+    { cohort: 'B', _placed_final: true },
+    // no cohort — ignored
+    { _placed_summer: true },
+  ]
+
+  it('counts each placed student once even when placed in both cycles', () => {
+    const d = distinctPlacedByCohort(students)
+    // A: both + summer-only + final-only = 3 distinct (the both-placed counts once)
+    expect(d.A).toBe(3)
+    expect(d.B).toBe(1)
+  })
+
+  it('never exceeds cohort size (no double-count of two-cycle students)', () => {
+    const d = distinctPlacedByCohort(students)
+    const aSize = students.filter(s => s.cohort === 'A').length // 4
+    expect(d.A).toBeLessThanOrEqual(aSize)
+  })
+
+  it('respects the cohort filter', () => {
+    const d = distinctPlacedByCohort(students, { cohorts: ['B'] })
+    expect(Object.keys(d)).toEqual(['B'])
+    expect(d.B).toBe(1)
+  })
+
+  it('ignores students with no cohort', () => {
+    const d = distinctPlacedByCohort(students)
+    // the cohort-less placed student contributes to no bucket
+    expect(d.undefined).toBeUndefined()
+  })
+})
+
 // ─── projectCompletion ───────────────────────────────────────────────────────────
 
 describe('projectCompletion', () => {
@@ -318,5 +363,29 @@ describe('projectCompletion', () => {
     const result = projectCompletion(cum, 1000, { lookback: 3 })
     // slope over last 3 points [91,92,93] is ~1/bucket, not the big early jump
     expect(result.velocity).toBeCloseTo(1, 1)
+  })
+
+  it('measures completion against currentLevel when given (unique placed), not the event series', () => {
+    // Event series over-counts (both-cycle students): last value 180, but only
+    // 90 unique students placed in a batch of 100. Velocity still from series.
+    const cum = [150, 160, 170, 180]
+    const result = projectCompletion(cum, 100, { currentLevel: 90 })
+    expect(result.velocity).toBeCloseTo(10, 5)
+    // remaining = 100 - 90 = 10, at 10/bucket → 1 bucket
+    expect(result.bucketsToComplete).toBe(1)
+    expect(result.projectedPct).toBeCloseTo(90, 5)
+  })
+
+  it('clamps currentLevel to total and reports fully placed', () => {
+    const cum = [150, 160, 170, 180] // inflated event counts
+    const result = projectCompletion(cum, 100, { currentLevel: 100 })
+    expect(result.projectedPct).toBe(100)
+    expect(result.bucketsToComplete).toBe(0)
+  })
+
+  it('projectedPct never exceeds 100 even if currentLevel is above total', () => {
+    const cum = [150, 160, 170, 180]
+    const result = projectCompletion(cum, 100, { currentLevel: 139 })
+    expect(result.projectedPct).toBe(100)
   })
 })

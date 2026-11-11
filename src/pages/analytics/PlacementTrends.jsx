@@ -5,6 +5,7 @@ import { Badge, Spinner } from '../../components/UI'
 import {
   extractPlacementEvents, buildTimeline, cumulativeSeries,
   heatmapMatrixFromTimeline, buildTally, bucketLabel, projectCompletion,
+  distinctPlacedByCohort,
 } from '../../lib/placementTrends'
 
 const COHORT_COLORS = ['#1d4ed8', '#10b981', '#f59e0b', '#ef4444', '#6366f1', '#ec4899', '#14b8a6', '#f97316']
@@ -61,13 +62,27 @@ export default function PlacementTrends() {
     return m
   }, [students])
 
+  // Unique students placed per cohort (either cycle) — the basis for "% of batch"
+  // and completion. A student placed in SIP *and* Finals counts once, so this
+  // never exceeds the cohort size (unlike summing per-cycle event counts).
+  const distinctPlaced = useMemo(
+    () => distinctPlacedByCohort(students, { cohorts: activeCohorts }),
+    [students, activeCohorts]
+  )
+
   const projections = useMemo(() => {
     return activeCohorts.map(cohort => {
       const cum = cumulativeSeriesAll[cohort] || []
-      const proj = projectCompletion(cum, cohortSizes[cohort])
-      return { cohort, placed: cum[cum.length - 1] || 0, total: cohortSizes[cohort] || 0, proj }
+      const size = cohortSizes[cohort] || 0
+      const placed = distinctPlaced[cohort] || 0
+      // Project pace from the event series' recent velocity, but anchor the
+      // "placed" base to unique students so the bar and projection can't exceed
+      // 100%. projectCompletion is given the distinct placed count as the
+      // current level.
+      const proj = projectCompletion(cum, size, { currentLevel: placed })
+      return { cohort, placed, total: size, proj }
     }).filter(p => p.total > 0)
-  }, [activeCohorts, cumulativeSeriesAll, cohortSizes])
+  }, [activeCohorts, cumulativeSeriesAll, cohortSizes, distinctPlaced])
 
   if (loading) return <Spinner />
 
@@ -140,7 +155,7 @@ export default function PlacementTrends() {
           <TrendChart buckets={buckets} series={displaySeries} granularity={granularity} allCohorts={allCohortIds} cumulative={cumulative} />
           <Heatmap buckets={buckets} matrix={matrix} max={heatMax} granularity={granularity} />
           <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
-            <TallyPanel tally={tally} cohortSizes={cohortSizes} activeCohorts={activeCohorts} allCohorts={allCohortIds} />
+            <TallyPanel tally={tally} cohortSizes={cohortSizes} distinctPlaced={distinctPlaced} activeCohorts={activeCohorts} allCohorts={allCohortIds} />
             <ProjectionPanel projections={projections} granularity={granularity} allCohorts={allCohortIds} />
           </div>
         </div>
@@ -269,8 +284,11 @@ function Heatmap({ buckets, matrix, max, granularity }) {
 
 // ── Tally table ─────────────────────────────────────────────────────────────
 
-function TallyPanel({ tally, cohortSizes, activeCohorts, allCohorts }) {
-  const rows = Object.entries(tally.byCohort).sort((a, b) => b[1].total - a[1].total)
+function TallyPanel({ tally, cohortSizes, distinctPlaced, activeCohorts, allCohorts }) {
+  // Sort by unique placed students (SIP and Final overlap, so a plain SIP+Final
+  // sum over-counts). "Placed" = distinct students placed in either cycle.
+  const rows = Object.entries(tally.byCohort)
+    .sort((a, b) => (distinctPlaced[b[0]] || 0) - (distinctPlaced[a[0]] || 0))
 
   return (
     <div style={{ flex: '1 1 340px', minWidth: 320 }}>
@@ -281,14 +299,16 @@ function TallyPanel({ tally, cohortSizes, activeCohorts, allCohorts }) {
             <th style={tallyHeadStyle}>Batch</th>
             <th style={{ ...tallyHeadStyle, textAlign: 'right' }}>SIP</th>
             <th style={{ ...tallyHeadStyle, textAlign: 'right' }}>Final</th>
-            <th style={{ ...tallyHeadStyle, textAlign: 'right' }}>Total</th>
+            <th style={{ ...tallyHeadStyle, textAlign: 'right' }}>Placed</th>
             <th style={{ ...tallyHeadStyle, textAlign: 'right' }}>% of batch</th>
           </tr>
         </thead>
         <tbody>
           {rows.map(([cohort, counts]) => {
             const size = cohortSizes[cohort] || 0
-            const pct = size ? Math.round((counts.total / size) * 100) : 0
+            // Unique students placed in either cycle — never exceeds the batch.
+            const placed = distinctPlaced[cohort] || 0
+            const pct = size ? Math.round((placed / size) * 100) : 0
             return (
               <tr key={cohort} style={{ borderBottom: '1px solid var(--border)' }}>
                 <td style={{ ...tallyCellStyle, display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -297,7 +317,7 @@ function TallyPanel({ tally, cohortSizes, activeCohorts, allCohorts }) {
                 </td>
                 <td style={{ ...tallyCellStyle, textAlign: 'right' }}>{counts.summer || 0}</td>
                 <td style={{ ...tallyCellStyle, textAlign: 'right' }}>{counts.final || 0}</td>
-                <td style={{ ...tallyCellStyle, textAlign: 'right', fontWeight: 700 }}>{counts.total}</td>
+                <td style={{ ...tallyCellStyle, textAlign: 'right', fontWeight: 700 }}>{placed}</td>
                 <td style={{ ...tallyCellStyle, textAlign: 'right', color: pct >= 80 ? 'var(--green-text)' : pct >= 40 ? 'var(--amber-text)' : 'var(--text-3)' }}>{size ? `${pct}%` : '—'}</td>
               </tr>
             )

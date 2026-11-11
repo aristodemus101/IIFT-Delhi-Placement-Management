@@ -14,6 +14,13 @@ function student(overrides = {}) {
     'Graduation Overall Score in %age': '85.0',
     'Total Work Experience (in months)': '18',
     'Company Name (C1)': 'Deloitte',
+    'Personal Email ID': 'ananya.personal@gmail.com',
+    'Date of Birth': '2003-05-14',
+    "Father's Name": 'Rakesh Sharma',
+    "Mother's Name": 'Sunita Sharma',
+    'Full Permanent Address': '42 MG Road, Pune, Maharashtra 411001',
+    'UG Degree (Eg: Btech, BBA, B.com, etc.)': 'B.Com',
+    'UG College Name': 'Fergusson College',
     _placed_summer: true,
     _placement_summer: { company: 'Goldman Sachs' },
     _placed_final: false,
@@ -40,6 +47,25 @@ describe('buildStudentProfile', () => {
       workEx: '18',
       recentCompany: 'Deloitte',
     })
+  })
+
+  it('extracts the extended personal + UG fields', () => {
+    const p = buildStudentProfile(student())
+    expect(p).toMatchObject({
+      personalEmail: 'ananya.personal@gmail.com',
+      dob: '2003-05-14',
+      father: 'Rakesh Sharma',
+      mother: 'Sunita Sharma',
+      address: '42 MG Road, Pune, Maharashtra 411001',
+      ugDegree: 'B.Com',
+      ugCollege: 'Fergusson College',
+      ugDegreeCollege: 'B.Com · Fergusson College',
+    })
+  })
+
+  it('combines UG degree + college, and drops the separator when one is missing', () => {
+    expect(buildStudentProfile(student({ 'UG College Name': '' })).ugDegreeCollege).toBe('B.Com')
+    expect(buildStudentProfile(student({ 'UG Degree (Eg: Btech, BBA, B.com, etc.)': '' })).ugDegreeCollege).toBe('Fergusson College')
   })
 
   it('maps BA cohort programme label', () => {
@@ -80,6 +106,12 @@ describe('profileToText', () => {
     expect(txt).toContain('Class X: 92.5%')
     expect(txt).toContain('Work Experience: 18 months')
     expect(txt).toContain('SIP Company: Goldman Sachs')
+    expect(txt).toContain('Personal Email: ananya.personal@gmail.com')
+    expect(txt).toContain("Father: Rakesh Sharma")
+    expect(txt).toContain("Mother: Sunita Sharma")
+    expect(txt).toContain('Permanent Address: 42 MG Road, Pune, Maharashtra 411001')
+    expect(txt).toContain('Date of Birth: 2003-05-14')
+    expect(txt).toContain('UG Degree: B.Com · Fergusson College')
   })
 
   it('omits empty fields', () => {
