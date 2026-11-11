@@ -10,6 +10,7 @@ import { useBatch } from '../lib/BatchContext'
 import { getVal, OUR_COLS } from '../lib/columns'
 import { cohortLabel } from '../lib/batch'
 import { parseDataFile, exportToCSV, exportToTSV, exportToExcel } from '../lib/csv'
+import { pageWindow } from '../lib/outreachStats'
 import { useSearch } from '../lib/useSearch'
 import { useRosterPrefs } from './roster/useRosterPrefs'
 import PlaceModal from './roster/PlaceModal'
@@ -245,6 +246,22 @@ export default function RosterPage() {
     return out
   }, [filtered, sortCol, sortDir])
 
+  // Row windowing — render only one page of table rows at a time so a large
+  // cohort (hundreds of students) doesn't build hundreds of row elements on
+  // every render. Export/push still use the full sortedFiltered set.
+  const ROWS_PER_PAGE = 50
+  const [rosterPage, setRosterPage] = useState(1)
+  const rosterTotalPages = Math.max(1, Math.ceil(sortedFiltered.length / ROWS_PER_PAGE))
+  // Reset to page 1 whenever the filtered/sorted set changes identity (new
+  // search, filter, sort, or cohort). sortedFiltered does NOT depend on
+  // rosterPage, so paging never re-triggers this.
+  useEffect(() => { setRosterPage(1) }, [sortedFiltered])
+  useEffect(() => { if (rosterPage > rosterTotalPages) setRosterPage(rosterTotalPages) }, [rosterPage, rosterTotalPages])
+  const pagedStudents = useMemo(() => {
+    const start = (rosterPage - 1) * ROWS_PER_PAGE
+    return sortedFiltered.slice(start, start + ROWS_PER_PAGE)
+  }, [sortedFiltered, rosterPage])
+
   const exportRows = useMemo(() => sortedFiltered.map(s => {
     const out = {}
     visibleDefs.forEach(def => { out[def.label] = getCellValue(s, def.sortKey) || '' })
@@ -430,7 +447,7 @@ export default function RosterPage() {
     { label: 'Actions', onClick: null },
   ]
 
-  const rows = sortedFiltered.map(s => {
+  const rows = pagedStudents.map(s => {
     const checkboxCell = (
       <input
         type="checkbox"
@@ -649,13 +666,42 @@ export default function RosterPage() {
               rows={rows}
               emptyMessage={scopedStudents.length ? 'No matches' : 'No roster yet. Import a file.'}
               onRowContextMenu={canDo('proposePlace') ? (e, idx) => {
-                const target = sortedFiltered[idx]
+                const target = pagedStudents[idx]
                 if (!target) return
                 e.preventDefault()
                 setRowMenu({ student: target, x: Math.min(e.clientX, window.innerWidth - 220), y: Math.min(e.clientY, window.innerHeight - 100) })
               } : undefined}
             />
           </div>
+
+          {rosterTotalPages > 1 && (
+            <div style={{ display: 'flex', gap: 6, justifyContent: 'center', alignItems: 'center', padding: '8px 16px', borderTop: '1px solid var(--border)', background: 'var(--surface)', flexShrink: 0, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 12, color: 'var(--text-3)', marginRight: 6, fontVariantNumeric: 'tabular-nums' }}>
+                {(rosterPage - 1) * ROWS_PER_PAGE + 1}–{Math.min(rosterPage * ROWS_PER_PAGE, sortedFiltered.length)} of {sortedFiltered.length}
+              </span>
+              <Btn size="sm" variant="ghost" disabled={rosterPage <= 1} onClick={() => setRosterPage(p => Math.max(1, p - 1))}>Prev</Btn>
+              {pageWindow(rosterPage, rosterTotalPages, 9).map((pg, i) => (
+                pg === '…' ? (
+                  <span key={`e${i}`} style={{ fontSize: 12, color: 'var(--text-3)', minWidth: 20, textAlign: 'center' }}>…</span>
+                ) : (
+                  <button
+                    key={pg}
+                    onClick={() => setRosterPage(pg)}
+                    style={{
+                      minWidth: 32, height: 32, padding: '0 8px', borderRadius: 8, cursor: 'pointer',
+                      fontSize: 12.5, fontVariantNumeric: 'tabular-nums', fontFamily: 'var(--font-sans)',
+                      border: `1px solid ${pg === rosterPage ? 'var(--accent)' : 'var(--border)'}`,
+                      background: pg === rosterPage ? 'var(--accent)' : 'var(--surface)',
+                      color: pg === rosterPage ? '#fff' : 'var(--text-2)',
+                      fontWeight: pg === rosterPage ? 700 : 500,
+                      transition: 'background 0.12s ease, border-color 0.12s ease',
+                    }}
+                  >{pg}</button>
+                )
+              ))}
+              <Btn size="sm" variant="ghost" disabled={rosterPage >= rosterTotalPages} onClick={() => setRosterPage(p => Math.min(rosterTotalPages, p + 1))}>Next</Btn>
+            </div>
+          )}
         </>
       ) : (
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>

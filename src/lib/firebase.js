@@ -1,6 +1,11 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import {
+  getFirestore,
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+} from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { getFunctions, httpsCallable } from "firebase/functions";
 
@@ -36,7 +41,24 @@ const firebaseConfig = isStagingHost ? stagingConfig : productionConfig;
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
-export const db = getFirestore(app);
+
+// Firestore with a persistent (IndexedDB) local cache so repeat app opens serve
+// the last-synced data instantly and sync in the background — instead of
+// re-downloading the whole collection over the network every time (the cause of
+// slow mobile loads / "reloads every time"). persistentMultipleTabManager keeps
+// multiple open tabs consistent. Falls back to the default in-memory cache if
+// IndexedDB is unavailable (private mode, old browser, blocked storage) so the
+// app never fails to start.
+let _db;
+try {
+  _db = initializeFirestore(app, {
+    localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+  });
+} catch (e) {
+  console.warn('Firestore persistent cache unavailable, using in-memory cache:', e?.message || e);
+  _db = getFirestore(app);
+}
+export const db = _db;
 export const storage = getStorage(app);
 const functions = getFunctions(app, 'asia-south1');
 export const callPushFilteredToSheet = httpsCallable(functions, 'pushFilteredToSheet');
