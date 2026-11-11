@@ -8,9 +8,8 @@ import { getVal } from '../lib/columns'
 import { exportToCSV } from '../lib/csv'
 import { usePermissions } from '../lib/usePermissions'
 import { PageHeader, Btn, Badge, CategoryBadge, Input, Spinner, Table, Modal, TabBar } from '../components/UI'
-import { Download, RotateCcw, Search, Eye, CheckCircle, Lock, ExternalLink, Columns, Building2, Users, ChevronDown } from 'lucide-react'
+import { Download, RotateCcw, Search, Eye, CheckCircle, Lock, Columns, Building2, Users, ChevronDown } from 'lucide-react'
 
-const PLACEMENT_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1uOzTID4iVhwjXuKynSICQmFDygYoQJC1N_q6QlumF68/edit'
 
 function studentCohort(s) {
   return s.cohort || 'unknown'
@@ -337,14 +336,9 @@ export default function PlacedPage() {
         subtitle={`${scopedCohorts.length === 1 ? cohortLabel(scopedCohorts[0]) : `${scopedCohorts.length} cohorts`} · ${seasonLabel(selectedSeason)} · ${placed.length} student${placed.length !== 1 ? 's' : ''} placed`}
         actions={
           isAdmin && (
-            <>
-              <Btn size="sm" variant="ghost" onClick={() => window.open(PLACEMENT_SHEET_URL, '_blank')} title="Open placement results sheet">
-                <ExternalLink size={13} /> Placement Sheet
-              </Btn>
-              <Btn size="sm" onClick={() => exportToCSV(exportRows, 'placed_students.csv')} disabled={!exportRows.length} title={!exportRows.length ? 'No placed records to export' : 'Export placed students with placement details'}>
-                <Download size={13} /> Export Placed Sheet
-              </Btn>
-            </>
+            <Btn size="sm" onClick={() => exportToCSV(exportRows, 'placed_students.csv')} disabled={!exportRows.length} title={!exportRows.length ? 'No placed records to export' : 'Export placed students with placement details'}>
+              <Download size={13} /> Export Placed Sheet
+            </Btn>
           )
         }
       />
