@@ -96,8 +96,9 @@ export function drawProfileCard(profile, { institute = 'IIFT DELHI' } = {}) {
     { label: 'Minor', value: profile.minor },
     { label: 'UG Degree & College', value: profile.ugDegreeCollege, full: true },
     { label: 'Most Recent Company', value: profile.recentCompany, full: true },
-    // SIP project can be long — allow up to 3 wrapped lines.
-    { label: 'SIP Project', value: profile.sipProject, full: true, maxLines: 3 },
+    // SIP project can be long — show it in full, wrapping to as many lines as
+    // it needs (no truncation).
+    { label: 'SIP Project', value: profile.sipProject, full: true, maxLines: Infinity },
   ].filter(f => f.value)
 
   const chips = []
