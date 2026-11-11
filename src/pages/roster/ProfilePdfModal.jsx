@@ -1,87 +1,96 @@
-import React, { useMemo, useRef, useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import { Btn, Modal, Badge } from '../../components/UI'
-import { buildProfilesHtml, resolveDisplayName } from '../../lib/profilePdf'
-import { FileDown, Printer } from 'lucide-react'
-import './profilePrint.css'
+import { buildStudentProfile, profileToText } from '../../lib/studentProfile'
+import { downloadProfileCard } from '../../lib/profileCardCanvas'
+import { getVal } from '../../lib/columns'
+import { FileDown, Download, Copy, Check } from 'lucide-react'
 
-// Renders a modal that previews the profile document for the selected
-// students, then triggers the browser's native print-to-PDF dialog scoped
-// to a hidden #profile-print-root via the @media print rules in
-// profilePrint.css. No PDF library needed — output is real, selectable
-// text, not a rasterized image.
-export default function ProfilePdfModal({
-  open, onClose, students, columnDefs, getValue, institute = 'IIFT Delhi', batchLabel = '',
-}) {
-  const printRootRef = useRef(null)
-  const [printing, setPrinting] = useState(false)
+// Downloads a clean profile-card PNG per selected candidate. Replaces the old
+// window.print() approach, which broke on mobile and clipped pages. Canvas
+// rendering works everywhere (incl. phones), never clips, and needs no print
+// dialog. Each candidate has its own Download button so every download is a
+// distinct user gesture — mobile browsers block multi-downloads from one tap.
+export default function ProfilePdfModal({ open, onClose, students }) {
+  const [copiedId, setCopiedId] = useState(null)
+  const [busyId, setBusyId] = useState(null)
 
-  const html = useMemo(() => {
-    if (!open || !students.length) return ''
-    return buildProfilesHtml({ students, columnDefs, getValue, institute, batchLabel })
-  }, [open, students, columnDefs, getValue, institute, batchLabel])
+  // Precompute the profile for each selected student.
+  const items = useMemo(
+    () => (open ? students.map(s => ({ id: s._id, student: s, profile: buildStudentProfile(s) })) : []),
+    [open, students]
+  )
 
-  // Browser "Save as PDF" takes the suggested filename from document.title.
-  // We can't set the saved filename directly, but we can set the title so the
-  // dialog defaults to "Name - IIFT Delhi" (single candidate) or a batch name.
-  const suggestedTitle = useMemo(() => {
-    if (!students.length) return `Candidate Profile - ${institute}`
-    if (students.length === 1) {
-      const { value } = resolveDisplayName(columnDefs, students[0], getValue)
-      return `${value || 'Candidate'} - ${institute}`
+  const download = async (item) => {
+    setBusyId(item.id)
+    try {
+      await downloadProfileCard(item.profile, `${(item.profile.name || 'candidate').replace(/\s+/g, '_')} - IIFT Delhi.png`)
+    } finally {
+      setBusyId(null)
     }
-    return `${students.length} Candidate Profiles - ${institute}`
-  }, [students, columnDefs, getValue, institute])
+  }
 
-  const handlePrint = () => {
-    setPrinting(true)
-    const prevTitle = document.title
-    document.title = suggestedTitle
-    // Let the print root paint before invoking the print dialog
-    requestAnimationFrame(() => {
-      window.print()
-      // Restore the app title after the dialog is dismissed.
-      setTimeout(() => { document.title = prevTitle; setPrinting(false) }, 500)
-    })
+  const copy = (item) => {
+    navigator.clipboard?.writeText(profileToText(item.profile)).then(() => {
+      setCopiedId(item.id)
+      setTimeout(() => setCopiedId(null), 1500)
+    }).catch(() => {})
   }
 
   return (
-    <>
-      <Modal open={open} onClose={onClose} title="Candidate Profile PDF" width={560}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <p style={{ fontSize: 13, color: 'var(--text-2)', lineHeight: 1.6, margin: 0 }}>
-            Generates one profile page per selected candidate, using the columns currently visible
-            in the roster. Fields with no data are omitted automatically.
-          </p>
-
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <Badge color="blue">{students.length} candidate{students.length === 1 ? '' : 's'}</Badge>
-            <Badge color="gray">{columnDefs.length} visible column{columnDefs.length === 1 ? '' : 's'}</Badge>
+    <Modal open={open} onClose={onClose} title="Download Profile Cards" width={520}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {students.length === 0 ? (
+          <div style={{ padding: '20px 0', textAlign: 'center', color: 'var(--text-3)', fontSize: 13 }}>
+            Select one or more candidates in the roster first.
           </div>
-
-          {students.length === 0 ? (
-            <div style={{ padding: '20px 0', textAlign: 'center', color: 'var(--text-3)', fontSize: 13 }}>
-              Select one or more candidates in the roster first.
+        ) : (
+          <>
+            <p style={{ fontSize: 13, color: 'var(--text-2)', lineHeight: 1.6, margin: 0 }}>
+              Download a clean IIFT-branded profile card (PNG) for each selected candidate.
+              Works on mobile — no print dialog.
+            </p>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <Badge color="blue">{students.length} candidate{students.length === 1 ? '' : 's'}</Badge>
             </div>
-          ) : (
-            <>
-              <div style={{ fontSize: 12, color: 'var(--text-3)', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '10px 12px', lineHeight: 1.6 }}>
-                In the print dialog, set <strong>Destination</strong> to <strong>Save as PDF</strong>. The file saves as <strong>“{suggestedTitle}”</strong>. Each candidate prints on their own page — {students.length > 1 ? `${students.length} pages total.` : '1 page total.'}
-              </div>
 
-              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                <Btn onClick={onClose}>Cancel</Btn>
-                <Btn variant="primary" onClick={handlePrint} disabled={printing}>
-                  <Printer size={13} /> {printing ? 'Opening print dialog…' : 'Print / Save as PDF'}
-                </Btn>
-              </div>
-            </>
-          )}
-        </div>
-      </Modal>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 360, overflowY: 'auto' }}>
+              {items.map(item => (
+                <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'var(--surface)' }}>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {item.profile.name || getVal(item.student, 'name') || 'Unnamed'}
+                    </div>
+                    <div style={{ fontSize: 11.5, color: 'var(--text-3)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {[item.profile.roll, item.profile.course, item.profile.gradYear && `'${String(item.profile.gradYear).slice(-2)}`].filter(Boolean).join(' · ')}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => copy(item)}
+                    title="Copy details"
+                    style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', cursor: 'pointer', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 9px', fontSize: 11.5, fontWeight: 600, color: copiedId === item.id ? 'var(--green-text)' : 'var(--text-2)', fontFamily: 'var(--font-sans)', flexShrink: 0 }}
+                  >
+                    {copiedId === item.id ? <><Check size={13} /> Copied</> : <><Copy size={13} /> Copy</>}
+                  </button>
+                  <Btn size="sm" variant="primary" onClick={() => download(item)} disabled={busyId === item.id}>
+                    <Download size={13} /> {busyId === item.id ? '…' : 'PNG'}
+                  </Btn>
+                </div>
+              ))}
+            </div>
 
-      {/* Off-screen print surface — only visible to the browser's print engine */}
-      <div id="profile-print-root" ref={printRootRef} dangerouslySetInnerHTML={{ __html: html }} />
-    </>
+            {students.length > 1 && (
+              <div style={{ fontSize: 11.5, color: 'var(--text-3)' }}>
+                Tap each candidate's <strong>PNG</strong> button to save their card. (Mobile browsers save one file per tap.)
+              </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <Btn onClick={onClose}>Done</Btn>
+            </div>
+          </>
+        )}
+      </div>
+    </Modal>
   )
 }
 

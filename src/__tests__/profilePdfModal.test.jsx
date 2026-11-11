@@ -1,74 +1,64 @@
 // @vitest-environment jsdom
 import React from 'react'
-import { describe, it, expect, vi, afterEach } from 'vitest'
-import { render, screen, fireEvent, cleanup } from '@testing-library/react'
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
+import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/react'
+
+// Mock the canvas download so the test doesn't need a real canvas/toBlob.
+const downloadSpy = vi.fn(() => Promise.resolve())
+vi.mock('../lib/profileCardCanvas', () => ({
+  downloadProfileCard: (...args) => downloadSpy(...args),
+}))
+
 import ProfilePdfModal from '../pages/roster/ProfilePdfModal'
 
+const student = (over = {}) => ({
+  _id: over._id || 'x1',
+  cohort: '28-Delhi-IB',
+  'Full Name': over.name || 'Alice Verma',
+  'Roll No.': over.roll || '1A',
+  'Official Institute Email ID': 'alice_d28@iift.edu',
+  ...over,
+})
+
 afterEach(cleanup)
+beforeEach(() => { downloadSpy.mockClear() })
 
-const columnDefs = [{ key: 'name', label: 'Full Name' }, { key: 'roll', label: 'Roll No.' }]
-const getValue = (student, key) => student[key]
-
-describe('ProfilePdfModal', () => {
-  it('renders nothing print-related when closed', () => {
-    render(
-      <ProfilePdfModal open={false} onClose={() => {}} students={[]} columnDefs={columnDefs} getValue={getValue} />
-    )
-    // Print root still mounts (so it exists in the DOM) but has no content while closed
-    const root = document.getElementById('profile-print-root')
-    expect(root).toBeTruthy()
-    expect(root.innerHTML).toBe('')
-  })
-
+describe('ProfilePdfModal (canvas download)', () => {
   it('shows an empty-state prompt when no students are selected', () => {
-    render(
-      <ProfilePdfModal open={true} onClose={() => {}} students={[]} columnDefs={columnDefs} getValue={getValue} />
-    )
+    render(<ProfilePdfModal open={true} onClose={() => {}} students={[]} />)
     expect(screen.getByText(/Select one or more candidates/i)).toBeTruthy()
   })
 
-  it('shows the candidate count and print button when students are selected', () => {
-    const students = [{ name: 'Alice', roll: '1A' }, { name: 'Bob', roll: '2A' }]
-    render(
-      <ProfilePdfModal open={true} onClose={() => {}} students={students} columnDefs={columnDefs} getValue={getValue} />
-    )
+  it('lists each selected candidate with a PNG and Copy button', () => {
+    const students = [student({ _id: 'a', name: 'Alice Verma' }), student({ _id: 'b', name: 'Bob Singh', 'Roll No.': '2A' })]
+    render(<ProfilePdfModal open={true} onClose={() => {}} students={students} />)
     expect(screen.getByText('2 candidates')).toBeTruthy()
-    expect(screen.getByRole('button', { name: /Print \/ Save as PDF/i })).toBeTruthy()
+    expect(screen.getByText('Alice Verma')).toBeTruthy()
+    expect(screen.getByText('Bob Singh')).toBeTruthy()
+    expect(screen.getAllByRole('button', { name: /PNG/i })).toHaveLength(2)
+    expect(screen.getAllByRole('button', { name: /Copy/i })).toHaveLength(2)
   })
 
-  it('populates the print root with one profile page per selected student', () => {
-    const students = [{ name: 'Alice Verma', roll: '1A' }, { name: 'Bob Singh', roll: '2A' }]
-    render(
-      <ProfilePdfModal open={true} onClose={() => {}} students={students} columnDefs={columnDefs} getValue={getValue} />
-    )
-    const root = document.getElementById('profile-print-root')
-    expect(root.querySelectorAll('.profile-page')).toHaveLength(2)
-    expect(root.textContent).toContain('Alice Verma')
-    expect(root.textContent).toContain('Bob Singh')
+  it('downloads the card PNG when a candidate PNG button is clicked', async () => {
+    render(<ProfilePdfModal open={true} onClose={() => {}} students={[student({ name: 'Alice Verma' })]} />)
+    fireEvent.click(screen.getByRole('button', { name: /PNG/i }))
+    await waitFor(() => expect(downloadSpy).toHaveBeenCalledTimes(1))
+    // filename is "<Name> - IIFT Delhi.png"
+    expect(downloadSpy.mock.calls[0][1]).toMatch(/Alice_Verma - IIFT Delhi\.png/)
   })
 
-  it('invokes window.print when the print button is clicked', () => {
-    const printSpy = vi.spyOn(window, 'print').mockImplementation(() => {})
-    const students = [{ name: 'Alice', roll: '1A' }]
-    render(
-      <ProfilePdfModal open={true} onClose={() => {}} students={students} columnDefs={columnDefs} getValue={getValue} />
-    )
-    fireEvent.click(screen.getByRole('button', { name: /Print \/ Save as PDF/i }))
-    // requestAnimationFrame defers the call — flush it synchronously for the test
-    return new Promise(resolve => {
-      requestAnimationFrame(() => {
-        expect(printSpy).toHaveBeenCalled()
-        printSpy.mockRestore()
-        resolve()
-      })
-    })
+  it('copies the profile details when Copy is clicked', async () => {
+    const writeText = vi.fn(() => Promise.resolve())
+    Object.assign(navigator, { clipboard: { writeText } })
+    render(<ProfilePdfModal open={true} onClose={() => {}} students={[student({ name: 'Alice Verma' })]} />)
+    fireEvent.click(screen.getByRole('button', { name: /Copy/i }))
+    await waitFor(() => expect(writeText).toHaveBeenCalled())
+    expect(writeText.mock.calls[0][0]).toContain('Alice Verma')
   })
 
-  it('does not crash when a student has no meaningful data in any visible column', () => {
-    render(
-      <ProfilePdfModal open={true} onClose={() => {}} students={[{}]} columnDefs={columnDefs} getValue={getValue} />
-    )
-    const root = document.getElementById('profile-print-root')
-    expect(root.textContent).toContain('No additional details available')
+  it('does not crash for a student with minimal data', () => {
+    render(<ProfilePdfModal open={true} onClose={() => {}} students={[{ _id: 'z', cohort: '' }]} />)
+    expect(screen.getByText('1 candidate')).toBeTruthy()
+    expect(screen.getByRole('button', { name: /PNG/i })).toBeTruthy()
   })
 })

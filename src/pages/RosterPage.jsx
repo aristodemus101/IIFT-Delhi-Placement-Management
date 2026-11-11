@@ -344,9 +344,9 @@ export default function RosterPage() {
         <Btn
           size="sm" variant="ghost" onClick={() => setProfilePdfOpen(true)}
           disabled={!selectedIds.size}
-          title={selectedIds.size ? `Generate profile PDF for ${selectedIds.size} selected` : 'Select candidates first (checkbox column)'}
+          title={selectedIds.size ? `Download profile cards for ${selectedIds.size} selected` : 'Select candidates first (checkbox column)'}
         >
-          <FileDown size={13} /> Profile PDF{selectedIds.size ? ` (${selectedIds.size})` : ''}
+          <FileDown size={13} /> Profile Cards{selectedIds.size ? ` (${selectedIds.size})` : ''}
         </Btn>
         <Btn size="sm" variant="ghost" onClick={() => setActionsOpen(true)}>Actions</Btn>
         {isAdmin && (
@@ -774,9 +774,6 @@ export default function RosterPage() {
         open={profilePdfOpen}
         onClose={() => setProfilePdfOpen(false)}
         students={selectedStudents}
-        columnDefs={visibleDefs}
-        getValue={getCellValue}
-        batchLabel={scopedCohorts.length === 1 ? cohortLabel(scopedCohorts[0]) : `${scopedCohorts.length} cohorts`}
       />
 
       {/* Quick Profile — global lookup across ALL cohorts (uses full students list, not scoped) */}
