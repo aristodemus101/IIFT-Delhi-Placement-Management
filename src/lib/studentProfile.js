@@ -48,6 +48,11 @@ export function buildStudentProfile(student) {
     ugDegree,
     ugCollege,
     ugDegreeCollege,
+    // BD27 academic + SIP-project fields. These always appear on the card, with
+    // an "NA" fallback when the student has no value (per request).
+    major:         clean(getVal(student, 'major')) || 'NA',
+    minor:         clean(getVal(student, 'minor')) || 'NA',
+    sipProject:    clean(getVal(student, 'sip_project')) || 'NA',
     workEx:        clean(getVal(student, 'wx')),
     recentCompany: clean(getVal(student, 'c1_name')),
   }
@@ -73,7 +78,10 @@ export function profileToText(p, { institute = 'IIFT Delhi' } = {}) {
   field('Class XII', p.x12 ? `${p.x12}%` : '')
   field('UG Degree', p.ugDegreeCollege)
   field('UG Score', p.ug ? `${p.ug}%` : '')
+  field('Major', p.major)
+  field('Minor', p.minor)
   field('Work Experience', p.workEx ? `${p.workEx} months` : '')
+  field('SIP Project', p.sipProject)
   field('Most Recent Company', p.recentCompany)
   field('SIP Company', p.sipCompany)
   field('Final Company', p.finalCompany)

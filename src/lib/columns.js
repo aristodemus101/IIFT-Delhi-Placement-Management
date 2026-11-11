@@ -148,6 +148,18 @@ export const OUR_COLS = [
   { key: 'state_natl', label: 'State or National Level Achievement', path: r => pick(r, 'State or National Level Achievement') },
   { key: 'languages', label: 'Languages Known (Write all seperated by comma)', path: r => pick(r, 'Languages Known (Write all seperated by comma)', 'Languages Known (Comma Separated)') },
 
+  // ── Added via BD27 (batch 2027) — extra bio/academic columns ───────────────
+  // Stored on the student doc under their exact header labels (same convention
+  // as the other bio columns above). Added here so the Remapper can auto-map
+  // them and the column-visibility picker lists them.
+  { key: 'major',          label: 'Major',                          path: r => pick(r, 'Major') },
+  { key: 'minor',          label: 'Minor',                          path: r => pick(r, 'Minor') },
+  { key: 'cgpa_t3',        label: 'CGPA (Till Trimester 3)',        path: r => pick(r, 'CGPA (Till Trimester 3)') },
+  { key: 'sip_project',    label: 'SIP Project Details',            path: r => pick(r, 'SIP Project Details') },
+  { key: 'sip_domain',     label: 'SIP Company Domain',             path: r => pick(r, 'SIP Company Domain') },
+  { key: 'linkedin',       label: 'LinkedIn Profile URL',           path: r => pick(r, 'LinkedIn Profile URL') },
+  { key: 'photo',          label: 'Passport Size Photograph Link',  path: r => pick(r, 'Passport Size Photograph Link') },
+
   // ── Summer Internship (SIP) placement fields ──────────────────────────────
   // Stored in _placement_summer.* after import; also readable from raw SIP headers.
   { key: 'sip_status',   label: 'SIP Status',                    path: r => pick(r, 'SIP Status') || (r._placed_summer ? 'Placed' : '') },
@@ -215,6 +227,14 @@ export const SYNONYMS = {
   sip_via:     ['sip via', 'placed via', 'summer placed via', 'how placed'],
   sip_date:    ['dop', 'date of placement', 'sip date', 'summer date', 'joining date'],
   sip_notes:   ['sip roles', 'sip responsibilities', 'summer responsibilities', 'internship responsibilities'],
+  // ── BD27 (batch 2027) extra columns ──
+  major:       ['major', 'specialization major', 'major specialization', 'area of major'],
+  minor:       ['minor', 'specialization minor', 'minor specialization', 'area of minor'],
+  cgpa_t3:     ['cgpa till trimester 3', 'cgpa t3', 'cgpa (till trimester 3)', 'current cgpa', 'cgpa'],
+  sip_project: ['sip project details', 'sip project', 'summer project details', 'summer project', 'internship project details'],
+  sip_domain:  ['sip company domain', 'summer company domain', 'sip domain'],
+  linkedin:    ['linkedin profile url', 'linkedin url', 'linkedin', 'linkedin profile'],
+  photo:       ['passport size photograph link', 'photograph link', 'photo link', 'passport photo', 'profile photo'],
 }
 
 // Date column keys — coerce Excel serials to ISO at display time

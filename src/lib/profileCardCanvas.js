@@ -91,8 +91,13 @@ export function drawProfileCard(profile, { institute = 'IIFT DELHI' } = {}) {
     { label: 'Class XII', value: profile.x12 ? `${profile.x12}%` : '' },
     { label: 'UG Score', value: profile.ug ? `${profile.ug}%` : '' },
     { label: 'Work Experience', value: profile.workEx ? `${profile.workEx} months` : '' },
+    // Major / Minor always show (NA fallback already applied in buildStudentProfile).
+    { label: 'Major', value: profile.major },
+    { label: 'Minor', value: profile.minor },
     { label: 'UG Degree & College', value: profile.ugDegreeCollege, full: true },
     { label: 'Most Recent Company', value: profile.recentCompany, full: true },
+    // SIP project can be long — allow up to 3 wrapped lines.
+    { label: 'SIP Project', value: profile.sipProject, full: true, maxLines: 3 },
   ].filter(f => f.value)
 
   const chips = []
@@ -117,7 +122,7 @@ export function drawProfileCard(profile, { institute = 'IIFT DELHI' } = {}) {
     h += Math.ceil(halfFields.length / 2) * ROW_H
     for (const f of fullFields) {
       mctx.font = `600 15px ${FONT}`
-      const lines = wrapText(mctx, f.value, W - PAD * 2, 2)
+      const lines = wrapText(mctx, f.value, W - PAD * 2, f.maxLines || 2)
       h += FULL_LABEL_H + lines.length * FULL_LINE_H + 12
     }
     return h + 10
@@ -226,7 +231,7 @@ export function drawProfileCard(profile, { institute = 'IIFT DELHI' } = {}) {
       ctx.fillText(f.label.toUpperCase(), PAD, y)
       ctx.fillStyle = COLORS.value
       ctx.font = `600 15px ${FONT}`
-      const lines = wrapText(ctx, String(f.value), W - PAD * 2, 2)
+      const lines = wrapText(ctx, String(f.value), W - PAD * 2, f.maxLines || 2)
       lines.forEach((ln, i) => ctx.fillText(ln, PAD, y + FULL_LABEL_H + 4 + i * FULL_LINE_H))
       y += FULL_LABEL_H + lines.length * FULL_LINE_H + 12
     })

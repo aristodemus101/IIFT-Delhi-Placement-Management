@@ -68,6 +68,18 @@ describe('buildStudentProfile', () => {
     expect(buildStudentProfile(student({ 'UG Degree (Eg: Btech, BBA, B.com, etc.)': '' })).ugDegreeCollege).toBe('Fergusson College')
   })
 
+  it('extracts BD27 Major / Minor / SIP Project, with NA fallback when missing', () => {
+    const withVals = buildStudentProfile(student({ Major: 'Marketing', Minor: 'Finance', 'SIP Project Details': 'Grew sales 14%' }))
+    expect(withVals.major).toBe('Marketing')
+    expect(withVals.minor).toBe('Finance')
+    expect(withVals.sipProject).toBe('Grew sales 14%')
+
+    const missing = buildStudentProfile(student())
+    expect(missing.major).toBe('NA')
+    expect(missing.minor).toBe('NA')
+    expect(missing.sipProject).toBe('NA')
+  })
+
   it('maps BA cohort programme label', () => {
     const p = buildStudentProfile(student({ cohort: '28-Delhi-BA' }))
     expect(p.course).toBe('MBA (BA)')
