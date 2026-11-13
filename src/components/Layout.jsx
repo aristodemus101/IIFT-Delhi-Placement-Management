@@ -514,6 +514,22 @@ export default function Layout() {
         </div>
       </div>
 
+      {/* Workspace action bar — on mobile the wide-layout toolbar is hidden, so
+          render the page's actions (Quick Profile, Columns, Export, Profile
+          Cards, Actions, Import…) here in a horizontally-scrollable strip. */}
+      {workspaceActions && (
+        <div className="mobile-action-bar" style={{
+          flexShrink: 0, borderBottom: '1px solid var(--border)', background: 'var(--surface)',
+          display: 'flex', alignItems: 'center', gap: 8,
+          padding: '8px 16px', overflowX: 'auto', WebkitOverflowScrolling: 'touch',
+        }}>
+          {/* Keep each action at its natural width so the strip scrolls instead
+              of squishing the buttons. */}
+          <style>{`.mobile-action-bar > * { flex: 0 0 auto; }`}</style>
+          {workspaceActions}
+        </div>
+      )}
+
       {/* Page content — full width, always visible */}
       <div style={{ flex: 1, overflow: 'auto', minHeight: 0, background: 'var(--surface)' }}>
         <Outlet context={{ setWorkspaceActions }} />
